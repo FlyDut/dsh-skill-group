@@ -108,6 +108,12 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     )
   }
 
+  // 模式编辑器与 detail / 场景编辑器同类：整页替换，因此在这里提前返回。
+  // 它只有从「模式」tab 点「配置」才会进入，此时不会有 tab 可切。
+  if (hub.scopeFlow.editingPreset !== null) {
+    return <ScopesView hub={hub} />
+  }
+
   /** 生效中的筛选条件数（来源 + 调用方式），显示在「筛选」按钮上。 */
   const activeFilterCount = (sourceFilter !== 'all' ? 1 : 0) + (hub.invocationFilter !== 'all' ? 1 : 0)
 

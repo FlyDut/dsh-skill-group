@@ -4,8 +4,13 @@
  * 两种状态：**列表态**（每个 agent preset 一行：策略摘要、接线状态、配置入口）
  * 与**编辑态**（按分组/单技能勾选白名单 + 实时预览该模式下会隐藏什么）。
  *
- * 结构与同类子页 `TagEditorView` 保持一致：根是 `css.panel`，内容按卡片
- * （`css.section`）分组，卡片内的行一律写 `css.row + ' ' + css.rowStatic`，
+ * 两种状态的根元素不同，取决于它是内联还是整页替换：
+ *   · 列表态 = 内联 tab 视图 → 根是 Fragment，只吐 `css.section` 卡片
+ *     （与 `SourcesView` / `ScenesView` / `MarketView` 一致）；
+ *   · 编辑态 = 整页子视图 → 根是 `css.panel`，由 `SkillHubPanel` 提前返回
+ *     （与 `TagEditorView` / `SkillDetailView` 一致）。
+ *
+ * 卡片内的行一律写 `css.row + ' ' + css.rowStatic`，
  * 名字/描述用 `css.rowName` + `css.rowDesc`，状态用 `css.badge`，主操作用
  * `css.button + css.primary`。
  *
@@ -42,28 +47,32 @@ export function ScopesView(props: { hub: SkillHubState }): JSX.Element {
   )
 
   // ---------------------------------------------------------------- 列表态
+  // 这是**内联** tab 视图（渲染在主面板内部），所以根必须是 Fragment，
+  // 只吐出 .section 卡片——与 SourcesView / ScenesView / MarketView 一致。
+  // 这里若再套一层 .panel，就会嵌套出第二份 padding 与 max-width:720px;
+  // margin:0 auto，卡片被压窄居中、文字越界被裁。
 
   if (flow.editingPreset === null) {
     const state = flow.scopeState
-    if (state === null) return <div className={css.panel}><p className={css.empty}>{tt('scope.loading')}</p></div>
+    if (state === null) return <p className={css.empty}>{tt('scope.loading')}</p>
     if (!state.available) {
       return (
-        <div className={css.panel}>
+        <>
           <p className={css.empty}>{tt('scope.unavailable', { reason: state.unavailableReason ?? 'unknown' })}</p>
           <p className={css.hintLine}>{tt('scope.unavailableHint')}</p>
-        </div>
+        </>
       )
     }
     if (state.presets.length === 0) {
       return (
-        <div className={css.panel}>
+        <>
           <p className={css.empty}>{tt('scope.empty')}</p>
           <p className={css.hintLine}>{tt('scope.emptyHint')}</p>
-        </div>
+        </>
       )
     }
     return (
-      <div className={css.panel}>
+      <>
         {state.pendingCount > 0 ? <p className={css.hintLine}>{tt('scope.pendingNotice', { count: state.pendingCount })}</p> : null}
         <div className={css.section}>
           {state.presets.map((row) => (
@@ -71,11 +80,14 @@ export function ScopesView(props: { hub: SkillHubState }): JSX.Element {
           ))}
         </div>
         <p className={css.hintLine}>{tt('scope.listHint')}</p>
-      </div>
+      </>
     )
   }
 
   // ---------------------------------------------------------------- 编辑态
+  // 这是**整页替换**的子视图（与 TagEditorView / SkillDetailView 同类）：根是
+  // .panel，并由 SkillHubPanel 在 editingPreset 非空时提前返回，因此它不会
+  // 嵌在主面板里。
 
   const row = flow.editingPreset
   const visibleCount = flow.scopePreview?.visible.length ?? 0
