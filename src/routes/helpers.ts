@@ -36,6 +36,8 @@ export {
 export type {
   SkillHubRouteDeps,
   SkillLookupLike,
+  ScopeRouteDeps,
+  ScopePresetSnapshot,
   WritableSkill,
   WritableSkillRefusal,
   WritableSkillResult,

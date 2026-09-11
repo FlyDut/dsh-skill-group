@@ -25,6 +25,7 @@ import { TagEditorView } from './TagEditorView.tsx'
 import { SourcesView } from './SourcesView.tsx'
 import { ScenesView } from './ScenesView.tsx'
 import { MarketView } from './MarketView.tsx'
+import { ScopesView } from './ScopesView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
 import { useSkillHub } from './useSkillHub.ts'
 import css from './panel.module.css'
@@ -155,6 +156,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           <button type='button' className={css.segBtn + (tab === 'sources' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('sources') }}>{tt('view.sources')}</button>
           <button type='button' className={css.segBtn + (tab === 'scenes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scenes') }}>{tt('view.scenes')}</button>
           <button type='button' className={css.segBtn + (tab === 'market' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('market'); void loadMarket() }}>{tt('view.market')}</button>
+          <button type='button' className={css.segBtn + (tab === 'scopes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scopes'); void hub.scopeFlow.loadScopes() }}>{tt('scope.tab')}</button>
         </span>
         <span className={css.workspaceBox}>
           <input
@@ -235,6 +237,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
 
       {tab === 'market' ? (
         <MarketView hub={hub} />
+      ) : tab === 'scopes' ? (
+        // 模式视图是自成一体的列表 + 编辑器，不共享目录筛选栏。
+        <ScopesView hub={hub} />
       ) : catalog !== null ? (
         <>
           <div className={css.filterBar}>

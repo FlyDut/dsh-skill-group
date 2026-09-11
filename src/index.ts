@@ -1,10 +1,25 @@
 /**
- * dsh-skill-hub — host half. Mounts the /api/skill-hub route family (full
- * skill catalog from the official ctx.skills registry, skill detail,
- * enable/disable toggle, new-skill scaffold) plus a system-prompt
- * announcement. The browser half (./client) renders the sidebar entry and
- * the skill hub panel. Everything rides official NPM SDK packages — no dsh
- * source changes.
+ * dsh-skill-hub — host half，也是整个插件的组装点。
+ *
+ * 插件要完成的任务只有一句：**策展本地技能在 DSH 里的呈现与可用性**。
+ * 代码按四条职责链分层，数据只向下流：
+ *
+ *   ① 发现 Discovery     技能事实从哪来                    skillfs/ · provider.ts
+ *                        只读扫描，不产生任何副作用。
+ *   ② 策展 Curation      用户希望技能世界长什么样           store/ · domain/ · protocol/
+ *                        纯数据 + 纯函数（展开与判定可穷举单测）。
+ *   ③ 执行 Enforcement   把策展意图落到运行时               enforcement/
+ *                        副作用全部集中在这里：
+ *                        · Disabled  = 重命名发现文件（全局硬禁用，routes/catalog.ts）
+ *                        · Scope     = 往 preset 的 standing 作用域注入闸门（模式级软屏蔽）
+ *   ④ 呈现 Surface       让用户表达与看见                   routes/ · client/
+ *
+ * 本文件只做组装：把 store（②）装配进 ScopeView（②的判定），把 ScopeView 与
+ * 运行时能力装配成 PresetWiring（③），再把二者作为路由依赖交给 makeRoutes（④）、
+ * 把中英公告交给 systemPrompt。它自己不实现任何业务规则。
+ *
+ * 浏览器半边（./client）渲染设置页里的面板与侧栏入口。全部能力都走官方 NPM
+ * SDK 包，不改 dsh 源码，也不写用户的 preset 文件。
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -16,9 +31,14 @@ import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-settings'
-import { HUB_CONFIG_DEFAULTS, HEX_COLOR_RE, type HubConfig, type HubSettingsValue } from './protocol.ts'
+import { HUB_CONFIG_DEFAULTS, HEX_COLOR_RE, collectionKey, sourceKey, tagKey, type HubConfig, type HubSettingsValue } from './protocol.ts'
+import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './domain/scope-view.ts'
+import { PresetWiring, loadScopeRuntime } from './enforcement/scope-wiring.ts'
+import { readPresetRoster } from './enforcement/roster.ts'
 import { SkillHubProvider } from './provider.ts'
-import { makeRoutes } from './routes.ts'
+import { buildCollections } from './routes/collection.ts'
+import { workspaceEntries } from './routes/catalog-data.ts'
+import { makeRoutes, type ScopeRouteDeps } from './routes.ts'
 import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike, type SessionQueryLike, type SkillStatsReader } from './stats.ts'
 import { SkillHubStore } from './store.ts'
 import { cleanupLeftoverImportDirs, setGithubToken } from './repo.ts'
@@ -86,10 +106,16 @@ export const HubSettingsSchema: z<HubSettingsValue> = z.object({
 /** Order of the announcement section within the tool-guidance band. */
 const SECTION_ORDER = 152
 
+/**
+ * 模式隔离的接线轮询间隔。只做一件很便宜的事：枚举当前活着的 preset
+ * standing mount 并补齐/清理闸门注入。首个注入之后它几乎总是无操作。
+ */
+const SCOPE_WIRING_TICK_MS = 5000
+
 /** Model-facing announcement: plugin presence, capabilities, and limits. */
 export const SKILL_HUB_GUIDANCE = [
-  '本机已安装 dsh-skill-hub 插件（DSH Web GUI 技能中枢）：设置 →「技能」分区为管理主页；设置 → 插件列表中有本插件的配置卡片（启用/公告开关）。能力：完整本地技能目录（项目/自定义/用户/内置全部来源，走官方 ctx.skills 注册表，含第三方 provider）；按来源与自定义分组浏览，分组/来源头部的滑动开关可一键启用/禁用整组（跨组冲突时询问）；市场：内置市场目录（精选仓库一键添加）加自定义仓库源，扫描后勾选安装，每个市场源行显示已装/可更新/上游已删数量，支持「检查全部」与「全部更新」；来源跟踪：从 GitHub 仓库（市场源或直接地址）导入的技能记录上游 repo/commit 快照，可检查更新、选择同步、上游删除时跟进删除（移入回收站可恢复，恢复后保留来源与场景归属）；个人技能（无来源记录）不跟踪；调用次数与最近使用时间统计；查看技能正文；发现诊断；新建技能向导（写入 ~/.dsh/skills 或 ~/.agents/skills）。限制：仅用户级技能（user-dsh/user-agents 根目录）可写，项目/内置/运行时技能只读展示；路由仅回环可访问。用户提到「技能管理 / 技能列表 / 技能开关 / 技能同步 / 技能市场 / 更新技能 / 新建技能」时即指本插件，请据此协作。',
-  'The dsh-skill-hub plugin is installed (the DSH Web GUI skill hub): Settings → "Skills" is the management page; Settings → Plugins lists this plugin\'s configuration card (enable / announcement toggles). Capabilities: full local skill catalog (project / custom / user / bundled roots via the official ctx.skills registry, including third-party providers); browsing by source and custom groups, each group header carrying a sliding switch to enable/disable the whole group in one click (cross-group conflicts prompt the user); market: a built-in catalog of curated repos (one-click add) plus custom repo sources, scan-and-install import, per-source installed / updatable / deleted-upstream badges with "check all" and "update all" actions; upstream source tracking: skills imported from GitHub repos (market sources or direct URLs) record the repo/commit snapshot, support update checks, selective sync, and follow-up deletion when the upstream removes a skill (moves it into a restorable trash; restoring keeps the source and scene membership); personal skills (no source record) are never tracked; invocation counts and last-used times; skill body inspection; discovery diagnostics; new-skill wizard (writes to ~/.dsh/skills or ~/.agents/skills). Limits: only user-level skills (user-dsh/user-agents roots) are writable; project/bundled/runtime skills are read-only; routes are loopback-only. When the user mentions "skill management / skill list / skill toggle / skill sync / skill market / update skills / new skill", this plugin is what they mean — collaborate accordingly.'
+  '本机已安装 dsh-skill-hub 插件（DSH Web GUI 技能中枢）：设置 →「技能」分区为管理主页；设置 → 插件列表中有本插件的配置卡片（启用/公告开关）。能力：完整本地技能目录（项目/自定义/用户/内置全部来源，走官方 ctx.skills 注册表，含第三方 provider）；按来源与自定义分组浏览，分组/来源头部的滑动开关可一键启用/禁用整组（跨组冲突时询问）；市场：内置市场目录（精选仓库一键添加）加自定义仓库源，扫描后勾选安装，每个市场源行显示已装/可更新/上游已删数量，支持「检查全部」与「全部更新」；来源跟踪：从 GitHub 仓库（市场源或直接地址）导入的技能记录上游 repo/commit 快照，可检查更新、选择同步、上游删除时跟进删除（移入回收站可恢复，恢复后保留来源与场景归属）；个人技能（无来源记录）不跟踪；调用次数与最近使用时间统计；查看技能正文；发现诊断；新建技能向导（写入 ~/.dsh/skills 或 ~/.agents/skills）。模式级技能隔离：设置 →「技能」→「模式」把场景/来源分组或单个技能绑到某个 agent preset 上；该模式启用隔离后，只有勾选的技能对它的会话可见（模型目录与显式调用同时失效），其他模式完全不受影响；实现方式是把一个遮蔽 provider 接进该 preset 的作用域，不改任何 preset 文件，也不动技能文件。全局禁用与模式隔离正交：前者让技能在所有模式消失，后者只在指定模式消失。限制：仅用户级技能（user-dsh/user-agents 根目录）可写，项目/内置/运行时技能只读展示；路由仅回环可访问。用户提到「技能管理 / 技能列表 / 技能开关 / 技能同步 / 技能市场 / 更新技能 / 新建技能」时即指本插件，请据此协作。',
+  'The dsh-skill-hub plugin is installed (the DSH Web GUI skill hub): Settings → "Skills" is the management page; Settings → Plugins lists this plugin\'s configuration card (enable / announcement toggles). Capabilities: full local skill catalog (project / custom / user / bundled roots via the official ctx.skills registry, including third-party providers); browsing by source and custom groups, each group header carrying a sliding switch to enable/disable the whole group in one click (cross-group conflicts prompt the user); market: a built-in catalog of curated repos (one-click add) plus custom repo sources, scan-and-install import, per-source installed / updatable / deleted-upstream badges with "check all" and "update all" actions; upstream source tracking: skills imported from GitHub repos (market sources or direct URLs) record the repo/commit snapshot, support update checks, selective sync, and follow-up deletion when the upstream removes a skill (moves it into a restorable trash; restoring keeps the source and scene membership); personal skills (no source record) are never tracked; invocation counts and last-used times; skill body inspection; discovery diagnostics; new-skill wizard (writes to ~/.dsh/skills or ~/.agents/skills). Mode-level skill isolation: Settings → Skills → Modes binds scenes, source collections, or individual skills to an agent preset; once a mode enables isolation, only the checked skills stay visible to its sessions (both the model catalog and explicit loads stop working for the rest) while every other mode is untouched. It works by attaching a shadowing provider to that preset scope — no preset file is edited and no skill file is touched. Global disabling and mode isolation are orthogonal: the former hides a skill everywhere, the latter only in the named modes. Limits: only user-level skills (user-dsh/user-agents roots) are writable; project/bundled/runtime skills are read-only; routes are loopback-only. When the user mentions "skill management / skill list / skill toggle / skill sync / skill market / update skills / new skill", this plugin is what they mean — collaborate accordingly.'
 ].join('\n\n')
 
 /**
@@ -123,6 +149,109 @@ export function apply(ctx: Context, config?: Config): void {
   // is present (see the soft inject below). Absent deployments just omit the
   // stats route's data rather than failing to load.
   let stats: SkillStatsReader | undefined
+  // `ctx.agentPresets`, read through a soft inject: a deployment that mounts
+  // no preset roster simply has no modes to configure, and the hub's other
+  // surfaces must not care. The value is held (not snapshotted) so a hot
+  // reload is picked up by the next read.
+  let agentPresets: unknown
+
+  // ── 模式级技能隔离 ────────────────────────────────────────────────────
+  // 三层各归其位：策展数据在 store（策略），判定在 ScopeView（纯计算 + 目录
+  // 快照），运行时效果在 PresetWiring（把闸门接进每个 preset 的 standing
+  // 作用域）。它们都不改用户的 preset 文件，也不改技能文件。
+  const scopeView = new ScopeView({
+    // 目录快照 = 所有已知工作区的并集，剔除全局硬禁用的技能。硬禁用优先：
+    // 文件已被改名，any 模式下都不该出现，因此它既不在可见集也不在隐藏集里。
+    catalog: async (): Promise<ScopeCatalogSnapshot> => {
+      const disabledNames = new Set((await store.listDisabled()).map((entry) => entry.name))
+      const meta = new Map<string, ScopeSkillMeta>()
+      const workspaces = await workspaceEntries(dshHome())
+      for (const cwd of [undefined, ...workspaces.map((workspace) => workspace.path)]) {
+        let snapshot: { skills: Array<{ name: string; description: string; whenToUse?: string; source: string }> }
+        try {
+          snapshot = await ctx.skills.snapshot(cwd === undefined ? undefined : { cwd })
+        } catch {
+          continue // 单个工作区读失败不影响其余目录
+        }
+        for (const skill of snapshot.skills) {
+          if (disabledNames.has(skill.name) || meta.has(skill.name)) continue
+          meta.set(skill.name, {
+            description: skill.description,
+            ...(skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {}),
+            source: skill.source,
+          })
+        }
+      }
+      return { names: [...meta.keys()].sort((a, b) => a.localeCompare(b)), meta }
+    },
+    // 分组键 → 成员：场景 tag、来源集合、以及来源根（面板三类勾选项共用一份表）。
+    groups: async (snapshot) => {
+      const members = new Map<string, readonly string[]>()
+      for (const tag of await store.listTags()) members.set(tagKey(tag.id), tag.skillNames)
+      const collections = buildCollections(await store.listOrigins(), await store.getCollectionOrder())
+      for (const collection of collections) members.set(collectionKey(collection.name), collection.skillNames)
+      const bySource = new Map<string, string[]>()
+      for (const name of snapshot.names) {
+        const source = snapshot.meta.get(name)?.source
+        if (source === undefined) continue
+        const list = bySource.get(source)
+        if (list === undefined) bySource.set(source, [name])
+        else list.push(name)
+      }
+      for (const [source, names] of bySource) members.set(sourceKey(source), names)
+      return members
+    },
+    policyOf: (presetId) => store.getScope(presetId),
+  })
+
+  const wiring = new PresetWiring({
+    ctx,
+    runtime: loadScopeRuntime,
+    isEnforced: async (presetId) => (await store.getScope(presetId))?.enabled === true,
+    hiddenOf: (presetId) => scopeView.hiddenOf(presetId),
+    log: (level, message) => {
+      if (level === 'warn') ctx.logger.warn('[dsh-skill-hub] ' + message)
+      else ctx.logger.info('[dsh-skill-hub] ' + message)
+    },
+  })
+
+  const scopeDeps: ScopeRouteDeps = {
+    presets: async () => {
+      // 读接口顺带推一轮接线：面板一打开，新挂载的 preset 就会被接上，
+      // 用户不必等下一个定时 tick。
+      void wiring.sync()
+      const status = await wiring.status()
+      const roster = await readPresetRoster(agentPresets)
+      const unavailable = roster === undefined
+        ? 'agent-presets service is not mounted in this deployment'
+        : undefined
+      return {
+        available: status.available && roster !== undefined,
+        ...(status.reason !== undefined ? { reason: status.reason } : unavailable !== undefined ? { reason: unavailable } : {}),
+        entries: roster ?? [],
+        active: status.active,
+        mounted: status.mounted,
+      }
+    },
+    visibilityOf: (presetId) => scopeView.visibilityOf(presetId),
+    policyOf: (presetId) => store.getScope(presetId),
+    savePolicy: async (presetId, patch) => {
+      const policy = await store.saveScope(presetId, patch)
+      scopeView.invalidate()
+      return policy
+    },
+    deletePolicy: async (presetId) => {
+      const removed = await store.deleteScope(presetId)
+      scopeView.invalidate()
+      return removed
+    },
+    notifyPolicyChanged: (presetId) => {
+      // 让已接线的闸门立刻丢掉完成的目录缓存：会话的下一个 turn 就生效，
+      // 不需要重启，也不需要新会话。
+      wiring.invalidate(presetId)
+      void wiring.sync()
+    },
+  }
 
   // The raw saved config layer (fields the user explicitly overrode); the
   // config route reports it so callers can mark overridden fields.
@@ -195,11 +324,18 @@ export function apply(ctx: Context, config?: Config): void {
         const disposers = makeRoutes({
           skills: ctx.skills,
           store,
-          invalidate: () => { providerControl?.invalidate() },
+          // 目录/分组在 hub 之外发生变化时的统一失效点：注册表缓存、模式视图
+          // 缓存、以及每个已接线闸门的收集缓存都要跟着走。
+          invalidate: () => {
+            providerControl?.invalidate()
+            scopeView.invalidate()
+            wiring.invalidateAll()
+          },
           stats,
           config: current,
           saved,
           updateConfig,
+          scopes: scopeDeps,
         }).map((route) => ctx.webServer.register(route))
         return () => {
           for (const dispose of disposers) dispose()
@@ -207,6 +343,8 @@ export function apply(ctx: Context, config?: Config): void {
       },
       'dsh-skill-hub: routes',
     )
+    // 接线器只在主开关打开时干活：关掉插件就不该继续往 preset 作用域里注入。
+    if (value.enabled) void wiring.sync()
   }
 
   // Initial registration from the composition entry, then re-sync whenever
@@ -217,6 +355,30 @@ export function apply(ctx: Context, config?: Config): void {
     () => settingsScope.watch(() => { sync() }),
     'dsh-skill-hub: settings config watch',
   )
+
+  // ── 模式隔离的接线触发点 ──────────────────────────────────────────────
+  // 一个 preset 只有在**被某个会话用过**之后才有 standing mount，也才有可接
+  // 的作用域。所以接线是持续性的：这里用三个互补的触发点覆盖它，任一先到即可
+  // ——① 打开设置面板（/presets 读接口顺带推一轮）；② 下面的定时 tick 兜底；
+  // ③ 策略保存后立即推一轮。最坏情况下，新挂载的模式在下一轮 tick 前按"不隔离"
+  // 运行，绝不会误伤。
+  const wiringTick = setInterval(() => { void wiring.sync() }, SCOPE_WIRING_TICK_MS)
+  wiringTick.unref?.()
+  ctx.effect(
+    () => () => {
+      clearInterval(wiringTick)
+      void wiring.dispose()
+    },
+    'dsh-skill-hub: scope wiring',
+  )
+
+  // `ctx.agentPresets` 是可选依赖：缺席的部署只是没有"模式"可配，插件的其余
+  // 表面完全不受影响（与 sessionQuery 的软注入同一模式）。服务到位后重新
+  // sync 一次，让 /presets 立刻能报出名单。
+  ctx.inject(['agentPresets'] as unknown as ['skills'], (pctx) => {
+    agentPresets = (pctx as unknown as { agentPresets?: unknown }).agentPresets
+    sync()
+  })
 
   // One-time migration: an install upgraded from the sidecar-configured
   // build seeds the settings namespace from the saved sidecar config when the
@@ -316,6 +478,12 @@ export function apply(ctx: Context, config?: Config): void {
         },
       })
       if (generation !== statsGeneration) return
+      // The fiber can be torn down while the checkpoint read / reader build is
+      // in flight (a live patch reload restarts the plugin, or the host is
+      // shutting down). Registering effects on a disposed context throws
+      // INACTIVE_EFFECT, which the host surfaces as a fatal, process-wide load
+      // failure — so drop this stale wiring instead of re-syncing.
+      if (ctx.fiber.uid === null) return
       ctx.logger.info(`[dsh-skill-hub] stats seam: ${cold === undefined ? 'session-query (fallback)' : 'session-persistence (cold)'}`)
       stats = reader
       sync()

@@ -1,9 +1,10 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
 import { StoreError } from './errors.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
 import { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './paths.ts'
+import { normalizeScopePolicy } from '../protocol/scopes.ts'
 
 /** Sidecar state owner. */
 export class SkillHubStore {
@@ -17,6 +18,8 @@ export class SkillHubStore {
   private marketStats: MarketStatsSnapshot | undefined = undefined
   private collectionOrder: string[] = []
   private sourceGroupOrder: string[] = []
+  /** v5: 模式（preset）→ 技能可见性策略；缺席的 preset 不做隔离。 */
+  private scopesByPreset = new Map<string, ScopePolicy>()
   private loaded = false
   /** Serializes persist runs: concurrent mutators must not let an earlier
    *  snapshot overwrite a later one (rename is atomic, ordering is not). */
@@ -45,6 +48,7 @@ export class SkillHubStore {
         this.marketStats = state.marketStats
         this.collectionOrder = state.collectionOrder
         this.sourceGroupOrder = state.sourceGroupOrder
+        this.scopesByPreset = new Map(state.scopes.map((policy) => [policy.presetId, policy] as const))
       }
     } catch (error) {
       // Missing or unreadable state starts empty; never crash the plugin.
@@ -245,6 +249,60 @@ export class SkillHubStore {
     this.sourceGroupOrder = uniq
     await this.persist()
     return [...this.sourceGroupOrder]
+  }
+
+  // ------------------------------------------------------------- scopes
+
+  /** 全部模式策略，按 presetId 排序。 */
+  async listScopes(): Promise<ScopePolicy[]> {
+    await this.ensureLoaded()
+    return [...this.scopesByPreset.values()].sort((a, b) => a.presetId.localeCompare(b.presetId))
+  }
+
+  /** 一个模式的策略；没有保存过时返回 undefined（= 不隔离）。 */
+  async getScope(presetId: string): Promise<ScopePolicy | undefined> {
+    await this.ensureLoaded()
+    const found = this.scopesByPreset.get(presetId)
+    return found === undefined ? undefined : { ...found, groups: [...found.groups], skills: [...found.skills] }
+  }
+
+  /**
+   * 保存一个模式的策略（部分更新；缺席字段保持现值）。
+   *
+   * 新建时 `enabled` 默认 false —— 保存一条"预览用"的策略不该立刻改变任何
+   * 会话能看到的东西，执行必须是用户的显式动作。`groups`/`skills` 提供时
+   * **整体替换**（面板送的是完整勾选状态）。
+   * @param presetId - 目标 preset；形状非法时抛 StoreError。
+   * @param patch - 要落地的字段。
+   * @returns 保存后的策略快照。
+   */
+  async saveScope(presetId: string, patch: { enabled?: boolean; groups?: string[]; skills?: string[] }): Promise<ScopePolicy> {
+    await this.ensureLoaded()
+    const normalized = normalizeScopePolicy({ presetId, enabled: patch.enabled, groups: patch.groups, skills: patch.skills })
+    if (normalized === undefined) throw new StoreError('validation', 'invalid preset id: ' + presetId)
+    const previous = this.scopesByPreset.get(presetId)
+    const next: ScopePolicy = {
+      presetId,
+      // 新建时只接受显式 true；已存在时保持现值。
+      enabled: patch.enabled ?? previous?.enabled ?? false,
+      groups: patch.groups !== undefined ? normalized.groups : (previous?.groups ?? []),
+      skills: patch.skills !== undefined ? normalized.skills : (previous?.skills ?? []),
+    }
+    this.scopesByPreset.set(presetId, next)
+    await this.persist()
+    return { ...next, groups: [...next.groups], skills: [...next.skills] }
+  }
+
+  /**
+   * 删除一个模式的策略（回到"不限制"）。
+   * @param presetId - 目标 preset。
+   * @returns 是否确实删掉了一条。
+   */
+  async deleteScope(presetId: string): Promise<boolean> {
+    await this.ensureLoaded()
+    if (!this.scopesByPreset.delete(presetId)) return false
+    await this.persist()
+    return true
   }
 
   // ------------------------------------------------------------ sources
@@ -521,6 +579,7 @@ export class SkillHubStore {
         ...(this.marketStats !== undefined ? { marketStats: this.marketStats } : {}),
         ...(this.collectionOrder.length > 0 ? { collectionOrder: [...this.collectionOrder] } : {}),
         ...(this.sourceGroupOrder.length > 0 ? { sourceGroupOrder: [...this.sourceGroupOrder] } : {}),
+        ...(this.scopesByPreset.size > 0 ? { scopes: [...this.scopesByPreset.values()] } : {}),
       }
       const tmp = this.file + '.tmp'
       await mkdir(dirname(this.file), { recursive: true })

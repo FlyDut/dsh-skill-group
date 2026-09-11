@@ -1,4 +1,5 @@
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import { normalizeScopePolicy } from '../protocol/scopes.ts'
 import { STORE_VERSION } from './paths.ts'
 
 /** Normalized raw sidecar document after schema migration (fields still unvalidated). */
@@ -14,6 +15,7 @@ export interface MigratedStore {
   marketStats?: unknown
   collectionOrder?: unknown
   sourceGroupOrder?: unknown
+  scopes?: unknown
 }
 
 /**
@@ -23,6 +25,8 @@ export interface MigratedStore {
  * value, commit snapshot empty — the first update check backfills it).
  * v2 to v3: market sources become records ({ repo, ref?, commitSha? })
  * instead of bare repo slugs, so a source can pin a release/branch version.
+ * v4 to v5: mode-level scope policies are a pure addition — older files lack
+ * the field, and the loader validates each row, so it passes through untouched.
  * Returns null when the file claims a newer schema than this plugin
  * understands, so the caller starts empty instead of risking data loss.
  */
@@ -79,6 +83,8 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     ...(record.marketStats !== undefined ? { marketStats: record.marketStats } : {}),
     ...(Array.isArray(record.collectionOrder) ? { collectionOrder: record.collectionOrder } : {}),
     ...(Array.isArray(record.sourceGroupOrder) ? { sourceGroupOrder: record.sourceGroupOrder } : {}),
+    // v5 (scopes) is a pure addition, same pattern as v4.
+    ...(record.scopes !== undefined ? { scopes: record.scopes } : {}),
   }
 }
 
@@ -94,6 +100,7 @@ export interface HydratedState {
   marketStats: MarketStatsSnapshot | undefined
   collectionOrder: string[]
   sourceGroupOrder: string[]
+  scopes: ScopePolicy[]
 }
 
 /** 小优化：统一的非空字符串数组清洗（去空、去重可选由调用方处理）。 */
@@ -293,5 +300,14 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
   const collectionOrder = cleanStringList(migrated.collectionOrder)
   const sourceGroupOrder = cleanStringList(migrated.sourceGroupOrder)
 
-  return { entries, config, tagsById, sourcesByRepo, marketSources, trashByName, skillStats, marketStats, collectionOrder, sourceGroupOrder }
+  // v5 模式策略：每条按 presetId 唯一，坏条目丢弃（与其余桶同一容错口径）。
+  const scopeByPreset = new Map<string, ScopePolicy>()
+  if (Array.isArray(migrated.scopes)) {
+    for (const entry of migrated.scopes as unknown[]) {
+      const policy = normalizeScopePolicy(entry)
+      if (policy !== undefined) scopeByPreset.set(policy.presetId, policy)
+    }
+  }
+
+  return { entries, config, tagsById, sourcesByRepo, marketSources, trashByName, skillStats, marketStats, collectionOrder, sourceGroupOrder, scopes: [...scopeByPreset.values()] }
 }

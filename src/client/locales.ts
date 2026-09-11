@@ -8,6 +8,7 @@
 import { enCommon, zhCommon } from './locales/common.ts'
 import { enDetail, zhDetail } from './locales/detail.ts'
 import { enMarket, zhMarket } from './locales/market.ts'
+import { enScopes, zhScopes } from './locales/scopes.ts'
 import { enSettings, zhSettings } from './locales/settings.ts'
 import { enSkills, zhSkills } from './locales/skills.ts'
 import { enSources, zhSources } from './locales/sources.ts'
@@ -18,6 +19,7 @@ export const zh = {
   ...zhMarket,
   ...zhSources,
   ...zhDetail,
+  ...zhScopes,
   ...zhSettings,
 } as const
 
@@ -30,6 +32,7 @@ export const en: Record<HubKey, string> = {
   ...enMarket,
   ...enSources,
   ...enDetail,
+  ...enScopes,
   ...enSettings,
 }
 

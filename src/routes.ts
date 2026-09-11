@@ -19,9 +19,10 @@ import { configRoutes } from './routes/config.ts'
 import { marketRoutes } from './routes/market.ts'
 import { repoImportRoutes } from './routes/repo-import.ts'
 import { groupRoutes } from './routes/groups.ts'
+import { scopeRoutes } from './routes/scopes.ts'
 import { sourceRoutes } from './routes/sources.ts'
 
-export type { SkillHubRouteDeps, SkillLookupLike } from './routes/helpers.ts'
+export type { SkillHubRouteDeps, SkillLookupLike, ScopeRouteDeps, ScopePresetSnapshot } from './routes/helpers.ts'
 
 /**
  * Build every /api/skill-hub route.
@@ -37,6 +38,7 @@ export function makeRoutes(deps: SkillHubRouteDeps): WebRoute[] {
     ...marketRoutes(deps),
     ...repoImportRoutes(deps),
     ...groupRoutes(deps),
+    ...scopeRoutes(deps),
     ...sourceRoutes(deps),
   ]
   return specs.map((spec) => createRoute(deps, spec))

@@ -24,6 +24,10 @@ import {
   type RepoImportProgressResponse,
   type RepoImportRequest,
   type RepoImportResponse,
+  type PresetsResponse,
+  type ScopePreviewResponse,
+  type ScopeSaveRequest,
+  type ScopeSaveResponse,
   type SkillDetail,
   type SkillDetailResponse,
   type SkillDeleteRequest,
@@ -295,5 +299,20 @@ export class SkillHubApi {
   /** Auto-fix a fixable diagnostic (e.g. unquoted colon). */
   fixDiagnostic(path: string): Promise<DiagnosticFixResponse> {
     return this.post<DiagnosticFixResponse>(SKILL_HUB_API.diagnosticFix, { path } satisfies DiagnosticFixRequest)
+  }
+
+  /** 模式名单 + 每个模式的策略、可见/隐藏计数与接线状态。 */
+  presets(): Promise<PresetsResponse> {
+    return this.get<PresetsResponse>(SKILL_HUB_API.presets)
+  }
+
+  /** 某个模式的可见性展开明细（编辑器预览）。 */
+  scopePreview(presetId: string): Promise<ScopePreviewResponse> {
+    return this.get<ScopePreviewResponse>(SKILL_HUB_API.scopePreview, '?presetId=' + encodeURIComponent(presetId))
+  }
+
+  /** 写入某个模式的策略（部分更新；reset 删除策略）。 */
+  saveScope(payload: ScopeSaveRequest): Promise<ScopeSaveResponse> {
+    return this.post<ScopeSaveResponse>(SKILL_HUB_API.scope, payload)
   }
 }

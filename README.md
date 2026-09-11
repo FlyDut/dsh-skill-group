@@ -28,17 +28,58 @@ Requires `Node ^22.19 || >=24` + dsh web (`0.1.5-rc.2`, `0.1.x` forward compatib
 
 ## Features
 
-**Settings → 技能** — 3 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update).
+**Settings → 技能** — 4 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update), **Modes** (per-preset skill isolation).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
 - **Organize** — scenes (tags) plus auto-aggregated source collections, all drag-reorderable and persisted in `~/.dsh/dsh-skill-hub.json`. Edit mode reveals delete/reorder without cluttering the read view.
+- **Mode isolation** — bind scenes, source collections, or individual skills to an **agent preset** (Settings → Skills → Modes). Once a mode enables isolation, only the checked skills stay visible to its sessions: both the model catalog and explicit loads stop working, and **every other mode is untouched**. No preset file is edited and no skill file is moved; turning it off restores access on the next turn.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
 - **Scaffold** — new-skill wizard writing to `~/.dsh/skills` or `~/.agents/skills` (`SKILL.md` template below).
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
 - **Settings card** — master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval; plus a self-update check against GitHub releases.
+
+## Mode-level skill isolation
+
+A dsh agent preset decides which plugins a session composes, and each preset supplies its own
+`skill-filesystem` for local discovery. **Groups** answer "how are skills organized"; **mode
+isolation** answers "which modes see which skills". It is orthogonal to the global toggle:
+
+| Concept | Scope | Semantics |
+| --- | --- | --- |
+| Global disable | every mode | renames the discovery file; the skill disappears everywhere (one-click restore) |
+| Group (scene / source collection) | panel only | pure view, never changes availability |
+| Mode isolation | one preset | soft shadow: files untouched, invisible only to that mode's sessions |
+
+Usage: Settings → Skills → Modes → pick a mode → check groups/skills → Save. The editor shows a
+live preview of how many skills stay visible in that mode.
+
+How it works (no dsh source changes, and your preset files are never written):
+
+1. `ctx.skills` is a scope-layered registry; an agent preset's standing mount owns one layer,
+   and layer wins over rank when catalogs merge — so a host-plane shadow can never beat a
+   preset's own candidates.
+2. The hub uses `livePresetMounts()` to find each mounted preset's standing scope key, then
+   `createScope()` with that same key: the registration lands in **that preset's layer** while
+   its lifetime stays owned by the hub (unloading the plugin detaches it).
+3. The gate answers with a **same-name shadow candidate** for every hidden skill: `rank: 0`
+   (lowest in the layer), both invocation flags false, and `get()` always `undefined`. So
+   `dsh-tool-skill`'s `<available_skills>` catalog and its `skill` tool both stop working —
+   the model can neither see nor load it.
+4. On a policy change the registry's catalog cache is invalidated, so it applies on the
+   session's **next turn** without a restart.
+
+Known limits:
+
+- A preset only has a standing mount after **some session has used it**. Until then it runs
+  unrestricted (the list marks it "not mounted") and attaches automatically within about five
+  seconds of first use.
+- Without `@deepseek-ai/dsh-agent-presets` / `dsh-scope`, or if their scope semantics change,
+  the whole capability degrades to a read-only preview with a stated reason. Nothing else in
+  the plugin is affected.
+- It is a soft shadow: the skill file stays on disk and other modes keep using it.
 
 ## Why not just the read-only browser?
 
@@ -75,7 +116,7 @@ GitHub repo ──scan/import──▶ ~/.dsh/skills
                     /api/skill-hub/* ──▶ Panel (Settings → 技能)
 ```
 
-Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`. Loopback-only routes (`127.0.0.1`/`localhost`), JSON.
+Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`, plus `livePresetMounts` / `createScope` for mode isolation (both official exports, loaded via dynamic `import()` and degrading on failure). Loopback-only routes (`127.0.0.1`/`localhost`), JSON.
 
 ## HTTP API
 
@@ -100,12 +141,15 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | `/api/skill-hub/repo/import/cancel` | POST | cancel job |
 | `/api/skill-hub/sources` etc. | GET/POST | list/check/sync/delete/restore/clear trash |
 | `/api/skill-hub/update` | GET | plugin latest release |
+| `/api/skill-hub/presets` | GET | mode roster + per-mode policy, counts, wiring state |
+| `/api/skill-hub/scope` | POST | write a mode policy (`reset: true` deletes it) |
+| `/api/skill-hub/scope/preview?presetId=` | GET | expansion detail for one mode |
 
 ## Development
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 176 tests, 9 suites
+npm test           # 302 tests, 18 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 

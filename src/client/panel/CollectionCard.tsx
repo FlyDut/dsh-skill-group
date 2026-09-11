@@ -37,6 +37,8 @@ export interface CollectionCardProps {
   /** 顶层排序位置边界（编辑模式显示上移/下移按钮）。 */
   canMoveUp: boolean
   canMoveDown: boolean
+  /** 把该集合当作可见性白名单的模式显示名（只含已启用隔离的模式）。 */
+  scopeModes?: readonly string[]
   /** 键盘排序：-1 上移，1 下移。 */
   onMove: (direction: -1 | 1) => void
   /** 正在检查的来源名。 */
@@ -76,7 +78,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           <span className={css.groupTitle}>
             <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>
             {' · ' + collection.skillNames.length}
-            <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} />
+            <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} scopeModes={props.scopeModes} />
           </span>
         </button>
         <span className={css.groupOps}>

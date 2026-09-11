@@ -73,6 +73,27 @@ export type {
   SourceGroupReorderResponse,
 } from './protocol/groups.ts'
 export type {
+  ScopePolicy,
+  PresetScopeRow,
+  PresetsResponse,
+  ScopeSaveRequest,
+  ScopeSaveResponse,
+  ScopePreviewResponse,
+} from './protocol/scopes.ts'
+export {
+  SCOPE_ENTRY_PREFIX,
+  MAX_SCOPE_ENTRIES,
+  PRESET_ID_RE,
+  tagKey,
+  collectionKey,
+  sourceKey,
+  skillKey,
+  parseScopeEntry,
+  normalizeScopePolicy,
+  cleanKeys,
+  cleanNames,
+} from './protocol/scopes.ts'
+export type {
   SourceRecord,
   TrashEntry,
   SourcesResponse,

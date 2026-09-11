@@ -35,6 +35,11 @@ export interface CatalogSkill {
   iconSmall?: string
   iconLarge?: string
   defaultPrompt?: string
+  /**
+   * 该技能在哪些模式下被隔离（这些模式的可见性白名单未包含它）。缺席表示
+   * 所有模式都能看到它——也是没有任何模式启用隔离时的唯一取值。
+   */
+  hiddenIn?: string[]
 }
 
 /** One disabled skill tracked by the hub sidecar (SKILL.md renamed away). */
@@ -80,6 +85,8 @@ export interface CatalogResponse {
   diagnostics: DiagnosticEntry[]
   /** Skill names that appeared in multiple roots (first wins, others hidden). Mirrors codex name_counts. */
   duplicateNames?: string[]
+  /** 当前启用隔离的模式 id（面板据此显示"N 个模式正在隔离技能"）；无则缺席。 */
+  scopePresets?: string[]
 }
 
 /** GET /api/skill-hub/skill */

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { SkillHubStore, statePath } from './store.ts'
+import { SkillHubStore, statePath, STORE_VERSION } from './store.ts'
 
 describe('SkillHubStore', () => {
   let dir: string
@@ -250,7 +250,7 @@ describe('SkillHubStore', () => {
     expect(await fresh.listDisabled()).toEqual([])
   })
 
-  it('migrates a v3 file (no skillStats) and persists a checkpoint round-trip at v4', async () => {
+  it('migrates a v3 file (no skillStats) and persists a checkpoint round-trip at the current version', async () => {
     // v3 旧文件：无 skillStats 字段 → 装载后检查点为空，写盘时版本升到当前。
     await writeFile(file, JSON.stringify({
       version: 3,
@@ -269,8 +269,69 @@ describe('SkillHubStore', () => {
     const reloaded = new SkillHubStore(file)
     expect(await reloaded.getSkillStatsState()).toEqual(checkpoint)
     const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; skillStats?: unknown }
-    expect(raw.version).toBe(4)
+    expect(raw.version).toBe(STORE_VERSION)
     expect(raw.skillStats).toEqual(checkpoint)
+  })
+
+  it('starts with no scope policies and treats an unconfigured preset as unrestricted', async () => {
+    // v4 旧文件没有 scopes 字段：装载后为空，且 getScope 返回 undefined，
+    // 语义是"该模式不隔离"——升级不能吞掉任何已有会话的技能。
+    await writeFile(file, JSON.stringify({
+      version: 4,
+      disabled: [],
+      tags: [{ id: 't1', name: '通用', skillNames: [], default: true }],
+    }), 'utf8')
+    expect(await store.listScopes()).toEqual([])
+    expect(await store.getScope('coding')).toBeUndefined()
+  })
+
+  it('round-trips a scope policy and keeps execution off unless explicitly enabled', async () => {
+    // 保存"预览用"的策略不得立刻改变任何会话：enabled 默认 false。
+    const created = await store.saveScope('coding', { groups: ['tag:t1'], skills: ['alpha-skill'] })
+    expect(created).toEqual({ presetId: 'coding', enabled: false, groups: ['tag:t1'], skills: ['alpha-skill'] })
+
+    const reloaded = new SkillHubStore(file)
+    expect(await reloaded.getScope('coding')).toEqual(created)
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; scopes?: unknown[] }
+    expect(raw.version).toBe(STORE_VERSION)
+    expect(raw.scopes).toEqual([created])
+  })
+
+  it('partially updates a scope policy: omitted fields keep their value', async () => {
+    await store.saveScope('coding', { groups: ['tag:t1'], skills: ['alpha-skill'], enabled: true })
+    const trimmed = await store.saveScope('coding', { skills: [] })
+    expect(trimmed).toEqual({ presetId: 'coding', enabled: true, groups: ['tag:t1'], skills: [] })
+    // 只翻开关时分组不变。
+    expect((await store.saveScope('coding', { enabled: false })).groups).toEqual(['tag:t1'])
+  })
+
+  it('normalizes scope entries and rejects an unusable preset id', async () => {
+    // 裸技能名收敛为 skill: 键；重复与空值去掉。
+    const policy = await store.saveScope('coding', { groups: ['tag:t1', 'alpha-skill', 'tag:t1', ''], skills: ['beta-skill', 'beta-skill'] })
+    expect(policy.groups).toEqual(['tag:t1', 'skill:alpha-skill'])
+    expect(policy.skills).toEqual(['beta-skill'])
+    await expect(store.saveScope('../escape', { groups: [] })).rejects.toThrow(/invalid preset id/)
+  })
+
+  it('deletes a scope policy, returning the preset to unrestricted', async () => {
+    await store.saveScope('coding', { enabled: true, groups: ['tag:t1'] })
+    expect(await store.deleteScope('coding')).toBe(true)
+    expect(await store.deleteScope('coding')).toBe(false)
+    expect(await store.getScope('coding')).toBeUndefined()
+  })
+
+  it('drops a corrupt scope row instead of failing the whole sidecar', async () => {
+    await writeFile(file, JSON.stringify({
+      version: 5,
+      disabled: [],
+      scopes: [
+        { presetId: 'coding', enabled: true, groups: ['tag:t1'], skills: [] },
+        { presetId: 42, enabled: true },
+        'garbage',
+        { enabled: true },
+      ],
+    }), 'utf8')
+    expect((await store.listScopes()).map((p) => p.presetId)).toEqual(['coding'])
   })
 
   it('drops a corrupt skillStats bucket instead of trusting bad counts', async () => {

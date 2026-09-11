@@ -132,6 +132,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
             <CollectionCard
               key={'col:' + collection.name}
               collection={collection}
+              scopeModes={hub.scopeFlow.scopeModesByKey.get('col:' + collection.name)}
               skills={skills}
               disabledMembers={disabledMembers}
               collapsed={collapsed}

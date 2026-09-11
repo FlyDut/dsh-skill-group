@@ -5,7 +5,9 @@
 
 import type { ServerResponse } from 'node:http'
 import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
-import { resolveHubConfig, type HubConfig, type WritableRoot } from '../protocol.ts'
+import { resolveHubConfig, type HubConfig, type ScopePolicy, type WritableRoot } from '../protocol.ts'
+import type { ScopeVisibility } from '../domain/scope-policy.ts'
+import type { PresetRosterEntry } from '../enforcement/roster.ts'
 import { rootOfPath } from '../skillfs.ts'
 import { dshHome, type SkillHubStore } from '../store.ts'
 import { writeError } from './http.ts'
@@ -39,6 +41,68 @@ export interface SkillHubRouteDeps {
   saved?: () => Partial<HubConfig>
   /** Persist a config patch and re-sync plugin surfaces; resolves with the fresh config. */
   updateConfig?: (patch: Partial<HubConfig>) => Promise<HubConfig>
+  /**
+   * 模式级技能隔离的宿主接口。缺席时 /presets 与 /scope 返回"能力不可用"，
+   * 其余路由完全不受影响（与 stats 的可选接线同一模式）。
+   */
+  scopes?: ScopeRouteDeps
+}
+
+/**
+ * 模式隔离的路由接口：由宿主在 `index.ts` 组装（ScopeView + PresetWiring +
+ * agentPresets 软注入），路由本身只做参数校验与 JSON 编解码。
+ */
+export interface ScopeRouteDeps {
+  /** preset 名单 + 运行时接线状态。 */
+  presets: () => Promise<ScopePresetSnapshot>
+  /** 某模式此刻的可见性判定（含展开明细）。 */
+  visibilityOf: (presetId: string) => Promise<ScopeVisibility>
+  /** 某模式的策略；undefined 表示从未配置。 */
+  policyOf: (presetId: string) => Promise<ScopePolicy | undefined>
+  /** 保存策略（部分更新）。 */
+  savePolicy: (presetId: string, patch: { enabled?: boolean; groups?: string[]; skills?: string[] }) => Promise<ScopePolicy>
+  /** 删除策略，让该模式回到"不隔离"。 */
+  deletePolicy: (presetId: string) => Promise<boolean>
+  /** 策略落地后通知执行层刷新闸门缓存（下一个 turn 生效）。 */
+  notifyPolicyChanged: (presetId: string) => void
+}
+
+/** 一次 /presets 读取所需的全部宿主数据。 */
+export interface ScopePresetSnapshot {
+  /** 模式隔离能力是否可用（agentPresets / dsh-scope 齐备）。 */
+  available: boolean
+  /** 不可用原因。 */
+  reason?: string
+  /** preset 名单；能力不可用或服务缺席时为空数组。 */
+  entries: PresetRosterEntry[]
+  /** 闸门已注入的 preset id。 */
+  active: string[]
+  /** 已挂载、可用于接线的 preset id。 */
+  mounted: string[]
+}
+
+/**
+ * 每个"已启用隔离"的模式 → 它当前隐藏的技能名。
+ *
+ * 目录视图用它给技能打「在某模式下不可见」的徽章。只有真正启用隔离的模式才
+ * 参与，所以没用这个功能的部署在这里的额外开销恒为零。放在依赖层而不是
+ * 路由层，是为了让 `catalog-data` 直接用它而不引入路由模块之间的循环 import。
+ * @param deps - 路由依赖（`scopes` 缺席时返回空表）。
+ * @returns presetId → 隐藏技能名；空表表示没有任何模式在隔离。
+ */
+export async function scopeHiddenByPreset(deps: SkillHubRouteDeps): Promise<Map<string, readonly string[]>> {
+  const scopes = deps.scopes
+  const out = new Map<string, readonly string[]>()
+  if (scopes === undefined) return out
+  const snapshot = await scopes.presets()
+  if (!snapshot.available) return out
+  for (const entry of snapshot.entries) {
+    const policy = await scopes.policyOf(entry.id)
+    if (policy?.enabled !== true) continue
+    const visibility = await scopes.visibilityOf(entry.id)
+    if (visibility.hidden.length > 0) out.set(entry.id, visibility.hidden)
+  }
+  return out
 }
 
 /** The resolved hub config a route sees (the shared resolver fills defaults). */

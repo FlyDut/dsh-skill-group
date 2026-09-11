@@ -87,7 +87,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
                 <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
                 <span className={css.groupTitle}>
                   {tag.name} · {tag.skillNames.length}
-                  <GroupSummary members={tag.skillNames} uses={hub.uses} hubConfig={hub.hubConfig} />
+                  <GroupSummary members={tag.skillNames} uses={hub.uses} hubConfig={hub.hubConfig} scopeModes={hub.scopeFlow.scopeModesByKey.get('tag:' + tag.id)} />
                 </span>
               </button>
               <span className={css.groupOps}>

@@ -35,4 +35,10 @@ export const SKILL_HUB_API = {
   diagnosticFix: '/api/skill-hub/diagnostic/fix',
   marketSourceVersions: '/api/skill-hub/market/source/versions',
   marketStats: '/api/skill-hub/market/stats',
+  /** 模式级技能隔离：preset 名单 + 每条的接线状态与策略。 */
+  presets: '/api/skill-hub/presets',
+  /** 写入某个模式的策略（部分更新；`reset: true` 删除策略）。 */
+  scope: '/api/skill-hub/scope',
+  /** 读取某个模式的可见性展开明细（面板预览）。 */
+  scopePreview: '/api/skill-hub/scope/preview',
 } as const

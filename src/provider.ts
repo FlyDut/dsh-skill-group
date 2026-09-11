@@ -1,6 +1,9 @@
 /**
- * The hub's own skill provider, registered into the GLOBAL layer of the
- * official ctx.skills registry.
+ * 发现层 · 管理视图 provider —— 注册进官方 ctx.skills 注册表的 GLOBAL 层。
+ *
+ * 职责边界：它只回答"这台机器上现在有哪些技能、正文是什么"，不决定任何技能
+ * 该不该可见（那是策展层 store/ 与执行层 enforcement/ 的事），也不知道模式
+ * 的存在。GUI 的管理目录、路由目录装配、以及 ScopeView 的目录快照都读它。
  *
  * Why: in the dsh web app the base host skill-filesystem row is disabled on
  * purpose — agent presets own local discovery by mounting their own

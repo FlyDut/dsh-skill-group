@@ -15,7 +15,7 @@ import {
 } from '../protocol.ts'
 import { rootPath, readSkillInterface, scanDiagnostics, type SkillInterface } from '../skillfs.ts'
 import { CURRENT_VERSION } from '../update.ts'
-import { homeOf, isWritableSource, type SkillHubRouteDeps } from './deps.ts'
+import { homeOf, isWritableSource, scopeHiddenByPreset, type SkillHubRouteDeps } from './deps.ts'
 
 /** 目录中存在的技能名集合（tag 成员校验用）：启用目录 ∪ 已禁用名单，避免成员因禁用而丢失。 */
 export async function knownSkillNames(deps: SkillHubRouteDeps): Promise<Set<string>> {
@@ -192,6 +192,23 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     ...(await scanDiagnostics('user-dsh', home)),
     ...(await scanDiagnostics('user-agents', home)),
   ]
+  // 模式级隔离：给每个技能标出"在哪些模式下看不到"。只有真正启用隔离的模式
+  // 参与，所以没用这个功能的部署在这里的开销恒为零（见 scopeHiddenByPreset）。
+  const hiddenByPreset = await scopeHiddenByPreset(deps)
+  if (hiddenByPreset.size > 0) {
+    const hiddenInByName = new Map<string, string[]>()
+    for (const [presetId, names] of hiddenByPreset) {
+      for (const name of names) {
+        const list = hiddenInByName.get(name)
+        if (list === undefined) hiddenInByName.set(name, [presetId])
+        else list.push(presetId)
+      }
+    }
+    for (const row of skills) {
+      const presetIds = hiddenInByName.get(row.name)
+      if (presetIds !== undefined && presetIds.length > 0) row.hiddenIn = presetIds.sort((a, b) => a.localeCompare(b))
+    }
+  }
   return {
     ok: true,
     pluginVersion: CURRENT_VERSION,
@@ -200,6 +217,7 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     disabled,
     diagnostics,
     ...(duplicateNames.length > 0 ? { duplicateNames } : {}),
+    ...(hiddenByPreset.size > 0 ? { scopePresets: [...hiddenByPreset.keys()].sort((a, b) => a.localeCompare(b)) } : {}),
   }
 }
 

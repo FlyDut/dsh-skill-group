@@ -6,7 +6,7 @@ import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig } from './protocol.ts'
+import { SKILL_HUB_API, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig, type PresetsResponse, type ScopePolicy, type ScopeSaveResponse } from './protocol.ts'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -969,4 +969,220 @@ describe('skill-hub routes', () => {
     expect((await store.getSource('repo/verify-me'))?.commitSha).toBe('v1')
   })
 
+})
+
+describe('skill-hub mode scope routes', () => {
+  let dir: string
+  let store: SkillHubStore
+  let deps: SkillHubRouteDeps
+  /** 一次读取的宿主替身记录。 */
+  let sessions: {
+    entries: Array<{ id: string; name?: string; trust: 'system' | 'user'; isDefault: boolean }>
+    active: string[]
+    mounted: string[]
+    policies: Map<string, ScopePolicy>
+    hidden: Map<string, string[]>
+    notified: string[]
+    available: boolean
+    reason?: string
+  }
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-scope-routes-'))
+    store = new SkillHubStore(statePath(dir))
+    sessions = {
+      entries: [
+        { id: 'coding', name: '编码模式', trust: 'user', isDefault: true },
+        { id: 'minimal', trust: 'system', isDefault: false },
+      ],
+      active: ['coding'],
+      mounted: ['coding', 'minimal'],
+      policies: new Map(),
+      hidden: new Map([['coding', ['gamma-skill']]]),
+      notified: [],
+      available: true,
+    }
+    deps = {
+      skills: { snapshot: async () => ({ skills: [], complete: true }), get: async () => undefined },
+      store,
+      home: dir,
+      scopes: {
+        presets: async () => ({
+          available: sessions.available,
+          ...(sessions.reason !== undefined ? { reason: sessions.reason } : {}),
+          entries: sessions.entries,
+          active: sessions.active,
+          mounted: sessions.mounted,
+        }),
+        visibilityOf: async (presetId) => ({
+          enabled: sessions.policies.get(presetId)?.enabled === true,
+          visible: ['alpha-skill', 'beta-skill'],
+          hidden: sessions.hidden.get(presetId) ?? [],
+          resolved: { 'tag:t1': ['alpha-skill'] },
+          dangling: [],
+        }),
+        policyOf: async (presetId) => sessions.policies.get(presetId),
+        savePolicy: async (presetId, patch) => {
+          // 真正落盘：这样既覆盖路由链路，也覆盖"重启后策略仍在"。
+          const policy = await store.saveScope(presetId, patch)
+          sessions.policies.set(presetId, policy)
+          return policy
+        },
+        deletePolicy: async (presetId) => {
+          const existed = await store.deleteScope(presetId)
+          sessions.policies.delete(presetId)
+          sessions.hidden.delete(presetId)
+          return existed
+        },
+        notifyPolicyChanged: (presetId) => { sessions.notified.push(presetId) },
+      },
+    }
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  function routeFor(path: string) {
+    const route = makeRoutes(deps).find((r) => r.path === path)
+    if (route === undefined) throw new Error('route not found: ' + path)
+    return route
+  }
+
+  it('keeps the loopback fence on every mode route', async () => {
+    for (const [path, method] of [[SKILL_HUB_API.presets, 'GET'], [SKILL_HUB_API.scopePreview, 'GET'], [SKILL_HUB_API.scope, 'POST']] as const) {
+      const res = new FakeResponse()
+      await routeFor(path).handler(fakeReq(method, path, method === 'POST' ? {} : undefined, '10.0.0.5'), res as never)
+      expect(res.status, path).toBe(403)
+    }
+  })
+
+  it('reports the mode capability as unavailable when the host wired no scope deps', async () => {
+    delete deps.scopes
+    const presets = new FakeResponse()
+    await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), presets as never)
+    expect(presets.json()).toMatchObject({ ok: true, available: false, presets: [], pendingCount: 0 })
+
+    for (const [path, method] of [[SKILL_HUB_API.scopePreview, 'GET'], [SKILL_HUB_API.scope, 'POST']] as const) {
+      const res = new FakeResponse()
+      await routeFor(path).handler(fakeReq(method, path, method === 'POST' ? { presetId: 'coding' } : undefined), res as never)
+      expect(res.status, path).toBe(503)
+    }
+  })
+
+  it('lists presets with their policy, counts and wiring state', async () => {
+    sessions.policies.set('coding', { presetId: 'coding', enabled: true, groups: ['tag:t1'], skills: [] })
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), res as never)
+
+    const body = res.json() as PresetsResponse
+    expect(body.available).toBe(true)
+    expect(body.presets).toHaveLength(2)
+    expect(body.presets[0]).toMatchObject({
+      id: 'coding', name: '编码模式', trust: 'user', isDefault: true,
+      mounted: true, gateActive: true, visibleCount: 2, hiddenCount: 1,
+      policy: { enabled: true, groups: ['tag:t1'] },
+    })
+    // 未配置的模式：不隔离、不接线、隐藏数为 0。
+    expect(body.presets[1]).toMatchObject({ id: 'minimal', trust: 'system', isDefault: false, mounted: true, gateActive: false })
+    expect(body.presets[1].policy).toEqual({ presetId: 'minimal', enabled: false, groups: [], skills: [] })
+  })
+
+  it('counts presets that are enabled but not yet wired', async () => {
+    sessions.policies.set('minimal', { presetId: 'minimal', enabled: true, groups: [], skills: ['alpha-skill'] })
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), res as never)
+    // minimal 已挂载但闸门未注入（它不在 active 里）→ 计入待接线。
+    expect((res.json() as PresetsResponse).pendingCount).toBe(1)
+  })
+
+  it('reports why the mode capability is unavailable', async () => {
+    sessions.available = false
+    sessions.reason = 'agent-presets service is not mounted in this deployment'
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), res as never)
+    expect((res.json() as PresetsResponse).unavailableReason).toContain('agent-presets')
+  })
+
+  it('saves a policy and notifies the enforcement layer', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.scope).handler(
+      fakeReq('POST', SKILL_HUB_API.scope, { presetId: 'coding', enabled: true, groups: ['tag:t1', 'alpha-skill'] }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect((res.json() as ScopeSaveResponse).policy).toEqual({
+      presetId: 'coding', enabled: true, groups: ['tag:t1', 'skill:alpha-skill'], skills: [],
+    })
+    expect(sessions.notified).toEqual(['coding'])
+    // 已经落盘，重启后仍在。
+    expect(await new SkillHubStore(statePath(dir)).getScope('coding')).toMatchObject({ enabled: true })
+  })
+
+  it('rejects a bad preset id, a non-array list, and an empty patch', async () => {
+    for (const body of [
+      { presetId: '../escape', enabled: true },
+      { presetId: '', enabled: true },
+      { presetId: 'coding', groups: 'tag:t1' },
+      { presetId: 'coding' },
+    ]) {
+      const res = new FakeResponse()
+      await routeFor(SKILL_HUB_API.scope).handler(fakeReq('POST', SKILL_HUB_API.scope, body), res as never)
+      expect(res.status, JSON.stringify(body)).toBe(400)
+    }
+  })
+
+  it('refuses to enable an empty whitelist without an explicit confirmation', async () => {
+    const body = { presetId: 'coding', enabled: true, groups: [], skills: [] }
+    const refused = new FakeResponse()
+    await routeFor(SKILL_HUB_API.scope).handler(fakeReq('POST', SKILL_HUB_API.scope, body), refused as never)
+    // 空白名单 = 该模式看不到任何技能：合法但需显式确认。
+    expect(refused.status).toBe(409)
+    expect((refused.json() as ErrorResponse).error).toContain('confirmEmpty')
+    expect(sessions.policies.has('coding')).toBe(false)
+
+    const confirmed = new FakeResponse()
+    await routeFor(SKILL_HUB_API.scope).handler(
+      fakeReq('POST', SKILL_HUB_API.scope, { ...body, confirmEmpty: true }), confirmed as never,
+    )
+    expect(confirmed.status).toBe(200)
+    expect((confirmed.json() as ScopeSaveResponse).policy).toMatchObject({ enabled: true, groups: [], skills: [] })
+  })
+
+  it('resets a policy back to unrestricted', async () => {
+    sessions.policies.set('coding', { presetId: 'coding', enabled: true, groups: ['tag:t1'], skills: [] })
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.scope).handler(fakeReq('POST', SKILL_HUB_API.scope, { presetId: 'coding', reset: true }), res as never)
+    expect(res.status).toBe(200)
+    expect((res.json() as ScopeSaveResponse).policy).toBeNull()
+    expect(sessions.policies.has('coding')).toBe(false)
+    expect(sessions.notified).toEqual(['coding'])
+  })
+
+  it('previews the expansion for one preset', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.scopePreview).handler(
+      fakeReq('GET', SKILL_HUB_API.scopePreview + '?presetId=coding'), res as never,
+    )
+    expect(res.json()).toMatchObject({
+      ok: true, presetId: 'coding', enabled: false,
+      visible: ['alpha-skill', 'beta-skill'], hidden: ['gamma-skill'],
+      resolved: { 'tag:t1': ['alpha-skill'] },
+    })
+  })
+
+  it('requires a valid presetId on the preview route', async () => {
+    for (const query of ['', '?presetId=', '?presetId=..%2Fescape']) {
+      const res = new FakeResponse()
+      await routeFor(SKILL_HUB_API.scopePreview).handler(fakeReq('GET', SKILL_HUB_API.scopePreview + query), res as never)
+      expect(res.status, query).toBe(400)
+    }
+  })
+
+  it('honours the master switch on business mode routes', async () => {
+    deps.config = () => ({ enabled: false }) as HubConfig
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), res as never)
+    expect(res.status).toBe(503)
+  })
 })
