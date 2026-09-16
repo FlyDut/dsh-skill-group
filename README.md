@@ -24,7 +24,7 @@ dsh plugin --profile web add dsh-skill-hub
 # restart dsh web → Settings → 技能 → Market → scan → import
 ```
 
-Requires `Node ^22.19 || >=24` + dsh web (`0.1.5-rc.2`, `0.1.x` forward compatible).
+Requires `Node ^22.19 || >=24` + dsh web (`0.1.6-alpha.1`, `0.1.x` forward compatible).
 
 ## Features
 
@@ -149,7 +149,7 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 302 tests, 18 suites
+npm test           # 311 tests, 19 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -159,6 +159,7 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 
 - `duplicate loader entry id: skill-hub` — remove the duplicate install (keep one `dsh plugin add` method).
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description).
+- Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk; source groups with no visible member are no longer rendered.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
 
 ## Community

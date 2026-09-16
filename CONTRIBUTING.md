@@ -66,7 +66,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 pnpm install
 pnpm typecheck   # tsc --noEmit
-pnpm test        # vitest (302 tests across 18 suites)
+pnpm test        # vitest (311 tests across 19 suites)
 pnpm build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 pnpm smoke       # load the built bundle in a real cordis runtime (run after build)
 ```
@@ -101,9 +101,11 @@ registered twice, a teardown that leaves residue. Prefer it before publishing.
 ```bash
 # after a change:
 npm run build
-cp lib/index.js lib/client.js ~/.dsh/profiles/web/node_modules/dsh-skill-hub/lib/
 # restart the dsh web process, then verify Settings → 技能 and Settings → 插件 → Skill Hub
 ```
+
+When the web profile installs this repo as a link (`"dsh-skill-hub": "link:/path/to/repo"`, the
+usual local-dev setup), `lib/` is picked up on the next `dsh web` restart — no copy step needed.
 
 ## Issues
 
