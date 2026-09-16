@@ -13,7 +13,7 @@
   <img src="https://raw.githubusercontent.com/cheshireez/dsh-skill-hub/main/promo/real-skill-hub.png" alt="dsh-skill-hub 面板" width="640">
 </p>
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的图形化技能中枢 — 在 Web GUI 里浏览 `ctx.skills` 全量目录，开关技能、查看正文、修复发现问题、从市场安装、一键新建。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的图形化技能管理 — 在 Web GUI 里浏览 `ctx.skills` 全量目录，开关技能、查看正文、修复发现问题、从市场安装、一键新建。
 
 > 宿主只用官方 SDK，浏览器通过官方槽位渲染，不改 dsh 源码。
 

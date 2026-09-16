@@ -7,7 +7,7 @@ export const zhCommon = {
   'view.market': '市场',
   'view.flat': '平铺',
   'view.grouped': '分组',
-  'panel.title': '技能中枢',
+  'panel.title': 'Skill管理',
   'panel.count': '共 {count} 个技能',
   'panel.disabledCount': '已禁用 {count}',
   'panel.new': '新建技能',

@@ -1,11 +1,11 @@
 /** 设置卡。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhSettings = {
-  'settings.title': '技能中枢',
+  'settings.title': 'Skill 管理',
   'settings.description': '管理 dsh 本地技能目录：浏览、分组、来源同步与新建。',
   'settings.enabled': '启用插件',
-  'settings.enabledHint': '关闭后技能中枢的路由、入口与公告全部下线。',
+  'settings.enabledHint': '关闭后Skill管理的路由、入口与公告全部下线。',
   'settings.announceToAgent': '向 Agent 公告',
-  'settings.announceToAgentHint': '在系统提示中加入本插件说明，用户提到技能管理时 Agent 知道如何协作。',
+  'settings.announceToAgentHint': '在系统提示中加入本插件说明，用户提到Skill管理时 Agent 知道如何协作。',
   'settings.dotModelColor': '模型可调圆点颜色',
   'settings.dotModelColorHint': '技能行/聊天 / 菜单中「模型可调」蓝色圆点的颜色（#rrggbb）。',
   'settings.dotUserColor': '用户可调圆点颜色',
