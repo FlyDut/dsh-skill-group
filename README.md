@@ -26,6 +26,8 @@ dsh plugin --profile web add dsh-skill-hub
 
 Requires `Node ^22.19 || >=24` + dsh web `>=0.1.6-alpha.2 <0.2`.
 
+Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
+
 ## Features
 
 **Settings → 技能** — 3 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update).
@@ -38,7 +40,7 @@ Requires `Node ^22.19 || >=24` + dsh web `>=0.1.6-alpha.2 <0.2`.
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
-- **Settings card** — master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval; plus a self-update check against GitHub releases.
+- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval; plus a self-update check against GitHub releases.
 
 ## Why not just the read-only browser?
 
@@ -105,7 +107,7 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 176 tests, 9 suites
+npm test           # 232 tests, 14 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -117,6 +119,7 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description).
 - Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk; source groups with no visible member are no longer rendered.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
+- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → dsh-skill-hub), not under Settings. On dsh older than `0.1.6-alpha.2` this plugin contributes no config surface at all.
 
 ## Community
 

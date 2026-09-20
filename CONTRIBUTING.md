@@ -39,7 +39,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest (233 tests across 14 suites)
+npm test            # vitest (232 tests across 14 suites)
 npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 ```
 
@@ -53,8 +53,8 @@ npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/clie
    live GUI.
 3. **Build** — `npm run build` must produce `lib/index.js` and `lib/client.js`.
 4. **Keep the diff focused** — one logical change per PR, with a clear title and description.
-5. **Documentation** — update `README.md` (including the embedded Chinese collapsible section) when
-   behavior or the API surface changes.
+5. **Documentation** — update `README.md` **and** `README.zh.md` (both ship with the package and are
+   kept in sync) when behavior or the API surface changes.
 
 ## Code style
 
@@ -68,7 +68,9 @@ npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/clie
 ```bash
 # after a change:
 npm run build
-# restart the dsh web process, then verify Settings → 技能 and Settings → 插件 → Skill Hub
+# restart the dsh web process, then verify both surfaces:
+#   Settings → 技能              — the skill hub panel
+#   sidebar 插件 → dsh-skill-hub  — the plugin's settings card
 ```
 
 When the web profile installs this repo as a link (`"dsh-skill-hub": "link:/path/to/repo"`, the

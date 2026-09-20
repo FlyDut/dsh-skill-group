@@ -4,12 +4,13 @@
  *
  * Registers the dsh-skill-hub locale dictionaries and mounts two Settings
  * surfaces, both through official slots (no DOM injection):
- *  - a plugin-management card in the `settings.plugin.item` slot (Settings →
- *    插件 → 可配置插件列表), keyed by the hub's settings namespace and bound
- *    through the official settings transport (the Host serves every registered
- *    namespace to the web client, and the tab dispatches cards by namespace) —
- *    the family-bucket card pattern (PluginSettingsCard + CardForm vendored
- *    from dsh-task-board);
+ *  - a plugin-management card in the `plugins.bundle.config` slot, keyed by the
+ *    bundle package name, rendered on the plugin's own page in the Plugins
+ *    manager (sidebar → 插件 → dsh-skill-hub), bound through the official
+ *    settings transport (the Host serves every registered namespace to the web
+ *    client, and the manager dispatches that key with `view: 'page'`) — the
+ *    family-bucket card pattern (PluginSettingsCard + CardForm vendored from
+ *    dsh-task-board);
  *  - a top-level Settings section (Settings → 技能) hosting the skill hub
  *    panel: catalog, search, enable/disable, diagnostics, new-skill form.
  *
@@ -84,10 +85,10 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   const api = new SkillHubApi()
 
-  // The card edits the hub's settings namespace through the official
-  // settings transport — the configurable-plugins tab only dispatches cards
-  // whose key the Host serves, and the Host serves every registered namespace,
-  // so this is what makes the card appear (and stay in sync).
+  // The card edits the hub's settings namespace through the official settings
+  // transport: the Plugins manager dispatches the card by the bundle package
+  // name, and the Host serves every registered namespace — that pairing is
+  // what makes the card appear (and stay in sync).
   // Single scope instance reused for both the card and slash-dots to avoid
   // duplicate subscriptions (review #3).
   const scope = ctx.settingsScope.bind<HubSettingsValue>({ namespace: NS })
