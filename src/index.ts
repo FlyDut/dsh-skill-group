@@ -263,8 +263,11 @@ export function apply(ctx: Context, config?: Config): void {
   // surface through the settings transport. A patch value of undefined clears
   // the saved override (the key leaves the user section, so the field
   // re-inherits the base/default) — the old sidecar's reset semantics.
-  // Runs inside the config route handler; the watcher below re-syncs the
-  // surfaces once the namespace commits.
+  // Runs inside the config route handler. Re-syncing explicitly (rather than
+  // relying on the watcher below alone) keeps `announceToAgent` and `enabled`
+  // correct at the moment the write returns; sync() is idempotent — it tears
+  // the old registration down before re-registering — so the watcher firing
+  // again is harmless.
   const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
     const user: Record<string, unknown> = { ...saved() }
     for (const [key, value] of Object.entries(patch) as Array<[keyof HubConfig, boolean | string | number | undefined]>) {
@@ -272,6 +275,7 @@ export function apply(ctx: Context, config?: Config): void {
       else user[key] = value
     }
     await settingsScope.replace(user)
+    sync()
     return settingsScope.get()
   }
 
