@@ -39,12 +39,11 @@ export function githubAuthHeaders(): Record<string, string> {
  *
  * 为什么必须加：dsh 会把**启动环境**里的 `HTTP_PROXY`/`HTTPS_PROXY` 装成
  * undici 的全局 dispatcher（`@deepseek-ai/dsh-http-proxy`），插件里的 `fetch`
- * 因此走该代理。实测本机 Clash：经代理返回的响应会**丢掉 `content-encoding`
- * 与 `content-type` 头，而 body 仍是 gzip**；undici 只依据 `content-encoding`
- * 决定是否解压，于是 `response.json()` 拿到 gzip 二进制并抛错，被上层的
- * catch 映射成 `invalid github response for <url>` —— 看起来像 GitHub 坏了。
- * 实测对照（同一 URL、同一代理）：默认 1331 字节解析失败，声明 identity 后
- * 5245 字节解析成功。
+ * 因此走该代理。上游在带代理的环境里诊断出的失败模式是：经代理返回的响应
+ * **丢掉 `content-encoding` 与 `content-type` 头，而 body 仍是 gzip**；undici
+ * 只依据 `content-encoding` 决定是否解压，于是 `response.json()` 拿到 gzip
+ * 二进制并抛错，被上层的 catch 映射成 `invalid github response for <url>`
+ * ——看起来像 GitHub 坏了，实际是传输层被改写了头部。
  *
  * 代价是不走压缩（我们的响应体都很小），换来的是**无论中间代理是否改写头部
  * 都能正确取到实体**，且用户无需为插件调整启动命令。
