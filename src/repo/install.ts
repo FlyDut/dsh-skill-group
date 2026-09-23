@@ -10,7 +10,7 @@ import type { RepoSkillEntry } from '../protocol.ts'
 import { errorText } from '../error-text.ts'
 import { mapConcurrent } from '../concurrency.ts'
 import { parseFrontmatter } from '../skillfs.ts'
-import { RepoFetchError, fetchError, githubAuthHeaders, isAbortError } from './github-client.ts'
+import { NO_COMPRESSION, RepoFetchError, fetchError, githubAuthHeaders, isAbortError } from './github-client.ts'
 import type { RepoFile } from './types.ts'
 
 /**
@@ -26,7 +26,7 @@ export async function downloadGitHubFile(repo: string, ref: string, path: string
   let firstError: string | null = null
   let response: Response | null = null
   try {
-    response = await fetchImpl(rawUrl, { headers: githubAuthHeaders(), ...(signal !== undefined ? { signal } : {}) })
+    response = await fetchImpl(rawUrl, { headers: { ...NO_COMPRESSION, ...githubAuthHeaders() }, ...(signal !== undefined ? { signal } : {}) })
   } catch (error) {
     if (isAbortError(error)) throw error
     firstError = errorText(error)
@@ -36,7 +36,7 @@ export async function downloadGitHubFile(repo: string, ref: string, path: string
     // Fallback: api.github.com/contents with the raw media type.
     const apiUrl = `https://api.github.com/repos/${repo}/contents/${encodedPath}`
     try {
-      response = await fetchImpl(apiUrl, { headers: { accept: 'application/vnd.github.raw', ...githubAuthHeaders() }, ...(signal !== undefined ? { signal } : {}) })
+      response = await fetchImpl(apiUrl, { headers: { accept: 'application/vnd.github.raw', ...NO_COMPRESSION, ...githubAuthHeaders() }, ...(signal !== undefined ? { signal } : {}) })
     } catch (error) {
       if (isAbortError(error)) throw error
       throw new RepoFetchError('download failed: ' + (firstError ?? (errorText(error))))
@@ -115,7 +115,7 @@ export async function downloadRepoSkill(
         try {
           await rm(tempDir, { recursive: true, force: true })
         } catch (secondError) {
-          console.warn(`[skill-hub] cleanup tempDir failed ${tempDir}:`, errorText(secondError), 'first:', errorText(firstError))
+          console.warn(`[dsh-skill-hub] cleanup tempDir failed ${tempDir}:`, errorText(secondError), 'first:', errorText(firstError))
         }
       }
     }
@@ -142,9 +142,9 @@ export async function cleanupLeftoverImportDirs(targetRoot: string): Promise<num
       await rm2(full, { recursive: true, force: true })
       cleaned += 1
     } catch (error) {
-      console.warn(`[skill-hub] startup cleanup failed ${full}:`, errorText(error))
+      console.warn(`[dsh-skill-hub] startup cleanup failed ${full}:`, errorText(error))
     }
   }
-  if (cleaned > 0) console.warn(`[skill-hub] startup cleaned ${cleaned} leftover import temp dir(s) in ${targetRoot}`)
+  if (cleaned > 0) console.warn(`[dsh-skill-hub] startup cleaned ${cleaned} leftover import temp dir(s) in ${targetRoot}`)
   return cleaned
 }
