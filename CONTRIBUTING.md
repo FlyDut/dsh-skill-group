@@ -109,6 +109,25 @@ npm run build
 When the web profile installs this repo as a link (`"dsh-skill-hub": "link:/path/to/repo"`, the
 usual local-dev setup), `lib/` is picked up on the next `dsh web` restart — no copy step needed.
 
+## Keeping up with upstream
+
+This repository is a fork of
+[cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub) that carries features
+upstream does not have (mode-level skill isolation) and therefore tracks upstream **selectively**.
+Never merge or cherry-pick upstream wholesale: upstream dropped the pnpm toolchain files in favour
+of npm, reordered `package-lock.json`, and reworked the settings model for dsh 0.1.7 — which this
+fork does not run.
+
+Read [`UPSTREAM-SYNC.md`](UPSTREAM-SYNC.md) before touching upstream code. It records the reviewed
+upstream watermark, the per-commit disposition of every upstream change (adopted / partial /
+rejected, with reasons), the local-only files that must survive an upstream review, and the
+tag/`git notes` convention used to mark each sync. Start a new sync with:
+
+```bash
+git fetch upstream --tags
+git log --oneline upstream-baseline/v0.3.15..upstream/main
+```
+
 ## Issues
 
 - **Bugs**: include the dsh version, Node version, the plugin version, and the exact steps.
