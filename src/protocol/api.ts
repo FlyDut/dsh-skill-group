@@ -1,3 +1,11 @@
+/**
+ * Root path of the skill-hub API family. The host also registers this as its
+ * 404 catch-all prefix, so a mistyped path answers with a plain 404 naming the
+ * path instead of falling through to the SPA fallback (which answers 401 and
+ * reads like an auth problem).
+ */
+export const SKILL_HUB_API_ROOT = '/api/skill-hub'
+
 /** Browser-facing base paths of the skill-hub API family. */
 export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',

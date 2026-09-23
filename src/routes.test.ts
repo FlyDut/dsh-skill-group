@@ -6,7 +6,7 @@ import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeRoutes, type SkillHubRouteDeps } from './routes.ts'
 import { SkillHubStore, statePath } from './store.ts'
-import { SKILL_HUB_API, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig, type PresetsResponse, type ScopePolicy, type ScopeSaveResponse } from './protocol.ts'
+import { SKILL_HUB_API, SKILL_HUB_API_ROOT, type CatalogResponse, type ConfigResponse, type ErrorResponse, type HubConfig, type PresetsResponse, type ScopePolicy, type ScopeSaveResponse } from './protocol.ts'
 
 /** Minimal response double recording status/headers/body. */
 class FakeResponse {
@@ -1227,5 +1227,56 @@ describe('skill-hub mode scope routes', () => {
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.presets).handler(fakeReq('GET', SKILL_HUB_API.presets), res as never)
     expect(res.status).toBe(503)
+  })
+})
+
+describe('skill-hub API surface', () => {
+  let dir: string
+  let home: string
+  let store: SkillHubStore
+  let deps: SkillHubRouteDeps
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-api-'))
+    home = join(dir, 'home')
+    await mkdir(join(home, 'skills'), { recursive: true })
+    store = new SkillHubStore(statePath(home))
+    deps = { skills: { snapshot: async () => ({ skills: [], complete: true }), get: async () => undefined }, store, home }
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('keeps every path inside the family root and registered', () => {
+    const routes = makeRoutes(deps)
+    const registered = new Set(routes.filter((route) => route.kind === 'exact').map((route) => route.path))
+    const declared = Object.values(SKILL_HUB_API)
+    for (const path of declared) expect(path.startsWith(SKILL_HUB_API_ROOT + '/')).toBe(true)
+    // 常量与注册表互为子集：一个声明了没注册（客户端必然 404），或注册了没声明
+    // （客户端永远调不到），都是漂移。
+    expect([...registered].sort()).toEqual([...declared].sort())
+  })
+
+  it('registers one 404 catch-all covering the whole family', async () => {
+    const routes = makeRoutes(deps)
+    const catchAll = routes.filter((route) => route.kind === 'prefix')
+    expect(catchAll).toHaveLength(1)
+    expect(catchAll[0].path).toBe(SKILL_HUB_API_ROOT)
+    // 未知路径给出写明路径的 404，而不是让请求落到宿主 fallback 的 401。
+    const res = new FakeResponse()
+    await catchAll[0].handler(fakeReq('GET', '/api/skill-hub/market/sync'), res as never)
+    expect(res.status).toBe(404)
+    expect((res.json() as ErrorResponse).error).toContain('/api/skill-hub/market/sync')
+  })
+
+  it('never shadows a registered exact route', async () => {
+    const routes = makeRoutes(deps)
+    // 精确路由仍是 kind 'exact'，宿主先查精确表，兜底只负责未命中的路径。
+    const catalog = routes.find((route) => route.path === SKILL_HUB_API.catalog)
+    expect(catalog?.kind).toBe('exact')
+    const res = new FakeResponse()
+    await catalog?.handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
+    expect(res.status).toBe(200)
   })
 })
