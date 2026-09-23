@@ -74,6 +74,46 @@ describe('SkillHubProvider', () => {
     expect(withoutCwd.find((entry) => entry.name === 'proj-skill')).toBeUndefined()
   })
 
+  it('collapses a project root that resolves to the user root (no duplicate rows)', async () => {
+    // 真实场景：DSH_HOME = ~/.dsh，某个工作区既无 .git 也无 .dsh，于是
+    // findProjectRoot 一路向上找到 $HOME（因为 $HOME/.dsh 存在）→ project-dsh 根
+    // ($HOME/.dsh/skills) 与 user-dsh 根完全同一目录。不去重时同一技能会报两次，
+    // 面板按工作区给 project 行分键 → 每个这样的工作区再多一行只读副本。
+    const parent = join(dir, 'home-parent')
+    const projectHome = join(parent, '.dsh')
+    await mkdir(join(projectHome, 'skills'), { recursive: true })
+    await createSkill('user-dsh', 'dup-skill', 'Dup', projectHome)
+    const workspace = join(parent, 'workspace')
+    await mkdir(workspace, { recursive: true })
+
+    const { provider } = makeProvider(projectHome)
+    const candidates = await provider.list({ cwd: workspace })
+    const mine = candidates.filter((candidate) => candidate.name === 'dup-skill')
+    expect(mine).toHaveLength(1)
+    // 保留下来的必须是用户身份：project-dsh 会让面板显示成只读副本。
+    expect(mine[0]).toMatchObject({ source: 'user-dsh', rank: 400 })
+  })
+
+  it('still lists a distinct project root alongside the user root', async () => {
+    await createSkill('user-dsh', 'user-skill', 'User', home)
+    const project = join(dir, 'project')
+    await mkdir(join(project, '.git'), { recursive: true })
+    await mkdir(join(project, '.dsh', 'skills', 'proj-skill'), { recursive: true })
+    await writeFile(
+      join(project, '.dsh', 'skills', 'proj-skill', 'SKILL.md'),
+      '---\nname: proj-skill\ndescription: Project\n---\n\nBody',
+      'utf8',
+    )
+    const { provider } = makeProvider(home)
+    const candidates = await provider.list({ cwd: join(project, 'sub') })
+    const names = candidates.map((candidate) => candidate.name)
+    expect(names).toContain('user-skill')
+    expect(names).toContain('proj-skill')
+    // 不同目录不能被误合并：每个名字仍只出现一次。
+    expect(new Set(names).size).toBe(names.length)
+    expect(candidates.find((candidate) => candidate.name === 'proj-skill')).toMatchObject({ source: 'project-dsh', rank: 100 })
+  })
+
   it('get() resolves a body without the frontmatter block', async () => {
     await createSkill('user-dsh', 'demo-skill', 'Demo', home)
     const { provider } = makeProvider(home)
