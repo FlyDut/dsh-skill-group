@@ -82,7 +82,12 @@ check('inject', mod.inject, ['webServer', 'skills', 'systemPrompt', 'settings'])
 await ctx.plugin(mod)
 log('plugin loaded; routes registered:', routes.length)
 
-check('route family mounted exactly once', routes.length, 38)
+// 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
+const exactRoutes = routes.filter((r) => r.kind === 'exact')
+const prefixRoutes = routes.filter((r) => r.kind === 'prefix')
+check('exact route family mounted exactly once', exactRoutes.length, 38)
+check('one 404 catch-all covers the family', prefixRoutes.length, 1)
+check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')
 check('section announced exactly once (re-sync is idempotent)', sections.length, 1)
 const presetsRoute = routes.find((r) => r.path === '/api/skill-hub/presets')
 check('/presets route present', presetsRoute !== undefined, true)
@@ -134,6 +139,27 @@ await routes.find((r) => r.path === '/api/skill-hub/scope/preview').handler(
 )
 check('/scope/preview answers 200', previewRes.status, 200)
 log('  preview:', JSON.stringify(previewRes.json()))
+
+// 未知路径必须由兜底路由回写明路径的 404（落到宿主 SPA fallback 会变 401，
+// 排查时会被误读成鉴权问题）。
+const notFoundRes = fakeRes()
+await prefixRoutes[0].handler(fakeReq('GET', '/api/skill-hub/market/sync'), notFoundRes)
+check('unknown family path answers 404', notFoundRes.status, 404)
+check('404 names the requested path', String(notFoundRes.json()?.error).includes('/api/skill-hub/market/sync'), true)
+
+// 配置写入必须当场重建 surfaces，而不是等 watcher/重启：关掉 announceToAgent
+// 后 systemPrompt section 要立刻消失，再打开要恢复且不重复注册（sync 幂等）。
+const configRoute = routes.find((r) => r.path === '/api/skill-hub/config')
+check('/config route present', configRoute !== undefined, true)
+const offRes = fakeRes()
+await configRoute.handler(fakeReq('POST', '/api/skill-hub/config', { announceToAgent: false }), offRes)
+check('/config accepts the patch', offRes.status, 200)
+check('announceToAgent off removes the section without a restart', sections.length, 0)
+const onRes = fakeRes()
+await configRoute.handler(fakeReq('POST', '/api/skill-hub/config', { announceToAgent: true }), onRes)
+check('/config accepts re-enabling', onRes.status, 200)
+check('announceToAgent back on re-announces exactly once', sections.length, 1)
+check('/config never echoes a github token field', Object.hasOwn(onRes.json()?.config ?? {}, 'githubToken'), false)
 
 // ── 落盘与重载 ──────────────────────────────────────────────────────────
 const { readFile } = await import('node:fs/promises')

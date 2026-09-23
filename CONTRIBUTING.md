@@ -66,7 +66,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest (310 tests across 19 suites)
+npm test            # vitest (332 tests across 19 suites)
 npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 npm run smoke       # load the built bundle in a real cordis runtime (run after build)
 ```

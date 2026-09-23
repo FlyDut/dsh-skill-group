@@ -38,7 +38,7 @@ Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin'
 - **Mode isolation** — bind scenes, source collections, or individual skills to an **agent preset** (Settings → Skills → Modes). Once a mode enables isolation, only the checked skills stay visible to its sessions: both the model catalog and explicit loads stop working, and **every other mode is untouched**. No preset file is edited and no skill file is moved; turning it off restores access on the next turn.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
 - **Scaffold** — new-skill wizard writing to `~/.dsh/skills` or `~/.agents/skills` (`SKILL.md` template below).
-- **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
+- **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (top-level dot entries such as `.github/` count as repo tooling, not skill content). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
 - **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval; plus a self-update check against GitHub releases.
@@ -147,11 +147,13 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | `/api/skill-hub/scope` | POST | write a mode policy (`reset: true` deletes it) |
 | `/api/skill-hub/scope/preview?presetId=` | GET | expansion detail for one mode |
 
+Unknown paths under `/api/skill-hub/*` answer a 404 naming the path (a `prefix` catch-all keeps them inside the plugin's route table) instead of falling through to the host SPA fallback, which would answer 401 and read like an auth problem. `GET/POST /api/skill-hub/config` never echoes the GitHub token back: the token is write-only, and its presence is reported as `githubTokenSet: boolean`.
+
 ## Development
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 310 tests, 19 suites
+npm test           # 332 tests, 19 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
