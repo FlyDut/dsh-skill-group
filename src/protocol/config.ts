@@ -65,6 +65,14 @@ export type HubSettingsValue = {
 }
 
 /**
+ * 本插件的 Loader 入口 id —— dsh 0.1.7 起 settings 的命名空间就是它（不是包名）。
+ * 它是 cordis.patch.yml 的 insert id，宿主与浏览器半边共用这份契约：宿主经
+ * `settings.mutate(HUB_ENTRY_ID, …)` 写入，浏览器半边经
+ * `ctx.configForms.get(HUB_ENTRY_ID)` 读到同一份表单。
+ */
+export const HUB_ENTRY_ID = 'skill-hub'
+
+/**
  * Hub config defaults — the single source every layer reads: the cordis
  * schema (index.ts), the host's saved-override merge, and the routes'
  * fallback view. Changing a default here changes all three.

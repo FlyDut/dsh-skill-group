@@ -10,7 +10,6 @@
  */
 
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 
 /** One staged field: its draft text plus the clear/reset marker. */
 interface StagedEdit {
@@ -107,12 +106,18 @@ export interface FieldState {
   invalid: boolean
 }
 
-/** The settings scope face the form consumes (subset of SettingsScope<T>). */
+/**
+ * The settings-form face this card consumes. Declared structurally rather than
+ * imported so the card stays independent of the settings package's generics:
+ * the browser half passes it `ctx.configForms.get<HubSettingsValue>(HUB_ENTRY_ID)`,
+ * which satisfies this shape (ConfigForm<T>).
+ */
 export interface FormScope {
   subscribe(listener: () => void): () => void
   getSnapshot(): { status: string; writable: boolean; value?: Record<string, unknown>; base?: unknown; user?: unknown }
-  set(field: string, value: unknown): Promise<void>
-  unset(field: string): Promise<void>
+  /** Both write paths report host acceptance (ConfigForm.set/unset contract). */
+  set(field: string, value: unknown): Promise<boolean>
+  unset(field: string): Promise<boolean>
 }
 
 /** Stages one card's edits and writes them through the settings transport. */
