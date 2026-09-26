@@ -36,6 +36,28 @@ const routes = []
 const sections = []
 const nsState = new Map()
 
+// ── 0.1.7 的 volatile 插件配置替身 ──────────────────────────────────────
+// Loader 把 schema 默认值与组合 base 解析进这些 volatile 引用，并在 settings 写入
+// 时**就地**更新它们（不重建 fiber）——所以长期持有的引用永远答最新值。替身照同一
+// 语义实现：settings.mutate 命中路径时同步改 refs，否则 /config 写入后 apply 里的
+// current() 会读到旧值（真实环境里这由 Loader 完成）。
+const configValues = {
+  enabled: true,
+  announceToAgent: true,
+  showUseCount: true,
+  showUseTime: true,
+  showGroupSummary: true,
+  statsWindowDays: 14,
+  statsScanMinutes: 5,
+}
+const pluginConfig = Object.fromEntries(
+  Object.keys(configValues).map((field) => [field, { get: () => configValues[field] }]),
+)
+const writeVolatile = (field, value) => {
+  if (value === undefined) delete configValues[field]
+  else configValues[field] = value
+}
+
 // 撤销必须真的生效：hub 的 sync() 会先拆再注册，替身不撤销就验证不到幂等。
 ctx.provide('webServer', {
   register: (route) => {
@@ -49,23 +71,28 @@ ctx.provide('systemPrompt', {
     return () => { const at = sections.indexOf(spec); if (at >= 0) sections.splice(at, 1) }
   },
 })
+// 0.1.7 的 settings 服务面：describe() 报命名空间与用户层，mutate()/update() 是
+// 唯一的两条写入路径（没有 register()，命名空间就是 Loader 入口 id）。
 ctx.provide('settings', {
-  register: (ns, _schema, options) => {
-    nsState.set(ns, { user: {}, base: options?.base ?? {} })
-    const scope = {
-      // 真实 settings 服务会用命名空间的 schemastery 默认值填充后再合并用户层；
-      // 替身给出同一结果，否则 apply 里的开关读不到默认值。
-      get: () => ({ enabled: true, announceToAgent: true, ...nsState.get(ns).user }),
-      watch: () => () => {},
-      replace: async (next) => { nsState.get(ns).user = next },
-      update: async (patch) => { nsState.set(ns, { ...nsState.get(ns), user: { ...nsState.get(ns).user, ...patch } }) },
-    }
-    return scope
-  },
   describe: () => [...nsState.entries()].map(([ns, value]) => ({ ns, user: value.user })),
+  update: async (ns, patch) => {
+    const entry = nsState.get(ns) ?? { user: {} }
+    nsState.set(ns, { user: { ...entry.user, ...patch } })
+    for (const [field, value] of Object.entries(patch)) writeVolatile(field, value)
+  },
+  mutate: async (ns, ops) => {
+    const entry = nsState.get(ns) ?? { user: {} }
+    const user = { ...entry.user }
+    for (const op of ops) {
+      const field = op.path[0]
+      if (op.op === 'unset') { delete user[field]; writeVolatile(field, undefined) }
+      else { user[field] = op.value; writeVolatile(field, op.value) }
+    }
+    nsState.set(ns, { user })
+  },
 })
 
-// 真实部署里由 dsh-agent-presets 提供；这里给一个最小替身，让 /presets 能列出模式。
+// 真实部署里由 dsh-agent-preset-registry 提供服务；这里给一个最小替身，让 /presets 能列出模式。
 ctx.provide('agentPresets', {
   defaultId: 'coding',
   list: async () => [
@@ -77,9 +104,13 @@ ctx.provide('agentPresets', {
 // ── 装载构建产物 ────────────────────────────────────────────────────────
 const mod = await import('../lib/index.js')
 check('plugin name', mod.name, 'skill-hub')
-check('inject', mod.inject, ['webServer', 'skills', 'systemPrompt', 'settings'])
+check('inject', mod.inject, ['webServer', 'skills', 'systemPrompt'])
+check('Config schema exported', mod.Config !== undefined, true)
 
-await ctx.plugin(mod)
+// 裸 cordis 的 Fiber 会拿插件的 `Config` schema 去校验第二个参数，而 0.1.7 的真实
+// 形态是 Loader（`fiber.runtime.Config`）把 volatile 引用直接交给 apply。这里摘掉
+// Config 只为绕过裸 cordis 的校验，apply 收到的仍是同一份 volatile 引用。
+await ctx.plugin({ name: mod.name, inject: mod.inject, apply: mod.apply }, pluginConfig)
 log('plugin loaded; routes registered:', routes.length)
 
 // 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
@@ -147,8 +178,9 @@ await prefixRoutes[0].handler(fakeReq('GET', '/api/skill-hub/market/sync'), notF
 check('unknown family path answers 404', notFoundRes.status, 404)
 check('404 names the requested path', String(notFoundRes.json()?.error).includes('/api/skill-hub/market/sync'), true)
 
-// 配置写入必须当场重建 surfaces，而不是等 watcher/重启：关掉 announceToAgent
-// 后 systemPrompt section 要立刻消失，再打开要恢复且不重复注册（sync 幂等）。
+// 配置写入必须当场重建 surfaces：0.1.7 的 settings.mutate 只就地换值、不重跑
+// apply()，所以 updateConfig 写完自己补一轮 sync()。关掉 announceToAgent 后
+// systemPrompt section 要立刻消失，再打开要恢复且不重复注册（sync 幂等）。
 const configRoute = routes.find((r) => r.path === '/api/skill-hub/config')
 check('/config route present', configRoute !== undefined, true)
 const offRes = fakeRes()
