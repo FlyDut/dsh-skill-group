@@ -2,7 +2,7 @@
  * 执行层单测：接线器的生命周期与降级。
  *
  * 这里用**真实的** cordis Context / SkillRegistry / dsh-scope `createScope`，
- * 只把"哪些 preset 已挂载"换成替身——那正是 `dsh-agent-presets` 负责的部分。
+ * 只把"哪些 preset 已挂载"换成替身——那正是 `dsh-agent-preset-registry` 负责的部分。
  * 因此最后一个用例是端到端的：接线之后，那个 preset 的 agent 真的看不到技能。
  */
 

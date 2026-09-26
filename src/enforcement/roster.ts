@@ -2,7 +2,7 @@
  * 执行层 · preset 名单：把 `ctx.agentPresets` 的服务读数投影成面板需要的行。
  *
  * 这一层刻意只做**只读投影**：它不 mount、不写文件、不推断。preset 的权威
- * 定义在 `dsh-agent-presets`，hub 只是把"有哪些模式、哪个是默认、是不是部署
+ * 定义在 `dsh-agent-preset-registry`，hub 只是把"有哪些模式、哪个是默认、是不是部署
  * 自带的"读出来，让设置界面能对着它们配置可见性。
  *
  * `broken` 的 preset 仍然列出（隐藏它会让用户看不见一个占着 id 的坏目录），

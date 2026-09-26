@@ -76,7 +76,7 @@ function gateProvider(hidden: readonly string[]): SkillProvider {
 
 /**
  * 一个最小 dsh 运行时：root ctx + skills 服务 + 一个 preset standing scope
- * （含其 agent）。真实部署里 standing scope 由 `dsh-agent-presets` 在
+ * （含其 agent）。真实部署里 standing scope 由 `dsh-agent-preset-registry` 在
  * `mountPreset` 时 mint，hub 通过 `livePresetMounts()` 拿到它的 key。
  */
 async function harness(): Promise<{

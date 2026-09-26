@@ -2,7 +2,7 @@
  * 执行层 · 接线（wiring）：把闸门接到每个 preset 的 standing 作用域上，并管理
  * 它的生命周期。
  *
- * 机制（见 `scope-mechanism.test.ts` 的契约测试）：`dsh-agent-presets` 为每个
+ * 机制（见 `scope-mechanism.test.ts` 的契约测试）：`dsh-agent-preset-registry` 为每个
  * 被使用的 preset 建立一次 standing mount，并 mint 一个不透明的 scope key；
  * `ctx.skills` 的分层**按该 key 的对象 identity 索引 layer**。因此用同一个 key
  * 调一次 `createScope`，在其中注册的 provider 就落进该 preset 的层——而
@@ -272,11 +272,15 @@ export class PresetWiring {
 /**
  * 动态载入 dsh 的运行时能力。两个包都是**可选**对等依赖：部署里没有（或形状
  * 变了）就返回 undefined，接线器据此整体降级为"策略仅预览"。
+ *
+ * 0.1.7 起 preset 侧包名从 `dsh-agent-presets` 换成了
+ * `dsh-agent-preset-registry`（服务名仍是 `ctx.agentPresets`），`livePresetMounts`
+ * 的签名与 `PresetMount.presetId/key` 字段不变。
  * @returns 可用的运行时绑定，或 undefined。
  */
 export async function loadScopeRuntime(): Promise<RuntimeBindings | undefined> {
   const [presets, scope] = await Promise.all([
-    import('@deepseek-ai/dsh-agent-presets'),
+    import('@deepseek-ai/dsh-agent-preset-registry'),
     import('@deepseek-ai/dsh-scope'),
   ])
   if (typeof presets.livePresetMounts !== 'function' || typeof scope.createScope !== 'function') {
