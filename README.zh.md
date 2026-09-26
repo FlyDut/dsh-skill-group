@@ -24,7 +24,7 @@ dsh plugin --profile web add dsh-skill-hub
 # 重启 dsh web → 设置 → 技能 → 市场 → 扫描 → 导入
 ```
 
-要求 `Node ^22.19 || >=24` + dsh web `>=0.1.6-alpha.2 <0.2`。
+要求 `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`。
 
 两个界面 —— 管理面板在 **设置 → 技能**；本插件的设置卡片在 **插件管理页** 的插件自有页面上（侧边栏「插件」→ dsh-skill-hub）。该卡片于 dsh `0.1.6-alpha.2` 迁到此处 —— 插件管理页取代了旧的「设置 → 插件」列表，本插件只注册到新位置。
 
@@ -75,7 +75,7 @@ DSH 的 agent preset（模式）决定一个会话装载哪些插件，技能目
 
 - 一个 preset 只有在**被某个会话用过**之后才有 standing mount。在那之前它按"不隔离"
   运行（模式列表会标出「未挂载」），首次使用后约 5 秒内自动接上。
-- 部署里缺少 `@deepseek-ai/dsh-agent-presets` / `dsh-scope`，或它们的作用域语义变化时，
+- 部署里缺少 `@deepseek-ai/dsh-agent-preset-registry` / `dsh-scope`，或它们的作用域语义变化时，
   整个能力降级为"只读预览"并给出原因，插件的其余功能**完全不受影响**。
 - 模式隔离是软屏蔽：技能文件仍在磁盘上，其他模式的会话照常使用。
 
@@ -151,7 +151,7 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 332 tests, 19 suites
+npm test           # 334 tests, 19 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -163,7 +163,7 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - 技能不出现 — 看诊断区（缺 frontmatter / 名称不一致 / 描述过短）。
 - 来源组空壳 — 组内技能已被删除、或禁用记录丢失（状态文件被恢复/手改）。启动时自动对账磁盘上的 `.disabled` 文件补记录；无可见成员的来源组不再渲染。
 - `/` 菜单圆点消失 — dsh 内部触发源变更，目录功能不受影响。
-- 找不到设置卡片 — 它在插件管理页（侧边栏「插件」→ dsh-skill-hub），不在「设置」里；dsh 低于 `0.1.6-alpha.2` 时本插件不提供任何配置入口。
+- 找不到设置卡片 — 它在插件管理页（侧边栏「插件」→ dsh-skill-hub），不在「设置」里；低于 `0.1.7-rc.1` 的 dsh 完全不受支持（0.1.7 换掉了本插件所依赖的 settings 模型）。
 
 ## 社区
 

@@ -66,7 +66,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest (332 tests across 19 suites)
+npm test            # vitest (334 tests across 19 suites)
 npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 npm run smoke       # load the built bundle in a real cordis runtime (run after build)
 ```
@@ -115,8 +115,8 @@ This repository is a fork of
 [cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub) that carries features
 upstream does not have (mode-level skill isolation) and therefore tracks upstream **selectively**.
 Never merge or cherry-pick upstream wholesale: upstream dropped the pnpm toolchain files in favour
-of npm, reordered `package-lock.json`, and reworked the settings model for dsh 0.1.7 — which this
-fork does not run.
+of npm, reordered `package-lock.json`, and reworked the settings model for dsh 0.1.7 — this fork has
+since adopted that 0.1.7 settings model (0.4.0) while keeping its own layout and trim.
 
 Read [`UPSTREAM-SYNC.md`](UPSTREAM-SYNC.md) before touching upstream code. It records the reviewed
 upstream watermark, the per-commit disposition of every upstream change (adopted / partial /

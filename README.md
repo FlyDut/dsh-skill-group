@@ -24,7 +24,7 @@ dsh plugin --profile web add dsh-skill-hub
 # restart dsh web → Settings → 技能 → Market → scan → import
 ```
 
-Requires `Node ^22.19 || >=24` + dsh web `>=0.1.6-alpha.2 <0.2`.
+Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`.
 
 Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
 
@@ -78,7 +78,7 @@ Known limits:
 - A preset only has a standing mount after **some session has used it**. Until then it runs
   unrestricted (the list marks it "not mounted") and attaches automatically within about five
   seconds of first use.
-- Without `@deepseek-ai/dsh-agent-presets` / `dsh-scope`, or if their scope semantics change,
+- Without `@deepseek-ai/dsh-agent-preset-registry` / `dsh-scope`, or if their scope semantics change,
   the whole capability degrades to a read-only preview with a stated reason. Nothing else in
   the plugin is affected.
 - It is a soft shadow: the skill file stays on disk and other modes keep using it.
@@ -153,7 +153,7 @@ Unknown paths under `/api/skill-hub/*` answer a 404 naming the path (a `prefix` 
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 332 tests, 19 suites
+npm test           # 334 tests, 19 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -165,7 +165,7 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description).
 - Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk; source groups with no visible member are no longer rendered.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
-- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → dsh-skill-hub), not under Settings. On dsh older than `0.1.6-alpha.2` this plugin contributes no config surface at all.
+- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → dsh-skill-hub), not under Settings. dsh older than `0.1.7-rc.1` is not supported at all (0.1.7 replaced the settings model this plugin is built on).
 
 ## Community
 
