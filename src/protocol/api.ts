@@ -10,7 +10,6 @@ export const SKILL_HUB_API_ROOT = '/api/skill-hub'
 export const SKILL_HUB_API = {
   catalog: '/api/skill-hub/catalog',
   skill: '/api/skill-hub/skill',
-  skillDelete: '/api/skill-hub/skill/delete',
   toggle: '/api/skill-hub/toggle',
   toggleBatch: '/api/skill-hub/toggle-batch',
   create: '/api/skill-hub/create',
@@ -35,9 +34,6 @@ export const SKILL_HUB_API = {
   sources: '/api/skill-hub/sources',
   sourceCheck: '/api/skill-hub/sources/check',
   sourceSync: '/api/skill-hub/sources/sync',
-  sourceDelete: '/api/skill-hub/sources/delete',
-  sourceRestore: '/api/skill-hub/sources/restore',
-  sourceTrashClear: '/api/skill-hub/sources/trash/clear',
   diagnosticFix: '/api/skill-hub/diagnostic/fix',
   marketSourceVersions: '/api/skill-hub/market/source/versions',
   marketStats: '/api/skill-hub/market/stats',

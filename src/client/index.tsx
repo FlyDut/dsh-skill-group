@@ -103,7 +103,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
       name: 'plugins.bundle.config',
-      key: '@flydut/dsh-skill-group',
+      key: 'dsh-skill-group',
       locale: NS,
       inject: () => settingsCard.inject(),
     }, SkillHubSettingsCard)),

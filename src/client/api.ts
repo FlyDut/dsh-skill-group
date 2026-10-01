@@ -29,18 +29,11 @@ import {
   type ScopeSaveResponse,
   type SkillDetail,
   type SkillDetailResponse,
-  type SkillDeleteRequest,
-  type SkillDeleteResponse,
   type SkillTag,
   type SourceCheckRequest,
   type SourceCheckResponse,
-  type SourceDeleteRequest,
-  type SourceDeleteResponse,
   type SourceGroupReorderRequest,
   type SourceGroupReorderResponse,
-  type SourceRestoreRequest,
-  type SourceRestoreResponse,
-  type SourceTrashClearResponse,
   type SourcesResponse,
   type SourceSyncRequest,
   type SourceSyncResponse,
@@ -82,15 +75,6 @@ export class SkillHubApiError extends Error {
  */
 export function isMissingRoute(error: unknown): boolean {
   return error instanceof SkillHubApiError && error.status === 404
-}
-
-/**
- * Workspace scope for a write request: the panel's "no workspace picked"
- * state is the empty string, which must not travel as `cwd: ''` — the routes
- * treat an absent/empty cwd as "user level + every known workspace".
- */
-function scopeOf(options?: { cwd?: string }): { cwd?: string } {
-  return options?.cwd !== undefined && options.cwd !== '' ? { cwd: options.cwd } : {}
 }
 
 /** Parse a JSON response or throw a SkillHubApiError. */
@@ -140,33 +124,24 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
     return readJson<T>(response)
   }
 
-  /** Catalog lookup options (cwd selects a workspace's project skills). */
-  catalog(options?: { cwd?: string }): Promise<CatalogResponse> {
-    const query = options?.cwd !== undefined && options.cwd !== '' ? '?cwd=' + encodeURIComponent(options.cwd) : ''
-    return this.get<CatalogResponse>(SKILL_HUB_API.catalog, query)
+  /** The full local catalog (runtime switch state + discovery diagnostics). */
+  catalog(): Promise<CatalogResponse> {
+    return this.get<CatalogResponse>(SKILL_HUB_API.catalog)
   }
 
-  /** One skill's detail (cwd selects a workspace's project skills). */
-  async skill(name: string, options?: { cwd?: string }): Promise<SkillDetail> {
-    const cwd = options?.cwd !== undefined && options.cwd !== '' ? '&cwd=' + encodeURIComponent(options.cwd) : ''
-    const body = await this.get<SkillDetailResponse>(SKILL_HUB_API.skill, '?name=' + encodeURIComponent(name) + cwd)
+  /** One skill's detail. */
+  async skill(name: string): Promise<SkillDetail> {
+    const body = await this.get<SkillDetailResponse>(SKILL_HUB_API.skill, '?name=' + encodeURIComponent(name))
     return body.skill
   }
 
-  /** Move one writable skill into the restorable trash. */
-  deleteSkill(name: string, options?: { cwd?: string }): Promise<SkillDeleteResponse> {
-    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, { name, ...scopeOf(options) } satisfies SkillDeleteRequest)
-  }
-
   /**
-   * Toggle one skill; resolves with the fresh catalog from the route.
-   * `cwd` MUST be the workspace the panel is currently showing: the route
-   * rebuilds the catalog under the same scope, and the caller stores that
-   * catalog verbatim — omitting it silently snaps a workspace view back to
-   * the all-workspaces default.
+   * Switch one skill on or off; resolves with the fresh catalog from the
+   * route. The switch lives in the hub's sidecar and is enforced at runtime —
+   * no skill file is renamed or removed.
    */
-  async toggle(name: string, enabled: boolean, options?: { cwd?: string }): Promise<CatalogResponse> {
-    const body = await this.post<ToggleResponse>(SKILL_HUB_API.toggle, { name, enabled, ...scopeOf(options) } satisfies ToggleRequest)
+  async toggle(name: string, enabled: boolean): Promise<CatalogResponse> {
+    const body = await this.post<ToggleResponse>(SKILL_HUB_API.toggle, { name, enabled } satisfies ToggleRequest)
     return body.catalog
   }
 
@@ -179,8 +154,8 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
   }
 
   /** Toggle a whole group in one write; resolves with the fresh catalog + failures. */
-  toggleBatch(names: string[], enabled: boolean, options?: { cwd?: string }): Promise<ToggleBatchResponse> {
-    const payload: ToggleBatchRequest = { names, enabled, ...scopeOf(options) }
+  toggleBatch(names: string[], enabled: boolean): Promise<ToggleBatchResponse> {
+    const payload: ToggleBatchRequest = { names, enabled }
     return this.post<ToggleBatchResponse>(SKILL_HUB_API.toggleBatch, payload)
   }
 
@@ -286,7 +261,7 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
     return body.order
   }
 
-  /** 来源列表 + 派生 origin 映射 + 集合组 + 回收站。 */
+  /** 来源列表 + 派生 origin 映射 + 集合组。 */
   sources(): Promise<SourcesResponse> {
     return this.get<SourcesResponse>(SKILL_HUB_API.sources)
   }
@@ -301,23 +276,6 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
   syncSource(repo: string, skills?: string[]): Promise<SourceSyncResponse> {
     const payload: SourceSyncRequest = skills !== undefined ? { repo, skills } : { repo }
     return this.post<SourceSyncResponse>(SKILL_HUB_API.sourceSync, payload)
-  }
-
-  /** 跟进上游删除：把所选技能移入回收站。 */
-  confirmDeleteSource(repo: string, skills: string[]): Promise<SourceDeleteResponse> {
-    const payload: SourceDeleteRequest = { repo, skills }
-    return this.post<SourceDeleteResponse>(SKILL_HUB_API.sourceDelete, payload)
-  }
-
-  /** 从回收站恢复一个技能。 */
-  restoreSource(name: string): Promise<SourceRestoreResponse> {
-    const payload: SourceRestoreRequest = { name }
-    return this.post<SourceRestoreResponse>(SKILL_HUB_API.sourceRestore, payload)
-  }
-
-  /** Permanently delete every skill currently in the trash. */
-  clearTrash(): Promise<SourceTrashClearResponse> {
-    return this.post<SourceTrashClearResponse>(SKILL_HUB_API.sourceTrashClear)
   }
 
   /** Auto-fix a fixable diagnostic (e.g. unquoted colon). */

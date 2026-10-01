@@ -221,12 +221,6 @@
 .sectionTitleFill { flex: 1; }
 .dialogSelect { width: 100%; margin-bottom: 12px; }
 .dialogRow { display: flex; align-items: center; gap: 8px; }
-/* Workspace (project path) picker in the subbar. */
-.workspaceBox { display: inline-flex; align-items: center; gap: 6px; }
-.workspaceInput { width: 200px; padding: 6px 10px; font-size: 12px; }
-/* Project-level three-tier tree: outer card (the .section), inner levels are
-   flat — indent + a hairline guide only, no nested card surfaces. */
-.projectNest { display: flex; flex-direction: column; margin: 2px 0 0 14px; border-left: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.14)); }
 
 /* Scan list for 276-skill import — theme-agnostic, replaces inline styles */
 .scanList { max-height: 360px; overflow: auto; border: 0.5px solid var(--hub-border-2); border-radius: 12px; margin-top: 8px; background: var(--hub-surface); }

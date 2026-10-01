@@ -6,6 +6,7 @@
 
 import type { JSX, ReactNode } from 'react'
 import type { CatalogResponse, SkillTag } from '../../protocol.ts'
+import { disabledSkills } from '../grouping.ts'
 import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
@@ -37,7 +38,7 @@ export function TagEditorView(props: TagEditorViewProps): JSX.Element {
   const { tag, notices, editName, membersDraft, editSearch, catalog, tagBusy, onBack, onEditName, onEditSearch, onToggleMember, onRename, onDelete, onSaveMembers } = props
   const editQuery = editSearch.trim().toLocaleLowerCase()
   const editSkills = (catalog?.skills ?? []).filter((skill) => editQuery.length === 0 || skill.name.toLocaleLowerCase().includes(editQuery) || skill.description.toLocaleLowerCase().includes(editQuery))
-  const editDisabled = (catalog?.disabled ?? []).filter((record) => editQuery.length === 0 || record.name.toLocaleLowerCase().includes(editQuery) || record.description.toLocaleLowerCase().includes(editQuery))
+  const editDisabled = disabledSkills(catalog).filter((record) => editQuery.length === 0 || record.name.toLocaleLowerCase().includes(editQuery) || record.description.toLocaleLowerCase().includes(editQuery))
   return (
     <div className={css.panel}>
       {notices}

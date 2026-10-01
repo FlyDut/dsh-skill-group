@@ -163,87 +163,7 @@ describe('skill-hub routes', () => {
     expect(body.pluginVersion).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
-  it('forwards the cwd query to the registry snapshot', async () => {
-    let captured: string | undefined
-    skills.snapshot = async (options?: { cwd?: string }) => {
-      captured = options?.cwd
-      return { skills: [], complete: true }
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog + '?cwd=%2Ftmp%2Fproject'), res as never)
-    expect(res.status).toBe(200)
-    expect(captured).toBe('/tmp/project')
-  })
-
-  it('merges every known workspace into the default catalog with workspace fields', async () => {
-    // workspace.json 声明两个工作区；每个工作区的 snapshot 返回其项目技能 + 用户级技能。
-    await mkdir(join(home, 'storages'), { recursive: true })
-    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
-      tables: {
-        workspaces: {
-          a: { title: 'Alpha', path: '/ws/a' },
-          b: { title: 'Beta', path: '/ws/b' },
-        },
-      },
-    }), 'utf8')
-    skills.snapshot = async (options?: { cwd?: string }) => {
-      const user = summary({ name: 'shared-user' })
-      if (options?.cwd === '/ws/a') {
-        return { skills: [user, summary({ name: 'ws-a-skill', source: 'project-dsh', provider: 'skill-hub' })], complete: true }
-      }
-      if (options?.cwd === '/ws/b') {
-        return { skills: [user, summary({ name: 'ws-b-skill', source: 'project-agents', provider: 'skill-hub' })], complete: false }
-      }
-      return { skills: [user], complete: true }
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as CatalogResponse
-    expect(body.complete).toBe(false) // 任一工作区不完整则整体不完整
-    const byName = new Map(body.skills.map((skill) => [skill.name, skill]))
-    expect(byName.has('ws-a-skill')).toBe(true)
-    expect(byName.get('ws-a-skill')).toMatchObject({ workspace: '/ws/a', workspaceTitle: 'Alpha', writable: false })
-    expect(byName.get('ws-b-skill')).toMatchObject({ workspace: '/ws/b', workspaceTitle: 'Beta' })
-    // 同名用户级技能只出现一次，且不带 workspace 字段。
-    expect(byName.get('shared-user')).toMatchObject({ writable: true })
-    expect(byName.get('shared-user')?.workspace).toBeUndefined()
-  })
-
-  it('reads interface metadata per workspace for same-named project skills', async () => {
-    // 两个工作区各有同名项目技能 dup：interface 必须按（名字+工作区）各取各的，
-    // 否则两行会串显示最后读到的那份 agents/openai.yaml。
-    const wsA = join(dir, 'ws-a')
-    const wsB = join(dir, 'ws-b')
-    for (const [ws, label] of [[wsA, 'A'], [wsB, 'B']] as const) {
-      const skillDir = join(ws, '.dsh', 'skills', 'dup')
-      await mkdir(join(skillDir, 'agents'), { recursive: true })
-      await writeFile(join(skillDir, 'agents', 'openai.yaml'), 'interface:\n  display_name: ' + label + '\n', 'utf8')
-    }
-    await mkdir(join(home, 'storages'), { recursive: true })
-    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
-      tables: { workspaces: { a: { title: 'Alpha', path: wsA }, b: { title: 'Beta', path: wsB } } },
-    }), 'utf8')
-    skills.snapshot = async (options?: { cwd?: string }) => ({
-      skills: options?.cwd === wsA || options?.cwd === wsB
-        ? [summary({ name: 'dup', source: 'project-dsh', provider: 'skill-hub' })]
-        : [],
-      complete: true,
-    })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as CatalogResponse
-    const rows = body.skills.filter((skill) => skill.name === 'dup')
-    expect(rows.map((row) => [row.workspace, row.displayName])).toEqual([[wsA, 'A'], [wsB, 'B']])
-  })
-
   it('flags duplicate names only across distinct source/provider identities', async () => {
-    // 两个工作区快照返回同一个用户级技能：同一来源+提供者，不算重名。
-    await mkdir(join(home, 'storages'), { recursive: true })
-    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
-      tables: { workspaces: { a: { title: 'Alpha', path: '/ws/a' }, b: { title: 'Beta', path: '/ws/b' } } },
-    }), 'utf8')
     skills.snapshot = async () => ({
       skills: [
         summary({ name: 'shared-user', source: 'user-dsh', provider: 'skill-hub' }),
@@ -256,28 +176,8 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as CatalogResponse
-    // shared-user 在两个快照出现但身份一致 → 不标；two-homes 来源不同 → 标。
+    // 同一来源+提供者即使重复出现也只算一份；来源不同 → 标重名。
     expect(body.duplicateNames ?? []).toEqual(['two-homes'])
-  })
-
-  it('falls back across workspaces when fetching a project skill detail without cwd', async () => {
-    await mkdir(join(home, 'storages'), { recursive: true })
-    await writeFile(join(home, 'storages', 'workspace.json'), JSON.stringify({
-      tables: { workspaces: { a: { title: 'Alpha', path: '/ws/a' } } },
-    }), 'utf8')
-    const calls: Array<string | undefined> = []
-    skills.get = async (name: string, options?: { cwd?: string }) => {
-      calls.push(options?.cwd)
-      return name === 'ws-a-skill' && options?.cwd === '/ws/a' ? definition({ name, source: 'project-dsh' }) : undefined
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skill).handler(fakeReq('GET', SKILL_HUB_API.skill + '?name=ws-a-skill'), res as never)
-    expect(res.status).toBe(200)
-    expect(calls).toEqual(['/ws/a']) // 工作区命中即停，不再回退用户根
-    const miss = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skill).handler(fakeReq('GET', SKILL_HUB_API.skill + '?name=nope'), miss as never)
-    expect(miss.status).toBe(404)
-    expect(calls).toEqual(['/ws/a', '/ws/a', undefined]) // 未命中时回退用户根
   })
 
   it('serves skill detail and 404s unknown names', async () => {
@@ -290,95 +190,47 @@ describe('skill-hub routes', () => {
     expect(missing.status).toBe(404)
   })
 
-  it('toggles a writable skill off and back on', async () => {
+  it('switches a skill off and back on through the sidecar, leaving the file alone', async () => {
     const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
     await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
     await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
+    skills.snapshot = async () => ({ skills: [summary({ name: 'demo-skill' })], complete: true })
     skills.get = async () => definition({ path })
+
     const off = new FakeResponse()
     await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false }), off as never)
     expect(off.status).toBe(200)
     expect(await store.listDisabled()).toHaveLength(1)
-    await expect(access(path)).rejects.toThrow()
+    // 关闭只写 sidecar：技能文件原地不动，插件不再改后缀也不再搬目录。
+    await expect(access(path)).resolves.toBeUndefined()
+    const offBody = off.json() as import('./protocol.ts').ToggleResponse
+    expect(offBody.catalog.skills[0]).toMatchObject({ name: 'demo-skill', enabled: false })
+
     const on = new FakeResponse()
     await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: true }), on as never)
     expect(on.status).toBe(200)
     expect(await store.listDisabled()).toHaveLength(0)
     await expect(access(path)).resolves.toBeUndefined()
+    const onBody = on.json() as import('./protocol.ts').ToggleResponse
+    expect(onBody.catalog.skills[0]).toMatchObject({ name: 'demo-skill', enabled: true })
   })
 
-  it('keeps the toggle response inside the caller workspace when cwd is sent', async () => {
-    const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
-    await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
-    await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
-    const getCalls: Array<string | undefined> = []
-    const snapshotCalls: Array<string | undefined> = []
-    skills.get = async (_name: string, options?: { cwd?: string }) => {
-      getCalls.push(options?.cwd)
-      return definition({ path })
-    }
-    // 目录里放一个项目级技能：这样回包必须带上 workspace（用户级技能不带）。
-    skills.snapshot = async (options?: { cwd?: string }) => {
-      snapshotCalls.push(options?.cwd)
-      return { skills: [summary({ name: 'ws-only', source: 'project-dsh' })], complete: true }
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggle).handler(
-      fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false, cwd: '/ws/a' }),
-      res as never,
-    )
-    expect(res.status).toBe(200)
-    expect(getCalls.length).toBeGreaterThan(0)
-    expect(getCalls.every((cwd) => cwd === '/ws/a')).toBe(true)
-    // 回包目录也必须留在同一工作区，否则面板视图会被静默重置为“全部工作区”。
-    expect(snapshotCalls[snapshotCalls.length - 1]).toBe('/ws/a')
-    const body = res.json() as import('./protocol.ts').ToggleResponse
-    expect(body.catalog.skills[0]?.workspace).toBe('/ws/a')
+  it('404s when switching off an unknown skill and when switching on a live one', async () => {
+    const off = new FakeResponse()
+    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'ghost', enabled: false }), off as never)
+    expect(off.status).toBe(404)
+    expect((off.json() as ErrorResponse).error).toContain('skill not found')
+
+    skills.get = async () => definition({})
+    const on = new FakeResponse()
+    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: true }), on as never)
+    expect(on.status).toBe(404)
+    expect((on.json() as ErrorResponse).error).toContain('skill is not switched off')
   })
 
-  it('forwards cwd on batch toggle requests', async () => {
-    const path = join(home, 'skills', 'batch-a', 'SKILL.md')
-    await mkdir(join(home, 'skills', 'batch-a'), { recursive: true })
-    await writeFile(path, '---\nname: batch-a\ndescription: batch\n---\n\nbody', 'utf8')
-    const calls: Array<string | undefined> = []
-    skills.get = async (_name: string, options?: { cwd?: string }) => {
-      calls.push(options?.cwd)
-      return definition({ name: 'batch-a', path, source: 'user-dsh' })
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggleBatch).handler(
-      fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-a'], enabled: false, cwd: '/ws/c' }),
-      res as never,
-    )
-    expect(res.status).toBe(200)
-    expect(calls.length).toBeGreaterThan(0)
-    expect(calls.every((cwd) => cwd === '/ws/c')).toBe(true)
-  })
-
-  it('forwards cwd on skill delete requests', async () => {
-    const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
-    await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
-    await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
-    const calls: Array<string | undefined> = []
-    skills.get = async (_name: string, options?: { cwd?: string }) => {
-      calls.push(options?.cwd)
-      return definition({ path })
-    }
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(
-      fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'demo-skill', cwd: '/ws/b' }),
-      res as never,
-    )
-    expect(res.status).toBe(200)
-    expect(calls.length).toBeGreaterThan(0)
-    expect(calls.every((cwd) => cwd === '/ws/b')).toBe(true)
-  })
-
-  it('carries the renamed file times on disabled records so row order stays stable', async () => {
-    const path = join(home, 'skills', 'timed-skill', 'SKILL.md')
-    await mkdir(join(home, 'skills', 'timed-skill'), { recursive: true })
-    await writeFile(path, '---\nname: timed-skill\ndescription: timed\n---', 'utf8')
-    skills.get = async () => definition({ name: 'timed-skill', path })
+  it('keeps a switched-off skill in the catalog as one row flagged enabled:false', async () => {
+    skills.snapshot = async () => ({ skills: [summary({ name: 'timed-skill' })], complete: true })
+    skills.get = async () => definition({ name: 'timed-skill' })
     const off = new FakeResponse()
     await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'timed-skill', enabled: false }), off as never)
     expect(off.status).toBe(200)
@@ -386,18 +238,22 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as import('./protocol.ts').CatalogResponse
-    const record = (body.disabled ?? []).find((item) => item.name === 'timed-skill')
-    expect(record?.addedAt).toBeTypeOf('number')
-    expect(record?.updatedAt).toBeTypeOf('number')
+    // 目录里每个技能只有一行；关闭态是行上的标记，不再有第二份列表。
+    const rows = body.skills.filter((skill) => skill.name === 'timed-skill')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].enabled).toBe(false)
   })
 
-  it('refuses to toggle read-only sources', async () => {
+  it('switches off a read-only source too, since only the sidecar changes', async () => {
+    // 运行时关闭不动任何文件，只写中间层状态：只读来源（bundled 等）一样能被隐藏。
+    skills.snapshot = async () => ({ skills: [summary({ name: 'demo-skill', source: 'bundled', provider: 'bundled' })], complete: true })
     skills.get = async () => definition({ source: 'bundled', provider: 'bundled' })
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false }), res as never)
-    expect(res.status).toBe(409)
-    const body = res.json() as ErrorResponse
-    expect(body.error).toContain('managed outside the hub')
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').ToggleResponse
+    expect(body.catalog.skills.find((skill) => skill.name === 'demo-skill')?.enabled).toBe(false)
+    expect(await store.getDisabled('demo-skill')).toBeDefined()
   })
 
   it('disables a whole group in one write', async () => {
@@ -417,15 +273,13 @@ describe('skill-hub routes', () => {
   })
 
   it('re-enables a group and skips already-enabled names as no-ops', async () => {
-    const pathA = join(home, 'skills', 'batch-a', 'SKILL.md')
-    const pathB = join(home, 'skills', 'batch-b', 'SKILL.md')
-    for (const pth of [pathA, pathB]) {
+    for (const name of ['batch-a', 'batch-b']) {
+      const pth = join(home, 'skills', name, 'SKILL.md')
       await mkdir(dirname(pth), { recursive: true })
-      await writeFile(pth, '---\nname: x\ndescription: y\n---\n\nbody', 'utf8')
+      await writeFile(pth, '---\nname: ' + name + '\ndescription: y\n---\n\nbody', 'utf8')
     }
-    const { disableSkill } = await import('./skillfs.ts')
-    const disabledA = await disableSkill(pathA)
-    await store.addDisabled({ name: 'batch-a', description: 'y', path: disabledA, root: 'user-dsh', disabledAt: 1 })
+    // batch-a 处于运行时关闭态；batch-b 一直开着（应被当成 no-op 跳过）。
+    await store.addDisabled({ name: 'batch-a', disabledAt: 1 })
     skills.get = async (name: string) => definition({ name, source: 'user-dsh' })
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-a', 'batch-b'], enabled: true }), res as never)
@@ -435,103 +289,20 @@ describe('skill-hub routes', () => {
     expect(await store.listDisabled()).toHaveLength(0)
   })
 
-  it('reports per-name failures for read-only skills while landing the rest', async () => {
+  it('reports per-name failures for unknown skills while landing the rest', async () => {
     const dir = join(home, 'skills', 'batch-c')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'SKILL.md'), '---\nname: batch-c\ndescription: ok\n---', 'utf8')
     skills.get = async (name: string) => name === 'batch-c'
       ? definition({ name, path: join(dir, 'SKILL.md'), source: 'user-dsh' })
-      : definition({ name, source: 'bundled', provider: 'bundled' })
+      : undefined
     const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-c', 'readonly-x'], enabled: false }), res as never)
+    await routeFor(SKILL_HUB_API.toggleBatch).handler(fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-c', 'missing-x'], enabled: false }), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as import('./protocol.ts').ToggleBatchResponse
     expect(body.failures).toHaveLength(1)
-    expect(body.failures[0].name).toBe('readonly-x')
+    expect(body.failures[0].name).toBe('missing-x')
     expect(await store.listDisabled()).toHaveLength(1)
-  })
-
-  // -------------------------------------------------------- skill delete
-  it('deletes one writable skill into the restorable trash and cleans metadata', async () => {
-    const dir = join(home, 'skills', 'delete-me')
-    await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'SKILL.md'), '---\nname: delete-me\ndescription: x\n---\n\nbody', 'utf8')
-    const tag = await store.saveTag({ name: 'web' })
-    await store.setTagMembers(tag.id, ['delete-me'])
-    await store.addSourceSkill('repo/a', 'skills', 'sha', undefined, 'delete-me')
-    skills.get = async () => definition({ name: 'delete-me', path: join(dir, 'SKILL.md'), source: 'user-dsh' })
-    const invalidate = vi.fn()
-    deps.invalidate = invalidate
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'delete-me' }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
-    expect(body.path.startsWith(join(home, 'skills', '.trash', 'delete-me-'))).toBe(true)
-    await expect(access(dir)).rejects.toThrow()
-    expect((await store.listTags())[0].skillNames).toEqual([])
-    expect(await store.listSources()).toEqual([])
-    expect(await store.listOrigins()).toEqual({})
-    expect(invalidate).toHaveBeenCalledTimes(1)
-
-    const restore = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'delete-me' }), restore as never)
-    expect(restore.status).toBe(200)
-    await expect(access(join(dir, 'SKILL.md'))).resolves.toBeUndefined()
-    // 恢复后来源归属与场景成员一并恢复（不再变成「个人技能」）。
-    expect((await store.getSource('repo/a'))?.skills).toEqual(['delete-me'])
-    expect((await store.listTags()).find((tag) => tag.name === 'web')?.skillNames).toEqual(['delete-me'])
-  })
-
-  it('deletes and restores a flat skill file', async () => {
-    const flat = join(home, 'skills', 'flat-delete.md')
-    await writeFile(flat, '---\nname: flat-delete\ndescription: x\n---\n\nbody', 'utf8')
-    skills.get = async () => definition({ name: 'flat-delete', path: flat, source: 'user-dsh' })
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'flat-delete' }), res as never)
-    expect(res.status).toBe(200)
-    await expect(access(flat)).rejects.toThrow()
-    const trash = await store.listTrash()
-    expect(trash[0].sourcePath).toBe(flat)
-
-    const restore = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'flat-delete' }), restore as never)
-    expect(restore.status).toBe(200)
-    await expect(access(flat)).resolves.toBeUndefined()
-  })
-
-  it('rejects deleting read-only, missing, and out-of-root skills', async () => {
-    skills.get = async () => definition({ source: 'bundled', provider: 'bundled', path: '/bundled/x/SKILL.md' })
-    const readOnly = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'x' }), readOnly as never)
-    expect(readOnly.status).toBe(409)
-
-    skills.get = async () => definition({ source: 'user-dsh', path: '/outside/skills/x/SKILL.md' })
-    const outside = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'x' }), outside as never)
-    expect(outside.status).toBe(409)
-
-    skills.get = async () => undefined
-    const missing = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'x' }), missing as never)
-    expect(missing.status).toBe(404)
-
-    const empty = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, {}), empty as never)
-    expect(empty.status).toBe(400)
-  })
-
-  it('refuses to trash a hub-disabled record whose sidecar path is outside the writable roots', async () => {
-    // 防御损坏的 sidecar：禁用态删除走 disabled.path，必须先做包含性校验，
-    // 否则一条伪造路径就能把任意目录挪进 .trash。
-    skills.get = async () => undefined
-    await store.addDisabled({ name: 'evil', description: '', path: '/etc/passwd', root: 'user-dsh', disabledAt: Date.now() })
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'evil' }), res as never)
-    expect(res.status).toBe(409)
-    expect(res.json()).toEqual({ error: 'disabled skill path is outside the hub writable roots' })
-    expect(await store.listTrash()).toEqual([])
   })
 
   it('creates a skill scaffold and rejects bad names', async () => {
@@ -576,17 +347,14 @@ describe('skill-hub routes', () => {
     expect(res.status).toBe(409)
   })
 
-  it('refuses to create a skill whose name is currently disabled', async () => {
-    await store.addDisabled({
-      name: 'demo-skill',
-      description: 'old disabled skill',
-      path: join(home, 'skills', 'demo-skill', 'SKILL.md.disabled'),
-      root: 'user-dsh',
-      disabledAt: Date.now(),
-    })
+  it('lets a stale switched-off record be re-created and clears it', async () => {
+    // 同名技能曾被关闭、随后被用户手工删掉：残留记录不该挡住建回，也不该让新技能一出生就是关闭态。
+    await store.addDisabled({ name: 'demo-skill', disabledAt: Date.now() })
+    skills.get = async () => undefined
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'demo-skill' }), res as never)
-    expect(res.status).toBe(409)
+    expect(res.status).toBe(201)
+    expect(await store.getDisabled('demo-skill')).toBeUndefined()
   })
 
   it('serves the hub config with saved overrides', async () => {
@@ -878,10 +646,9 @@ describe('skill-hub routes', () => {
   })
 
   // ------------------------------------------------------------- sources
-  it('serves sources with derived origins, collections, and trash', async () => {
+  it('serves sources with derived origins and collections', async () => {
     await store.addSourceSkill('repo/a', 'skills', 'sha', undefined, 'one')
     await store.addSourceSkill('repo/a', 'skills', 'sha', undefined, 'two')
-    await store.addTrash({ name: 'gone', path: join(home, 'skills', '.trash', 'gone-1'), movedAt: 5 })
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.sources).handler(fakeReq('GET', SKILL_HUB_API.sources), res as never)
     expect(res.status).toBe(200)
@@ -890,7 +657,6 @@ describe('skill-hub routes', () => {
     expect(body.sources[0].skills).toEqual(['one', 'two'])
     expect(body.origins).toEqual({ one: 'repo/a', two: 'repo/a' })
     expect(body.collections).toEqual([{ name: 'repo/a', skillNames: ['one', 'two'] }])
-    expect(body.trash).toHaveLength(1)
   })
 
   it('checks a source: unchanged commit reports no update; changed commit diffs the tree', async () => {
@@ -948,14 +714,15 @@ describe('skill-hub routes', () => {
     }
   })
 
-  it('syncs a source to the latest commit, updating manifest and preserving disabled state', async () => {
+  it('syncs a source to the latest commit, updating the manifest and leaving the runtime switch alone', async () => {
     await store.addSourceSkill('repo/sync-a', 'skills', 'old-sha', undefined, 'docx')
     await store.addSourceSkill('repo/sync-a', 'skills', 'old-sha', undefined, 'pdf')
     await store.mergeSourceManifest('repo/sync-a', { 'skills/docx/SKILL.md': 10, 'skills/pdf/SKILL.md': 10 })
     const dir = join(home, 'skills', 'docx')
     await mkdir(dir, { recursive: true })
-    await writeFile(join(dir, 'SKILL.md.disabled'), '---\nname: docx\ndescription: old\n---', 'utf8')
-    await store.addDisabled({ name: 'docx', description: 'old', path: join(dir, 'SKILL.md.disabled'), root: 'user-dsh', disabledAt: 1 })
+    await writeFile(join(dir, 'SKILL.md'), '---\nname: docx\ndescription: old\n---', 'utf8')
+    // docx 处于运行时关闭态：同步照常覆盖文件，关闭状态是 sidecar 的事，不受影响。
+    await store.addDisabled({ name: 'docx', disabledAt: 1 })
 
     stubFetch([
       ['repos/repo/sync-a/commits', jsonResponse({ sha: 'new-sha', commit: { tree: { sha: 'treeY' } } })],
@@ -974,10 +741,13 @@ describe('skill-hub routes', () => {
       expect(body.synced).toEqual(['docx', 'pdf'])
       expect(body.failed).toEqual([])
       expect(body.commitSha).toBe('new-sha')
-      // docx was disabled: fresh content stays out of discovery
-      await expect(access(join(home, 'skills', 'docx', 'SKILL.md'))).rejects.toThrow()
-      await expect(access(join(home, 'skills', 'docx', 'SKILL.md.disabled'))).resolves.toBeUndefined()
+      // 上游内容落到原地：既不改名也不进回收站。
+      const text = await readFile(join(home, 'skills', 'docx', 'SKILL.md'), 'utf8')
+      expect(text).toContain('description: fresh')
+      await expect(access(join(home, 'skills', 'docx', 'SKILL.md.disabled'))).rejects.toThrow()
       await expect(access(join(home, 'skills', 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
+      // 关闭记录原地保留：同步不会替用户把技能打开。
+      expect(await store.getDisabled('docx')).toBeDefined()
       const source = await store.getSource('repo/sync-a')
       expect(source?.commitSha).toBe('new-sha')
       expect(source?.manifest).toEqual({ 'skills/docx/SKILL.md': 80, 'skills/pdf/SKILL.md': 70 })
@@ -986,58 +756,27 @@ describe('skill-hub routes', () => {
     }
   })
 
-  it('follows upstream deletion into the trash and restores it', async () => {
+  it('reports an upstream deletion without touching the local copy', async () => {
     const dir = join(home, 'skills', 'gone-skill')
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'SKILL.md'), '---\nname: gone-skill\ndescription: x\n---', 'utf8')
     await store.addSourceSkill('repo/delete-a', 'skills', 'sha', undefined, 'gone-skill')
-    await store.addSourceSkill('repo/delete-a', 'skills', 'sha', undefined, 'keeper')
-
-    const del = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceDelete).handler(fakeReq('POST', SKILL_HUB_API.sourceDelete, { repo: 'repo/delete-a', skills: ['gone-skill'] }), del as never)
-    expect(del.status).toBe(200)
-    const delBody = del.json() as import('./protocol.ts').SourceDeleteResponse
-    expect(delBody.trashed).toEqual(['gone-skill'])
-    expect(delBody.failed).toEqual([])
-    await expect(access(dir)).rejects.toThrow()
-    expect((await store.listTrash()).map((entry) => entry.name)).toEqual(['gone-skill'])
-    const source = await store.getSource('repo/delete-a')
-    expect(source?.skills).toEqual(['keeper'])
-
-    const restore = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'gone-skill' }), restore as never)
-    expect(restore.status).toBe(200)
-    await expect(access(join(home, 'skills', 'gone-skill', 'SKILL.md'))).resolves.toBeUndefined()
-    expect(await store.listTrash()).toEqual([])
-    // 恢复后技能重新挂回来源记录（下一次检查会如实提示上游仍无此技能）。
-    expect((await store.getSource('repo/delete-a'))?.skills).toEqual(['gone-skill', 'keeper'])
-
-    // restoring again collides with the existing directory
-    const again = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceRestore).handler(fakeReq('POST', SKILL_HUB_API.sourceRestore, { name: 'gone-skill' }), again as never)
-    expect(again.status).toBe(404)
-  })
-
-  it('clears the trash permanently and keeps failed entries', async () => {
-    const trash = join(home, 'skills', '.trash')
-    await mkdir(trash, { recursive: true })
-    const goneDir = join(trash, 'gone-skill-1')
-    await mkdir(goneDir, { recursive: true })
-    await writeFile(join(goneDir, 'SKILL.md'), '---\nname: gone-skill\ndescription: x\n---', 'utf8')
-    await store.addTrash({ name: 'gone-skill', path: goneDir, movedAt: 1, sourcePath: join(home, 'skills', 'gone-skill') })
-    await store.addTrash({ name: 'outside', path: '/tmp/.trash-outside/outside-1', movedAt: 2, sourcePath: '/tmp/skills/outside' })
-    const invalidate = vi.fn()
-    deps.invalidate = invalidate
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceTrashClear).handler(fakeReq('POST', SKILL_HUB_API.sourceTrashClear), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').SourceTrashClearResponse
-    expect(body.deleted).toEqual(['gone-skill'])
-    expect(body.failed).toHaveLength(1)
-    await expect(access(goneDir)).rejects.toThrow()
-    expect((await store.listTrash()).map((entry) => entry.name)).toEqual(['outside'])
-    expect(invalidate).toHaveBeenCalledTimes(1)
+    await store.mergeSourceManifest('repo/delete-a', { 'skills/gone-skill/SKILL.md': 10 })
+    stubFetch([
+      ['repos/repo/delete-a/commits', jsonResponse({ sha: 'new', commit: { tree: { sha: 'treeZ' } } })],
+      ['repos/repo/delete-a/git/trees/treeZ', jsonResponse({ tree: [] })],
+    ])
+    try {
+      const res = new FakeResponse()
+      await routeFor(SKILL_HUB_API.sourceCheck).handler(fakeReq('POST', SKILL_HUB_API.sourceCheck, { repo: 'repo/delete-a' }), res as never)
+      expect(res.status).toBe(200)
+      const body = res.json() as import('./protocol.ts').SourceCheckResponse
+      expect(body.results[0].deleted).toEqual(['gone-skill'])
+      // 本插件不代删：文件留在原地，由用户自己决定怎么处理。
+      await expect(access(join(dir, 'SKILL.md'))).resolves.toBeUndefined()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('patches display toggles on the config route', async () => {
@@ -1049,29 +788,6 @@ describe('skill-hub routes', () => {
     const bad = new FakeResponse()
     await routeFor(SKILL_HUB_API.config).handler(fakeReq('POST', SKILL_HUB_API.config, { showUseTime: 'x' }), bad as never)
     expect(bad.status).toBe(400)
-  })
-
-  it('rejects path traversal and untracked names in source delete', async () => {
-    // A tracked skill plus an untracked name and a `..`-bearing name.
-    await mkdir(join(home, 'skills', 'tracked-skill'), { recursive: true })
-    await writeFile(join(home, 'skills', 'tracked-skill', 'SKILL.md'), '---\nname: tracked-skill\ndescription: x\n---', 'utf8')
-    // The traversal target lives OUTSIDE the writable root; it must survive.
-    const victim = join(dir, 'victim-dir')
-    await mkdir(victim, { recursive: true })
-    await writeFile(join(victim, 'keep.txt'), 'keep', 'utf8')
-    await store.addSourceSkill('repo/guard', 'skills', 'abc', undefined, 'tracked-skill')
-
-    const res = new FakeResponse()
-    await routeFor(SKILL_HUB_API.sourceDelete).handler(fakeReq('POST', SKILL_HUB_API.sourceDelete, {
-      repo: 'repo/guard',
-      skills: ['../victim-dir', 'not-tracked', 'tracked-skill'],
-    }), res as never)
-    expect(res.status).toBe(200)
-    const body = res.json() as import('./protocol.ts').SourceDeleteResponse
-    expect(body.trashed).toEqual(['tracked-skill'])
-    expect(body.failed.map((f) => f.name)).toEqual(['../victim-dir', 'not-tracked'])
-    // The out-of-root directory was never renamed.
-    await expect(access(join(victim, 'keep.txt'))).resolves.toBeUndefined()
   })
 
   it('keeps the old commit snapshot when a sync partially fails', async () => {

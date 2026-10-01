@@ -1,8 +1,7 @@
 /**
- * PanelDialogs — SkillHubPanel 底部的对话框接线层（冲突、同步/删除确认、
- * 分支选择、版本选择、市场同步、删除技能、删除分组、清空回收站、新建技能）。
- * 状态与动作仍由 useSkillHub 的 hub 持有；这里只收窄成显式 props，渲染顺序
- * 与拆分前完全一致。
+ * PanelDialogs — SkillHubPanel 底部的对话框接线层（冲突、同步确认、
+ * 分支选择、版本选择、市场同步、新建技能）。状态与动作仍由 useSkillHub
+ * 的 hub 持有；这里只收窄成显式 props，渲染顺序与拆分前完全一致。
  */
 
 import type { JSX } from 'react'
@@ -18,7 +17,7 @@ interface PanelDialogsProps {
   collections: readonly CollectionGroup[]
   setConflictDialog: SkillHubState['setConflictDialog']
   resolveConflict: SkillHubState['resolveConflict']
-  /** 来源同步/删除确认。 */
+  /** 来源同步确认。 */
   confirmDialog: SkillHubState['confirmDialog']
   setConfirmDialog: SkillHubState['setConfirmDialog']
   runConfirmed: SkillHubState['runConfirmed']
@@ -37,18 +36,6 @@ interface PanelDialogsProps {
   syncBusy: SkillHubState['syncBusy']
   setMarketSyncDialog: SkillHubState['setMarketSyncDialog']
   confirmMarketSync: SkillHubState['confirmMarketSync']
-  /** 删除单个技能确认。 */
-  deleteSkillDialog: SkillHubState['deleteSkillDialog']
-  setDeleteSkillDialog: SkillHubState['setDeleteSkillDialog']
-  runDeleteSkill: SkillHubState['runDeleteSkill']
-  /** 删除分组确认。 */
-  deleteGroupDialog: SkillHubState['deleteGroupDialog']
-  setDeleteGroupDialog: SkillHubState['setDeleteGroupDialog']
-  runDeleteGroup: SkillHubState['runDeleteGroup']
-  /** 清空回收站确认。 */
-  confirmClearTrash: SkillHubState['confirmClearTrash']
-  setConfirmClearTrash: SkillHubState['setConfirmClearTrash']
-  clearTrash: SkillHubState['clearTrash']
   /** 新建技能弹窗（字段草稿 + 提交动作）。 */
   showForm: SkillHubState['showForm']
   formName: SkillHubState['formName']
@@ -73,9 +60,6 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
     branchChoice, branchBusy, setBranchChoice, confirmBranchChoice,
     versionDialog, versionBusy, setVersionDialog, confirmVersionDialog,
     marketSyncDialog, syncBusy, setMarketSyncDialog, confirmMarketSync,
-    deleteSkillDialog, setDeleteSkillDialog, runDeleteSkill,
-    deleteGroupDialog, setDeleteGroupDialog, runDeleteGroup,
-    confirmClearTrash, setConfirmClearTrash, clearTrash,
     showForm, formName, formDesc, formContent, formRoot, formBusy, formMessage,
     setShowForm, setFormName, setFormDesc, setFormContent, setFormRoot, setFormMessage, create,
   } = props
@@ -94,11 +78,10 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
 
       {confirmDialog !== null ? (
         <ConfirmDialog
-          title={confirmDialog.kind === 'sync' ? tt('source.syncConfirmTitle') : tt('source.deleteConfirmTitle')}
-          text={confirmDialog.kind === 'sync' ? tt('source.syncConfirmText') : tt('source.deleteConfirmText')}
+          title={tt('source.syncConfirmTitle')}
+          text={tt('source.syncConfirmText')}
           items={confirmDialog.skills}
-          confirmLabel={confirmDialog.kind === 'sync' ? tt('source.sync') : tt('source.followDelete')}
-          danger={confirmDialog.kind === 'delete'}
+          confirmLabel={tt('source.sync')}
           onCancel={() => { setConfirmDialog(null) }}
           onConfirm={() => { void runConfirmed() }}
         />
@@ -143,40 +126,6 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
           }}
           onCancel={() => { setMarketSyncDialog(null) }}
           onConfirm={() => { void confirmMarketSync() }}
-        />
-      ) : null}
-
-      {deleteSkillDialog !== null ? (
-        <ConfirmDialog
-          title={tt('delete.confirmTitle')}
-          text={tt('delete.confirmText', { name: deleteSkillDialog })}
-          confirmLabel={tt('delete.confirm')}
-          danger
-          onCancel={() => { setDeleteSkillDialog(null) }}
-          onConfirm={() => { void runDeleteSkill() }}
-        />
-      ) : null}
-
-      {deleteGroupDialog !== null ? (
-        <ConfirmDialog
-          title={tt('source.deleteGroupTitle')}
-          text={tt('source.deleteGroupText', { name: deleteGroupDialog.name, count: deleteGroupDialog.skillNames.length })}
-          items={deleteGroupDialog.skillNames}
-          confirmLabel={tt('source.deleteGroup')}
-          danger
-          onCancel={() => { setDeleteGroupDialog(null) }}
-          onConfirm={() => { void runDeleteGroup() }}
-        />
-      ) : null}
-
-      {confirmClearTrash ? (
-        <ConfirmDialog
-          title={tt('source.clearTrashConfirmTitle')}
-          text={tt('source.clearTrashConfirmText')}
-          confirmLabel={tt('source.clearTrashConfirm')}
-          danger
-          onCancel={() => { setConfirmClearTrash(false) }}
-          onConfirm={() => { void clearTrash() }}
         />
       ) : null}
 

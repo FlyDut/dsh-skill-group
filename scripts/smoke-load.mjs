@@ -114,11 +114,10 @@ await ctx.plugin({ name: mod.name, inject: mod.inject, apply: mod.apply }, plugi
 log('plugin loaded; routes registered:', routes.length)
 
 // 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
-// 37 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数（catalog 7 / config 2 /
-// groups 7 / market 8 / repo-import 4 / scopes 3 / sources 6）；增删路由时同步这里。
+// 32 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
 const exactRoutes = routes.filter((r) => r.kind === 'exact')
 const prefixRoutes = routes.filter((r) => r.kind === 'prefix')
-check('exact route family mounted exactly once', exactRoutes.length, 37)
+check('exact route family mounted exactly once', exactRoutes.length, 32)
 check('every exact route path is unique', new Set(exactRoutes.map((r) => r.path)).size, exactRoutes.length)
 check('one 404 catch-all covers the family', prefixRoutes.length, 1)
 check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')
@@ -199,7 +198,7 @@ check('/config never echoes a github token field', Object.hasOwn(onRes.json()?.c
 // ── 落盘与重载 ──────────────────────────────────────────────────────────
 const { readFile } = await import('node:fs/promises')
 const persisted = JSON.parse(await readFile(join(home, 'dsh-skill-hub.json'), 'utf8'))
-check('sidecar schema bumped to v5', persisted.version, 5)
+check('sidecar schema bumped to v6', persisted.version, 6)
 check('policy persisted', persisted.scopes, [{ presetId: 'smoke-preset', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] }])
 
 // ── 卸载：全部副作用必须撤干净 ─────────────────────────────────────────

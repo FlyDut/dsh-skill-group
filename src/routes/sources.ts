@@ -1,21 +1,17 @@
 /**
- * 来源跟踪域路由：sources 列表 / check 上游更新 / sync 同步 / delete 跟进
- * 删除 / restore 恢复 / trash/clear 清空回收站。从 routes.ts 原样搬出，
- * handler 逻辑不变。
+ * 来源跟踪域路由：sources 列表 / check 上游更新 / sync 同步。上游删除只做
+ * 报告，本插件不再替用户删本地文件（删除是用户的决定，插件不碰文件）。
  */
 
-import { mkdir, rename } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import {
   SKILL_HUB_API,
   type SourceCheckResponse,
   type SourceCheckResult,
-  type SourceDeleteResponse,
-  type SourceRestoreResponse,
   type SourceSyncResponse,
   type SourcesResponse,
-  type SourceTrashClearResponse,
 } from '../protocol.ts'
 import {
   collectRepoSkillFiles,
@@ -30,7 +26,7 @@ import {
   skillFileAt,
   skillManifest,
 } from '../repo.ts'
-import { clearTrash, restoreSkill, rootOfPath, rootPath, skillDir, trashSkill } from '../skillfs.ts'
+import { rootPath } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   buildCollections,
@@ -49,13 +45,13 @@ import { MIN_CHECK_INTERVAL_MS, lastSourceCheck, replaceSkillDir } from './route
 export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
   return [
     // ------------------------------------------------------------- sources
-    // 来源列表 + 派生 origin 映射 + 集合组 + 回收站。
+    // 来源列表 + 派生 origin 映射 + 集合组。
     {
       path: SKILL_HUB_API.sources,
       methods: ['GET'],
       handler: async ({ res }) => {
-        const [sources, origins, trash, collectionOrder] = await Promise.all([deps.store.listSources(), deps.store.listOrigins(), deps.store.listTrash(), deps.store.getCollectionOrder()])
-        writeJson(res, 200, { ok: true, sources, origins, collections: buildCollections(origins, collectionOrder), trash } satisfies SourcesResponse)
+        const [sources, origins, collectionOrder] = await Promise.all([deps.store.listSources(), deps.store.listOrigins(), deps.store.getCollectionOrder()])
+        writeJson(res, 200, { ok: true, sources, origins, collections: buildCollections(origins, collectionOrder) } satisfies SourcesResponse)
       },
     },
     // -------------------------------------------------------- sources/check
@@ -104,6 +100,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             }
             const tree = await loadRepoTreeAt(item.repo, latest.treeSha)
             const diff = diffRemoteSkills(tree, item)
+            // 上游删除只报不删：本地文件由用户自己收拾。
             results.push({ ...base, changed: true, commitSha: latest.commitSha, updated: diff.updated, deleted: diff.deleted })
           } catch (error) {
             results.push({ ...base, changed: false, updated: [], deleted: [], error: errorText(error) })
@@ -149,7 +146,6 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             const files = collectRepoSkillFiles(tree, entry.dir)
             if (files.length === 0) { failed.push({ name, error: 'skill missing upstream' }); continue }
             const targetDir = join(targetRoot, name)
-            const wasDisabled = (await deps.store.getDisabled(name)) !== undefined
             if (await pathExists(targetDir)) {
               await replaceSkillDir(targetDir, async () => {
                 await downloadRepoSkill(repo, latest.commitSha, entry, files, targetRoot)
@@ -157,13 +153,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             } else {
               await downloadRepoSkill(repo, latest.commitSha, entry, files, targetRoot)
             }
-            if (wasDisabled) {
-              // Preserve the disabled state: the fresh SKILL.md must not
-              // re-enter discovery.
-              await rename(join(targetDir, 'SKILL.md'), join(targetDir, 'SKILL.md.disabled'))
-            } else {
-              await deps.store.removeDisabled(name)
-            }
+            // 关闭是 sidecar 里的运行时状态，与磁盘无关：同步完自然保持。
             await deps.store.mergeSourceManifest(repo, skillManifest(tree, entry.dir), entry.dir)
             synced.push(name)
           } catch (error) {
@@ -178,123 +168,6 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         }
         deps.invalidate?.()
         writeJson(res, 200, { ok: true, repo, commitSha: latest.commitSha, synced, failed } satisfies SourceSyncResponse)
-      },
-    },
-    // ------------------------------------------------------- sources/delete
-    // 跟进上游删除：把所选技能的本地目录移入回收站（可恢复）。
-    {
-      path: SKILL_HUB_API.sourceDelete,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const repo = readString(body, 'repo').trim()
-        const skills = readStrings(body, 'skills')
-        if (repo === '') { writeError(res, 400, 'repo is required'); return }
-        if (skills.length === 0) { writeError(res, 400, 'skills must be a non-empty array'); return }
-        const source = await deps.store.getSource(repo)
-        if (source === undefined) { writeError(res, 404, 'source not found: ' + repo); return }
-        const home = homeOf(deps)
-        const trashed: string[] = []
-        const failed: Array<{ name: string; error: string }> = []
-        const sourceNames = new Set(source.skills)
-        for (const name of skills) {
-          // Every name must be a real kebab-case skill that this source
-          // actually tracks; anything else must never touch the filesystem
-          // (a bare `join` would otherwise fold `..` segments out of the
-          // writable root — see the path-containment assert below).
-          if (!isSkillName(name) || !sourceNames.has(name)) {
-            failed.push({ name, error: 'skill is not tracked by this source' })
-            continue
-          }
-          const sourcePath = skillDir('user-dsh', name, home)
-          if (rootOfPath(sourcePath, home) === undefined) {
-            failed.push({ name, error: 'skill path is outside the hub writable roots' })
-            continue
-          }
-          if (!await pathExists(sourcePath)) {
-            failed.push({ name, error: 'skill directory not found' })
-            continue
-          }
-          try {
-            // 入回收站前快照来源与场景归属，恢复时挂回（见 sourceRestore）。
-            const tagIds = (await deps.store.listTags()).filter((tag) => tag.skillNames.includes(name)).map((tag) => tag.id)
-            const { path } = await trashSkill(sourcePath)
-            await deps.store.addTrash({
-              name,
-              path,
-              movedAt: Date.now(),
-              sourcePath,
-              origin: { repo: source.repo, root: source.root, ...(source.ref !== undefined && source.ref !== '' ? { ref: source.ref } : {}), commitSha: source.commitSha },
-              ...(tagIds.length > 0 ? { tagIds } : {}),
-            })
-            await deps.store.removeDisabled(name)
-            await deps.store.removeSkillFromTags(name)
-            trashed.push(name)
-          } catch (error) {
-            failed.push({ name, error: errorText(error) })
-          }
-        }
-        if (trashed.length > 0) {
-          await deps.store.setSourceSkills(repo, source.skills.filter((n) => !trashed.includes(n)))
-          deps.invalidate?.()
-        }
-        writeJson(res, 200, { ok: true, trashed, failed } satisfies SourceDeleteResponse)
-      },
-    },
-    // ------------------------------------------------------ sources/restore
-    // 从回收站恢复一个技能目录。
-    {
-      path: SKILL_HUB_API.sourceRestore,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const name = readString(body, 'name')
-        if (name === '') { writeError(res, 400, 'name is required'); return }
-        const entry = await deps.store.getTrash(name)
-        if (entry === undefined) { writeError(res, 404, 'trash entry not found: ' + name); return }
-        const home = homeOf(deps)
-        const target = entry.sourcePath ?? skillDir('user-dsh', name, home)
-        if (await pathExists(target)) {
-          writeError(res, 409, 'skill already exists: ' + name)
-          return
-        }
-        const path = await restoreSkill(entry, home)
-        // 恢复来源归属（入回收站前快照的来源记录）与场景成员，否则恢复后
-        // 的技能会变成「个人技能」并脱离原场景。
-        if (entry.origin !== undefined) {
-          await deps.store.addSourceSkill(entry.origin.repo, entry.origin.root, entry.origin.commitSha, entry.origin.ref, name)
-        }
-        for (const tagId of entry.tagIds ?? []) {
-          await deps.store.addSkillToTag(tagId, name)
-        }
-        await deps.store.removeTrash(name)
-        deps.invalidate?.()
-        writeJson(res, 200, { ok: true, name, path } satisfies SourceRestoreResponse)
-      },
-    },
-    // ------------------------------------------------- sources/trash/clear
-    // 清空回收站：永久删除 .trash 里的技能，失败项保留可重试。
-    {
-      path: SKILL_HUB_API.sourceTrashClear,
-      methods: ['POST'],
-      handler: async ({ res }) => {
-        const home = homeOf(deps)
-        const entries = await deps.store.listTrash()
-        const deleted: string[] = []
-        const failed: Array<{ name: string; error: string }> = []
-        for (const entry of entries) {
-          try {
-            await clearTrash(entry, home)
-            // A permanently deleted skill must not linger in user groups.
-            await deps.store.removeSkillFromTags(entry.name)
-            deleted.push(entry.name)
-          } catch (error) {
-            failed.push({ name: entry.name, error: errorText(error) })
-          }
-        }
-        for (const name of deleted) await deps.store.removeTrash(name)
-        if (deleted.length > 0) deps.invalidate?.()
-        writeJson(res, 200, { ok: true, deleted, failed } satisfies SourceTrashClearResponse)
       },
     },
   ]

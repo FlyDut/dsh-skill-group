@@ -18,14 +18,15 @@ flows downward. Put new code where its duty lives, not where it is convenient:
 | --- | --- | --- |
 | **Discovery** | what skills exist (read-only) | `skillfs/`, `provider.ts` |
 | **Curation** | what the user wants the skill world to look like (pure data + pure functions) | `store/`, `domain/`, `protocol/` |
-| **Enforcement** | turning curation into runtime effect (all side effects) | `enforcement/`, plus the toggle rename in `routes/catalog.ts` |
+| **Enforcement** | turning curation into runtime effect (all side effects) | `enforcement/`, plus the sidecar toggle in `routes/catalog.ts` |
 | **Surface** | letting the user express and see it | `routes/`, `client/` |
 
-The two curation/enforcement concepts are deliberately distinct — do not merge them:
+Both curation/enforcement concepts are runtime-only — neither touches a skill file:
 
-- **Disabled** (hard) renames the discovery file, so the skill is gone in *every* mode.
+- **Closed** (global) is one sidecar name list; the hub's shadowing provider drops those
+  names, so the skill is gone in *every* mode. Nothing is renamed, moved or deleted.
 - **Scope** (soft) shadows the skill inside one agent preset's standing scope layer,
-  leaving the file untouched and every other mode unaffected.
+  leaving every other mode unaffected.
 
 Anything with a side effect belongs in `enforcement/`; `domain/` must stay free of IO so
 its judgments can be exhaustively unit-tested (see `domain/scope-policy.test.ts`).
@@ -37,16 +38,15 @@ src/index.ts            cordis plugin entry — assembly only (config reads, sur
 src/config.ts           volatile config schema + settings-namespace contract (Config / ENTRY_ID / …)
 src/scope-assembly.ts   mode-isolation assembly (ScopeView + PresetWiring + scopes-route deps)
 src/stats-wiring.ts     optional session-query / session-persistence statistics wiring
-src/startup.ts          startup cleanup: leftover import dirs, disabled reconciliation, sidecar migration
-src/reconcile.ts        rebuilds missing sidecar `disabled` records from `.disabled` files on disk
+src/startup.ts          startup cleanup: leftover import dirs, sidecar migration
 src/env.ts              environment paths (DSH_HOME / DSH_AGENTS_HOME) — the only OS-env reader
 src/version.ts          plugin version, read once from package.json — the single source for catalog/config
 src/invariant.ts        invariant companion entry (the package's ./invariant export; asserts nothing yet)
 src/repo/paths.ts       repo-root + skill-path contract (sits below store so curation may use it)
 src/routes.ts           route-family aggregator (wraps every domain handler in the shared fences)
 src/routes/             one file per domain + shared layers:
-                        http.ts (fences/JSON/error mapping), deps.ts (route deps + writable-skill
-                        resolution), catalog-data.ts (catalog/detail assembly), collection.ts
+                        http.ts (fences/JSON/error mapping), deps.ts (route deps + write fences),
+                        catalog-data.ts (catalog/detail assembly), collection.ts
                         (origin collections), route-state.ts (throttles + import-job table),
                         helpers.ts (barrel)
 src/store.ts            sidecar store barrel (paths / migrate / store)
@@ -77,7 +77,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 pnpm install
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (339 tests across 19 suites)
+pnpm test           # vitest (309 tests across 18 suites)
 pnpm build          # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 pnpm smoke          # load the built bundle in a real cordis runtime (run after build)
 ```
@@ -114,10 +114,10 @@ registered twice, a teardown that leaves residue. Prefer it before publishing.
 pnpm build
 # restart the dsh web process, then verify both surfaces:
 #   Settings → Skill Groups                      — the skill panel
-#   sidebar → Plugins → @flydut/dsh-skill-group  — the plugin's settings card
+#   sidebar → Plugins → dsh-skill-group  — the plugin's settings card
 ```
 
-When the web profile installs this repo as a link (`"@flydut/dsh-skill-group": "link:/path/to/repo"`,
+When the web profile installs this repo as a link (`"dsh-skill-group": "link:/path/to/repo"`,
 the usual local-dev setup), `lib/` is picked up on the next `dsh web` restart — no copy step needed.
 
 ## Origin

@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
 import * as marketOps from './domains/market.ts'
 import * as scopeOps from './domains/scopes.ts'
 import * as sourceOps from './domains/sources.ts'
@@ -15,7 +15,6 @@ export class SkillHubStore {
   private tagsById = new Map<string, SkillTag>()
   private sourcesByRepo = new Map<string, SourceRecord>()
   private marketSources: MarketSourceRecord[] = []
-  private trashByName = new Map<string, TrashEntry>()
   private skillStats: SkillStatsCheckpoint | undefined = undefined
   private marketStats: MarketStatsSnapshot | undefined = undefined
   private collectionOrder: string[] = []
@@ -45,7 +44,6 @@ export class SkillHubStore {
         this.tagsById = state.tagsById
         this.sourcesByRepo = state.sourcesByRepo
         this.marketSources = state.marketSources
-        this.trashByName = state.trashByName
         this.skillStats = state.skillStats
         this.marketStats = state.marketStats
         this.collectionOrder = state.collectionOrder
@@ -386,34 +384,6 @@ export class SkillHubStore {
     if (marketOps.setMarketSourceCommit(this.marketSources, repo, commitSha)) await this.persist()
   }
 
-  // ---------------------------------------------------------------- trash
-
-  /** All trashed skills, newest first. */
-  async listTrash(): Promise<TrashEntry[]> {
-    await this.ensureLoaded()
-    return [...this.trashByName.values()].sort((a, b) => b.movedAt - a.movedAt)
-  }
-
-  /** One trash entry by skill name (undefined when absent). */
-  async getTrash(name: string): Promise<TrashEntry | undefined> {
-    await this.ensureLoaded()
-    return this.trashByName.get(name)
-  }
-
-  /** Record a trashed skill. */
-  async addTrash(entry: TrashEntry): Promise<void> {
-    await this.ensureLoaded()
-    this.trashByName.set(entry.name, entry)
-    await this.persist()
-  }
-
-  /** Remove a trash record (after restore). */
-  async removeTrash(name: string): Promise<void> {
-    await this.ensureLoaded()
-    if (!this.trashByName.delete(name)) return
-    await this.persist()
-  }
-
   /** The persisted usage-statistics checkpoint (undefined until first saved). */
   async getSkillStatsState(): Promise<SkillStatsCheckpoint | undefined> {
     await this.ensureLoaded()
@@ -468,7 +438,6 @@ export class SkillHubStore {
         ...(this.tagsById.size > 0 ? { tags: [...this.tagsById.values()] } : {}),
         ...(this.sourcesByRepo.size > 0 ? { sources: [...this.sourcesByRepo.values()] } : {}),
         ...(this.marketSources.length > 0 ? { marketSources: [...this.marketSources] } : {}),
-        ...(this.trashByName.size > 0 ? { trash: [...this.trashByName.values()] } : {}),
         ...(this.skillStats !== undefined ? { skillStats: this.skillStats } : {}),
         ...(this.marketStats !== undefined ? { marketStats: this.marketStats } : {}),
         ...(this.collectionOrder.length > 0 ? { collectionOrder: [...this.collectionOrder] } : {}),

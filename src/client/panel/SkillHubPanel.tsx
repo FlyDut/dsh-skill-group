@@ -1,8 +1,8 @@
 /**
  * The skill hub panel: catalog grouped by tags + source collections, search
  * and filter in one row, per-group tri-state switches with conflict dialogs,
- * upstream source tracking (check / sync / follow upstream deletion into a
- * restorable trash), market sources, disabled re-enable,
+ * upstream source tracking (check / sync; upstream deletions are only
+ * reported), market sources, switched-off skills with a one-click re-enable,
  * detail inspection, and the new-skill scaffold dialog — opened from the
  * header row, in the same action cluster as the edit toggle.
  *
@@ -10,10 +10,10 @@
  * SourcesView / ScenesView / MarketView, the dialog family lives in
  * dialogs.tsx, and their wiring lives in PanelDialogs.tsx. This component
  * owns only the shared chrome (header, banners, filter bar, shared sections)
- * and the view routing. It keeps only two pieces of local state (the workspace
- * draft and the filter-panel toggle); every flow hook runs unconditionally at
- * the top of useSkillHub, so the detail / tag-editor / scope-editor early
- * returns below stay inside the rules of hooks.
+ * and the view routing. It keeps a single piece of local state (the
+ * filter-panel toggle); every flow hook runs unconditionally at the top of
+ * useSkillHub, so the detail / tag-editor / scope-editor early returns below
+ * stay inside the rules of hooks.
  */
 
 import { useState } from 'react'
@@ -21,7 +21,7 @@ import { IconSkillOutline16 } from '../icons.tsx'
 import type { SkillHubApi } from '../api.ts'
 import { tt } from '../helpers.ts'
 import { PRIVATE_SOURCE, type SortKey } from '../grouping.ts'
-import { dotStyle, relativeTimeText } from './format.ts'
+import { dotStyle } from './format.ts'
 import { SkillDetailView } from './SkillDetailView.tsx'
 import { TagEditorView } from './TagEditorView.tsx'
 import { SourcesView } from './SourcesView.tsx'
@@ -38,24 +38,21 @@ export interface SkillHubPanelProps {
 
 export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   const hub = useSkillHub(props.api)
-  /** 工作区输入草稿：回车才应用，避免每次按键都触发目录重拉。 */
-  const [workspaceDraft, setWorkspaceDraft] = useState('')
   /** 「筛选」面板开合（来源 + 调用方式收进这里；搜索/排序/视图切换始终可见）。 */
   const [filtersOpen, setFiltersOpen] = useState(false)
   const {
     catalog, loading, loadError, successBanner, detail, detailLoading, showForm, formName, formDesc,
     formContent, formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
-    workspace, setWorkspace,
-    sourcesState, tagBusy, batchBusy, sourceOptions, filtered,
-    conflictDialog, confirmDialog, deleteSkillDialog, deleteGroupDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
+    tagBusy, batchBusy, sourceOptions, filtered,
+    conflictDialog, confirmDialog, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, editingTag, editName, membersDraft, editSearch, uses, groupsState, sourceCheck, checkingSource, syncingSource,
     showLegend, editMode,
     setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormContent, setFormRoot, setFormMessage, setTab,
-    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog,
-    setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditingTag, setEditName, setMembersDraft, setEditSearch,
+    setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog,
+    setBranchChoice, setMarketSyncDialog, setEditingTag, setEditName, setMembersDraft, setEditSearch,
     setShowLegend, setEditMode,
-    loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
-    runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag, enableDisabled,
+    loadMarket, checkSources, requestSync,
+    runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
@@ -83,7 +80,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   // -------------------------------------------------------------- detail
 
   if (detail !== null) {
-    const disabledRecord = catalog?.disabled.find((record) => record.name === detail.name)
+    const disabledSkill = catalog?.skills.find((skill) => skill.name === detail.name && !skill.enabled)
     return (
       <SkillDetailView
         detail={detail}
@@ -91,16 +88,14 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         hubConfig={hubConfig}
         uses={uses}
         groupsState={groupsState}
-        sourcesState={sourcesState}
+        sourcesState={hub.sourcesState}
         sourceCheck={sourceCheck}
         checkingSource={checkingSource}
         syncingSource={syncingSource}
-        disabled={disabledRecord !== undefined}
-        onEnable={disabledRecord !== undefined ? () => { void enableDisabled(disabledRecord).then(() => { setDetail(null) }) } : undefined}
+        onEnable={disabledSkill !== undefined ? () => { void hub.toggle(disabledSkill, true).then(() => { setDetail(null) }) } : undefined}
         onBack={() => { setDetail(null) }}
         onCheck={(repo) => { void checkSources(repo) }}
         onSync={requestSync}
-        onFollowDelete={requestDelete}
       />
     )
   }
@@ -141,6 +136,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
 
   /** 生效中的筛选条件数（来源 + 调用方式），显示在「筛选」按钮上。 */
   const activeFilterCount = (sourceFilter !== 'all' ? 1 : 0) + (hub.invocationFilter !== 'all' ? 1 : 0)
+  /** 目录里被运行时关闭的技能数（关闭行仍在列表里，计数只作提示）。 */
+  const disabledCount = catalog?.skills.filter((skill) => !skill.enabled).length ?? 0
 
   return (
     <div className={css.panel} aria-busy={batchBusy || tagBusy}>
@@ -148,8 +145,8 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         <h2 className={css.title}><IconSkillOutline16 size={16} className={css.titleIcon} /> {tt('panel.title')}</h2>
         {catalog !== null
           ? <span className={css.headerCount}>
-              {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}
-              {catalog.disabled.length > 0 ? ' · ' + tt('panel.disabledCount', { count: catalog.disabled.length }) : null}
+              {tt('panel.count', { count: catalog.skills.length })}
+              {disabledCount > 0 ? ' · ' + tt('panel.disabledCount', { count: disabledCount }) : null}
             </span>
           : null}
         {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
@@ -171,19 +168,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           <button type='button' className={css.segBtn + (tab === 'scenes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scenes') }}>{tt('view.scenes')}</button>
           <button type='button' className={css.segBtn + (tab === 'market' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('market'); void loadMarket() }}>{tt('view.market')}</button>
           <button type='button' className={css.segBtn + (tab === 'scopes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scopes'); void hub.scopeFlow.loadScopes() }}>{tt('scope.tab')}</button>
-        </span>
-        <span className={css.workspaceBox}>
-          <input
-            className={css.search + ' ' + css.workspaceInput}
-            value={workspaceDraft}
-            placeholder={workspace !== '' ? workspace : tt('panel.workspacePlaceholder')}
-            title={tt('panel.workspaceHint')}
-            onChange={(event) => { setWorkspaceDraft(event.target.value) }}
-            onKeyDown={(event) => { if (event.key === 'Enter') setWorkspace((event.target as HTMLInputElement).value.trim()) }}
-          />
-          {workspace !== ''
-            ? <button type='button' className={css.opBtn} title={tt('panel.workspaceClear')} onClick={() => { setWorkspace(''); setWorkspaceDraft('') }}>✕</button>
-            : null}
         </span>
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
       </div>
@@ -270,29 +254,11 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           ) : null}
 
           {filtered.length === 0 && search.trim() !== '' ? <div className={css.empty}>{tt('panel.empty')}</div> : null}
-          {filtered.length === 0 && search.trim() === '' && catalog.skills.length === 0 && catalog.disabled.length === 0 && catalog.diagnostics.length === 0
+          {filtered.length === 0 && search.trim() === '' && catalog.skills.length === 0 && catalog.diagnostics.length === 0
             ? <div className={css.empty}>{tt('panel.emptyAll')}</div>
             : null}
 
           {tab === 'sources' ? <SourcesView hub={hub} /> : <ScenesView hub={hub} />}
-
-          {sourcesState !== null && sourcesState.trash.length > 0 ? (
-            <section className={css.section}>
-              <div className={css.sectionTitle + ' ' + css.sectionHeadRow}>
-                <span className={css.sectionTitleFill}>{tt('source.trash')}</span>
-                <button type='button' className={css.opBtn + ' ' + css.opDanger} disabled={tagBusy} onClick={() => { setConfirmClearTrash(true) }}>{tt('source.clearTrash')}</button>
-              </div>
-              {sourcesState.trash.map((entry) => (
-                <div key={entry.name} className={css.row + ' ' + css.rowStatic}>
-                  <div className={css.rowMain}>
-                    <div className={css.rowName}>{entry.name}</div>
-                    <div className={css.rowDesc}>{relativeTimeText(entry.movedAt)}</div>
-                  </div>
-                  <button type='button' className={css.opBtn} disabled={tagBusy} onClick={() => { void restoreTrash(entry.name) }}>{tt('source.restore')}</button>
-                </div>
-              ))}
-            </section>
-          ) : null}
 
           {catalog.diagnostics.length > 0 ? (
             <section className={css.section}>
@@ -340,15 +306,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         syncBusy={syncBusy}
         setMarketSyncDialog={setMarketSyncDialog}
         confirmMarketSync={confirmMarketSync}
-        deleteSkillDialog={deleteSkillDialog}
-        setDeleteSkillDialog={setDeleteSkillDialog}
-        runDeleteSkill={runDeleteSkill}
-        deleteGroupDialog={deleteGroupDialog}
-        setDeleteGroupDialog={setDeleteGroupDialog}
-        runDeleteGroup={runDeleteGroup}
-        confirmClearTrash={confirmClearTrash}
-        setConfirmClearTrash={setConfirmClearTrash}
-        clearTrash={clearTrash}
         showForm={showForm}
         formName={formName}
         formDesc={formDesc}

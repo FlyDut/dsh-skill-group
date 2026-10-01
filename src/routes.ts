@@ -1,11 +1,12 @@
 /**
- * The /api/skill-hub route family: full catalog (enabled skills from the
- * official registry + hub-disabled skills + discovery diagnostics), skill
- * detail, enable/disable toggle, new-skill scaffold, user groups (tags +
- * origin collections), and upstream source tracking (check/sync/follow
- * upstream deletion into a restorable trash). Every route carries a
- * loopback-only trust fence — these endpoints rename files under the user's
- * skill roots, so LAN-exposed dsh web deployments must not serve them.
+ * The /api/skill-hub route family: full catalog (local user-level skills from
+ * the official registry, each flagged with its runtime switch state, plus
+ * discovery diagnostics), skill detail, the runtime on/off toggle, new-skill
+ * scaffold, user groups (tags + origin collections), and upstream source
+ * tracking (check/sync; upstream deletions are only reported). Every route
+ * carries a loopback-only trust fence — these endpoints write the hub's
+ * sidecar state and can create files under the user's skill roots, so
+ * LAN-exposed dsh web deployments must not serve them.
  *
  * 按域拆分后的聚合入口：各域 handler 在 ./routes/<domain>.ts，共享围栏在
  * ./routes/helpers.ts，节流/任务状态在 ./routes/route-state.ts。

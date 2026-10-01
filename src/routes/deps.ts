@@ -8,7 +8,6 @@ import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
 import { resolveHubConfig, type HubConfig, type ScopePolicy, type WritableRoot } from '../protocol.ts'
 import type { ScopeVisibility } from '../domain/scope-policy.ts'
 import type { PresetRosterEntry } from '../enforcement/roster.ts'
-import { rootOfPath } from '../skillfs.ts'
 import { dshHome } from '../env.ts'
 import { type SkillHubStore } from '../store.ts'
 import { writeError } from './http.ts'
@@ -18,9 +17,9 @@ export function isWritableSource(source: string): source is WritableRoot {
   return source === 'user-dsh' || source === 'user-agents'
 }
 
-/** Lookup options the hub forwards to the registry (cwd selects project roots). */
+/** Lookup options the hub forwards to the registry. */
 export interface SkillLookupLike {
-  cwd?: string
+  signal?: AbortSignal
 }
 
 /** Route family dependencies (narrow structural view of ctx.skills for tests). */
@@ -102,40 +101,4 @@ export function disabledGate(deps: SkillHubRouteDeps, res: ServerResponse): bool
 /** Resolve the home used for writable-root operations. */
 export function homeOf(deps: SkillHubRouteDeps): string {
   return deps.home ?? dshHome()
-}
-
-/** A skill resolved as a hub-writable user-level file. */
-export interface WritableSkill {
-  skill: SkillDefinition
-  /** Absolute discovery-file path (guaranteed present by the resolver). */
-  path: string
-  /** The writable root containing the file. */
-  root: WritableRoot
-}
-
-/** A refusal with the exact HTTP error the caller should answer with. */
-export interface WritableSkillRefusal {
-  status: number
-  error: string
-}
-
-export type WritableSkillResult = { ok: true } & WritableSkill | { ok: false } & WritableSkillRefusal
-
-/**
- * Resolve a skill by name as something the hub may write, or the exact
- * refusal the caller should answer with. Owns the guard sequence shared by
- * toggle, toggle-batch, and skill/delete: registry lookup, writable source,
- * writable file, and path containment inside a user root.
- */
-export async function resolveWritableSkill(deps: SkillHubRouteDeps, name: string, cwd?: string): Promise<WritableSkillResult> {
-  const lookup = cwd !== undefined && cwd !== '' ? { cwd } : undefined
-  const skill = await deps.skills.get(name, lookup)
-  if (skill === undefined) return { ok: false, status: 404, error: 'skill not found: ' + name }
-  if (!isWritableSource(skill.source)) {
-    return { ok: false, status: 409, error: 'source "' + skill.source + '" is managed outside the hub (read-only)' }
-  }
-  if (skill.path === undefined) return { ok: false, status: 409, error: 'provider-managed skill has no writable file' }
-  const root = rootOfPath(skill.path, homeOf(deps))
-  if (root === undefined) return { ok: false, status: 409, error: 'skill path is outside the hub writable roots' }
-  return { ok: true, skill, path: skill.path, root }
 }

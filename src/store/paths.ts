@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { dshHome } from '../env.ts'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
 
 /** 默认场景名（系统预置的兜底场景，新技能自动归入）。 */
 export const DEFAULT_SCENE_NAME = '通用'
@@ -17,8 +17,6 @@ export interface StoreFile {
   sources?: SourceRecord[]
   /** User-added market sources (owner/repo slugs + optional pinned ref). */
   marketSources?: MarketSourceRecord[]
-  /** Trashed skills (removed after upstream deletion, restorable). */
-  trash?: TrashEntry[]
   /** Usage-statistics incremental-scan checkpoint (frozen watermark + totals). */
   skillStats?: SkillStatsCheckpoint
   /** Market-stats snapshot (stars/downloads per repo, hourly TTL). */
@@ -29,7 +27,7 @@ export interface StoreFile {
   sourceGroupOrder?: string[]
   /**
    * 模式级技能可见性策略（v5）。每个 preset 一条；缺席的 preset 不做隔离。
-   * 与 `disabled` 正交：那里是全局硬禁用（改文件名），这里只是某些模式看不到。
+   * 与 `disabled` 正交：那里是全局运行时关闭（所有模式都看不到），这里只是某些模式看不到。
    */
   scopes?: ScopePolicy[]
 }
@@ -40,4 +38,4 @@ export function statePath(home = dshHome()): string {
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */
-export const STORE_VERSION = 5
+export const STORE_VERSION = 6

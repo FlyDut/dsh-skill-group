@@ -9,7 +9,7 @@ export interface HubInvocation {
   userInvocable: boolean
 }
 
-/** One enabled skill row in the catalog. */
+/** One skill row in the catalog (whether or not the user switched it off). */
 export interface CatalogSkill {
   name: string
   description: string
@@ -18,16 +18,17 @@ export interface CatalogSkill {
   provider: string
   /** Whether the hub may toggle this skill (user-level filesystem skills only). */
   writable: boolean
-  /** 技能来源标识（user-dsh/user-agents/project-dsh/project-agents/...）。 */
+  /**
+   * false = the user switched this skill off at runtime. The file on disk is
+   * untouched; the per-preset gate simply hides the skill. Defaults to true.
+   */
+  enabled: boolean
+  /** 技能来源标识（user-dsh/user-agents/...）。 */
   source: string
   /** SKILL.md creation time (epoch ms); used for "added" sorting. Absent when unknown. */
   addedAt?: number
   /** SKILL.md last-modified time (epoch ms); used for "updated" display. Absent when unknown. */
   updatedAt?: number
-  /** 项目技能的所属工作区路径（仅 project-dsh/project-agents 来源携带）。 */
-  workspace?: string
-  /** 工作区显示标题（来自 workspace.json；无则回退为路径）。 */
-  workspaceTitle?: string
   /** UI metadata from agents/openai.yaml (mirrors codex SkillInterface). */
   displayName?: string
   shortDescription?: string
@@ -37,18 +38,14 @@ export interface CatalogSkill {
   defaultPrompt?: string
 }
 
-/** One disabled skill tracked by the hub sidecar (SKILL.md renamed away). */
+/**
+ * One skill the user switched off at runtime. Only the name is recorded: no
+ * file is renamed or moved, so the row keeps its normal catalog metadata and
+ * the per-preset gate hides it. Persisted in the sidecar's `disabled` list.
+ */
 export interface DisabledSkill {
   name: string
-  description: string
-  /** Absolute path of the renamed file (SKILL.md.disabled / <name>.md.disabled). */
-  path: string
-  root: WritableRoot
   disabledAt: number
-  /** Renamed file creation time (epoch ms); keeps "added" sorting stable. Absent when unknown. */
-  addedAt?: number
-  /** Renamed file last-modified time (epoch ms). Absent when unknown. */
-  updatedAt?: number
 }
 
 /** One discovery diagnostic: a file the filesystem provider skips, with the reason. */
@@ -76,10 +73,8 @@ export interface CatalogResponse {
   pluginVersion: string
   /** Whether discovery completed within a stable catalog revision. */
   complete: boolean
-  /** Sorted winning summaries of every enabled skill (all roots + providers). */
+  /** Sorted winning summaries of every discovered skill, on/off alike. */
   skills: CatalogSkill[]
-  /** Skills the hub has toggled off (kept outside provider discovery). */
-  disabled: DisabledSkill[]
   /** Files in the writable roots the provider ignores, with reasons. */
   diagnostics: DiagnosticEntry[]
   /** Skill names that appeared in multiple roots (first wins, others hidden). Mirrors codex name_counts. */
@@ -93,6 +88,8 @@ export interface SkillDetail {
   whenToUse?: string
   invocation: HubInvocation
   provider: string
+  /** Whether the user switched this skill off at runtime. */
+  enabled: boolean
   /** Absolute file path when the skill came from disk. */
   path?: string
   /** SKILL.md creation time (epoch ms); absent when the file is unreadable. */
@@ -114,44 +111,22 @@ export interface SkillDetailResponse {
   skill: SkillDetail
 }
 
-/**
- * 工作区（项目）技能的作用域限定：目录/详情/写操作都按同一个 cwd 解析，
- * 否则路由的默认视图（全工作区扫描）会与面板当前工作区视图不一致。
- */
-export interface WorkspaceScope {
-  /** 工作区根路径；省略或空串 = 用户级 + 全部已知工作区。 */
-  cwd?: string
-}
-
-/** POST /api/skill-hub/skill/delete — 把单个技能移入回收站（可恢复）。 */
-export interface SkillDeleteRequest extends WorkspaceScope {
-  name: string
-}
-
-/** POST /api/skill-hub/skill/delete */
-export interface SkillDeleteResponse {
-  ok: true
-  name: string
-  /** 移入回收站后的路径（目录或文件）。 */
-  path: string
-}
-
 /** POST /api/skill-hub/toggle */
-export interface ToggleRequest extends WorkspaceScope {
+export interface ToggleRequest {
   /** Kebab-case skill name. */
   name: string
-  /** true re-enables a hub-disabled skill; false disables an enabled one. */
+  /** true re-enables a switched-off skill; false switches an enabled one off. */
   enabled: boolean
 }
 
 export interface ToggleResponse {
   ok: true
-  /** Fresh catalog after the mutation (the filesystem provider may lag a beat). */
+  /** Fresh catalog after the mutation (the gate picks it up next turn). */
   catalog: CatalogResponse
 }
 
 /** POST /api/skill-hub/toggle-batch — one group of skills, one write. */
-export interface ToggleBatchRequest extends WorkspaceScope {
+export interface ToggleBatchRequest {
   names: string[]
   enabled: boolean
 }

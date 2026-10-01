@@ -13,9 +13,7 @@ import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './dom
 import { PresetWiring, loadScopeRuntime } from './enforcement/scope-wiring.ts'
 import { readPresetRoster } from './enforcement/roster.ts'
 import { buildCollections } from './routes/collection.ts'
-import { workspaceEntries } from './routes/catalog-data.ts'
 import type { ScopeRouteDeps } from './routes.ts'
-import { dshHome } from './env.ts'
 import type { SkillHubStore } from './store.ts'
 
 /**
@@ -43,27 +41,23 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
   const { ctx, store, presets } = options
 
   const view = new ScopeView({
-    // 目录快照 = 所有已知工作区的并集，剔除全局硬禁用的技能。硬禁用优先：
-    // 文件已被改名，any 模式下都不该出现，因此它既不在可见集也不在隐藏集里。
+    // 目录快照 = 用户级根的技能全集。关闭的技能**留在**快照里：面板要渲染
+    // 它们的行才能把开关打开，gate 也要它们的元数据来做遮蔽候选。
     catalog: async (): Promise<ScopeCatalogSnapshot> => {
-      const disabledNames = new Set((await store.listDisabled()).map((entry) => entry.name))
       const meta = new Map<string, ScopeSkillMeta>()
-      const workspaces = await workspaceEntries(dshHome())
-      for (const cwd of [undefined, ...workspaces.map((workspace) => workspace.path)]) {
-        let snapshot: { skills: Array<{ name: string; description: string; whenToUse?: string; source: string }> }
-        try {
-          snapshot = await ctx.skills.snapshot(cwd === undefined ? undefined : { cwd })
-        } catch {
-          continue // 单个工作区读失败不影响其余目录
-        }
-        for (const skill of snapshot.skills) {
-          if (disabledNames.has(skill.name) || meta.has(skill.name)) continue
-          meta.set(skill.name, {
-            description: skill.description,
-            ...(skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {}),
-            source: skill.source,
-          })
-        }
+      let snapshot: { skills: Array<{ name: string; description: string; whenToUse?: string; source: string }> }
+      try {
+        snapshot = await ctx.skills.snapshot()
+      } catch {
+        return { names: [], meta } // 目录读失败：宁可空，也不误判
+      }
+      for (const skill of snapshot.skills) {
+        if (meta.has(skill.name)) continue
+        meta.set(skill.name, {
+          description: skill.description,
+          ...(skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {}),
+          source: skill.source,
+        })
       }
       return { names: [...meta.keys()].sort((a, b) => a.localeCompare(b)), meta }
     },
@@ -85,12 +79,19 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
       return members
     },
     policyOf: (presetId) => store.getScope(presetId),
+    // 全局运行时关闭：对所有模式生效，与模式自己的隔离策略叠加。
+    closed: async () => new Set((await store.listDisabled()).map((entry) => entry.name)),
   })
 
   const wiring = new PresetWiring({
     ctx,
     runtime: loadScopeRuntime,
-    isEnforced: async (presetId) => (await store.getScope(presetId))?.enabled === true,
+    // 闸门该不该接进某个 preset：要么该模式自己启用了隔离，要么存在任何
+    // 全局关闭的技能（关闭对所有模式生效，包括从未配置过的模式）。
+    isEnforced: async (presetId) => {
+      if ((await store.getScope(presetId))?.enabled === true) return true
+      return (await store.listDisabled()).length > 0
+    },
     hiddenOf: (presetId) => view.hiddenOf(presetId),
     log: (level, message) => {
       if (level === 'warn') ctx.logger.warn('[skill-hub] ' + message)

@@ -1,7 +1,7 @@
 /**
  * CollectionCard — 一个上游来源集合卡片：组头（来源链接 + 成员数 + 用量
- * 汇总）、检查/同步/跟删徽章、三态开关、编辑态删除分组，以及展开后的
- * 启用行与禁用行。数据与动作均由 SourcesView 传入。
+ * 汇总）、检查/同步徽章、三态开关、编辑态排序，以及展开后的启用行与关闭行。
+ * 数据与动作均由 SourcesView 传入。上游删除只在徽章里报告，本插件不代删。
  */
 
 import type { JSX } from 'react'
@@ -19,7 +19,7 @@ import css from './panel.module.css'
 
 interface CollectionCardProps {
   collection: CollectionGroup
-  /** 该集合内通过筛选的行（启用技能与禁用记录已按当前排序键合并）。 */
+  /** 该集合内通过筛选的行（启用技能与关闭技能已按当前排序键合并）。 */
   rows: GroupRow[]
   /** 该集合卡片是否折叠。 */
   collapsed: boolean
@@ -27,9 +27,9 @@ interface CollectionCardProps {
   view: GroupSwitchView
   /** 该来源的上游检查结果。 */
   check: SourceCheckResult | undefined
-  /** 组内至少一个成员可写（三态开关可点）。 */
-  hasWritable: boolean
-  /** 编辑模式（显示删除分组）。 */
+  /** 组内至少一个成员可开关（三态开关可点）。 */
+  hasTogglable: boolean
+  /** 编辑模式（显示排序按钮）。 */
   editMode: boolean
   /** 顶层排序位置边界（编辑模式显示上移/下移按钮）。 */
   canMoveUp: boolean
@@ -49,19 +49,15 @@ interface CollectionCardProps {
   toggleGroupCollapse: SkillHubState['toggleGroupCollapse']
   checkSources: SkillHubState['checkSources']
   requestSync: SkillHubState['requestSync']
-  requestDelete: SkillHubState['requestDelete']
   toggleGroup: SkillHubState['toggleGroup']
-  requestDeleteGroup: SkillHubState['requestDeleteGroup']
-  enableDisabled: SkillHubState['enableDisabled']
-  openDetail: SkillHubState['openDetail']
 }
 
 export function CollectionCard(props: CollectionCardProps): JSX.Element {
   const {
-    collection, rows, collapsed, view, check, hasWritable, editMode,
+    collection, rows, collapsed, view, check, hasTogglable, editMode,
     canMoveUp, canMoveDown, onMove,
     checkingSource, syncingSource, batchBusy, rowProps,
-    toggleGroupCollapse, checkSources, requestSync, requestDelete, toggleGroup, requestDeleteGroup, enableDisabled, openDetail,
+    toggleGroupCollapse, checkSources, requestSync, toggleGroup,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
   return (
@@ -87,32 +83,21 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
                 {syncingSource === collection.name ? tt('source.syncing') : tt('source.sync')}
               </button>
             : null}
-          {check !== undefined && check.deleted.length > 0
-            ? <button type='button' className={css.opBtn + ' ' + css.opDanger} onClick={(event) => { event.stopPropagation(); requestDelete(collection.name, check.deleted) }}>{tt('source.followDelete')}</button>
-            : null}
           <GroupSwitchButton
             state={view.state}
             label={collection.name}
             memberCount={collection.skillNames.length}
             batchBusy={batchBusy}
-            hasWritable={hasWritable}
+            hasTogglable={hasTogglable}
             onToggle={() => { toggleGroup('col:' + collection.name, collection.name, view.state) }}
           />
-          {editMode ? <button
-            type='button'
-            className={css.opBtn + ' ' + css.opDanger}
-            title={tt('source.deleteGroupHint', { count: collection.skillNames.length })}
-            onClick={(event) => { event.stopPropagation(); requestDeleteGroup(collection.name, collection.skillNames) }}
-          >
-            {tt('source.deleteGroup')}
-          </button> : null}
         </span>
       </div>
       {!collapsed ? (
         <>
           {rows.map((row) => (row.kind === 'skill'
             ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
-            : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void enableDisabled(row.record) }} onOpen={() => { void openDetail(row.record.name) }} />))}
+            : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void rowProps.toggle(row.record, true) }} onOpen={() => { void rowProps.openDetail(row.record.name) }} />))}
         </>
       ) : null}
     </section>

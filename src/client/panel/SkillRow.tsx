@@ -1,11 +1,12 @@
 /**
- * One enabled skill row: name + invocation dots + usage meta, delete and
- * disable actions. Shared by the flat list and both grouped views.
+ * One switched-on skill row: name + invocation dots + usage meta, the
+ * read-only badge (a source's writability only affects file edits, not the
+ * runtime switch) and the switch itself. Shared by the flat list and both
+ * grouped views.
  */
 
 import type { JSX, KeyboardEvent } from 'react'
 import type { CatalogSkill, HubConfig } from '../../protocol.ts'
-import { IconTrashOutline16 } from '../icons.tsx'
 import { isDisplayNameDistinct, tt } from '../helpers.ts'
 import { dotStyle, relativeTimeText } from './format.ts'
 import css from './panel.module.css'
@@ -17,21 +18,16 @@ export interface SkillRowProps {
   uses: ReadonlyMap<string, { count: number; lastUsed?: number }>
   /** Effective hub config; null while it has not loaded. */
   hubConfig: HubConfig | null
-  /** Names with an in-flight toggle/delete. */
+  /** Names with an in-flight toggle. */
   busyNames: ReadonlySet<string>
-  /** Whether the edit affordances (delete) are shown. */
-  editMode: boolean
-  /** True while a tag operation runs (also blocks row deletes). */
-  tagBusy: boolean
   /** Names that collide with another skill (duplicate badge). */
   duplicateNames: ReadonlySet<string>
   toggle: (skill: CatalogSkill, enabled: boolean) => Promise<void>
   openDetail: (name: string) => Promise<void>
-  requestDeleteSkill: (name: string) => void
 }
 
 export function SkillRow(props: SkillRowProps): JSX.Element {
-  const { skill, uses, hubConfig, busyNames, editMode, tagBusy, duplicateNames, toggle, openDetail, requestDeleteSkill } = props
+  const { skill, uses, hubConfig, busyNames, duplicateNames, toggle, openDetail } = props
   const stat = uses.get(skill.name)
   const count = stat?.count ?? 0
   const lastUsed = stat?.lastUsed
@@ -70,27 +66,16 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
         </div>
         <div className={css.rowDesc} title={skill.description}>{skill.shortDescription ?? skill.description}</div>
       </div>
-      {skill.writable
-        ? <>
-            <button
-              type='button'
-              role='switch'
-              aria-checked={true}
-              aria-label={tt('row.disable')}
-              className={css.switch + ' ' + css.switchOn}
-              disabled={busyNames.has(skill.name)}
-              onClick={(event) => { event.stopPropagation(); void toggle(skill, false) }}
-            ><span className={css.switchThumb} /></button>
-            {editMode ? <button
-              type='button'
-              className={css.opBtn + ' ' + css.opDanger + ' ' + css.iconBtn}
-              disabled={busyNames.has(skill.name) || tagBusy}
-              title={tt('row.delete')}
-              aria-label={tt('row.delete')}
-              onClick={(event) => { event.stopPropagation(); requestDeleteSkill(skill.name) }}
-            ><IconTrashOutline16 size={14} /></button> : null}
-          </>
-        : <span className={css.badge + ' ' + css.badgeReadonly}>{tt('row.readonly')}</span>}
+      {skill.writable ? null : <span className={css.badge + ' ' + css.badgeReadonly}>{tt('row.readonly')}</span>}
+      <button
+        type='button'
+        role='switch'
+        aria-checked={true}
+        aria-label={tt('row.disable')}
+        className={css.switch + ' ' + css.switchOn}
+        disabled={busyNames.has(skill.name)}
+        onClick={(event) => { event.stopPropagation(); void toggle(skill, false) }}
+      ><span className={css.switchThumb} /></button>
     </div>
   )
 }

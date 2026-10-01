@@ -189,6 +189,9 @@ export function apply(ctx: Context, config?: Config): void {
             providerControl?.invalidate()
             scopes.view.invalidate()
             scopes.wiring.invalidateAll()
+            // 关闭名单可能刚从空变非空：那会让原本不需要闸门的 preset 变成
+            // 需要，所以顺手推一轮接线，不必等下一个 tick。
+            void scopes.wiring.sync()
           },
           stats,
           config: current,

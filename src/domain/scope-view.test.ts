@@ -10,7 +10,7 @@ import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './sco
 const META: Record<string, ScopeSkillMeta> = {
   'alpha-skill': { description: 'Alpha.', source: 'user-dsh' },
   'beta-skill': { description: 'Beta.', source: 'user-dsh' },
-  'gamma-skill': { description: 'Gamma.', source: 'project-dsh' },
+  'gamma-skill': { description: 'Gamma.', source: 'user-agents' },
 }
 
 interface Counter {
@@ -20,7 +20,7 @@ interface Counter {
 }
 
 /** 一个可改写的宿主替身。 */
-function harness(initial: { policy?: ScopePolicy | undefined; names?: string[] } = {}): {
+function harness(initial: { policy?: ScopePolicy | undefined; names?: string[]; closed?: ReadonlySet<string> } = {}): {
   view: ScopeView
   calls: Counter
   setPolicy: (policy: ScopePolicy | undefined) => void
@@ -47,6 +47,7 @@ function harness(initial: { policy?: ScopePolicy | undefined; names?: string[] }
       // 只对策略自己的 preset 返回它：未配置的模式必须走"不隔离"。
       return policy !== undefined && policy.presetId === presetId ? policy : undefined
     },
+    closed: async () => initial.closed ?? new Set<string>(),
   })
   return {
     view,
@@ -76,7 +77,7 @@ describe('ScopeView', () => {
     const { view } = harness({ policy: { presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] } })
     const hidden = await view.hiddenOf('coding')
     expect([...hidden.keys()]).toEqual(['gamma-skill'])
-    expect(hidden.get('gamma-skill')).toEqual({ description: 'Gamma.', source: 'project-dsh' })
+    expect(hidden.get('gamma-skill')).toEqual({ description: 'Gamma.', source: 'user-agents' })
   })
 
   it('未启用隔离时 hiddenOf 为空——闸门完全不干预', async () => {
@@ -117,6 +118,7 @@ describe('ScopeView', () => {
       },
       groups: async () => new Map([[tagKey('t1'), ['alpha-skill']]]),
       policyOf: async () => ({ presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] }),
+      closed: async () => new Set<string>(),
     }, 0)
 
     expect((await view.visibilityOf('coding')).hidden).toEqual([])
@@ -141,6 +143,7 @@ describe('ScopeView', () => {
       catalog: async () => ({ names: ['alpha-skill', 'beta-skill', 'gamma-skill'], meta: new Map([['alpha-skill', META['alpha-skill']]]) }),
       groups: async () => new Map([[tagKey('t1'), ['alpha-skill', 'beta-skill']]]),
       policyOf: async () => ({ presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] }),
+      closed: async () => new Set<string>(),
     })
     const hidden = await view.hiddenOf('coding')
     // gamma-skill 确实被判定为隐藏，但目录里已没有它的元数据 → 不生成遮蔽候选。
@@ -156,5 +159,16 @@ describe('ScopeView', () => {
     const minimal = await view.visibilityOf('minimal')
     expect(coding.hidden).toEqual(['gamma-skill'])
     expect(minimal.hidden).toEqual([])
+  })
+
+  it('全局关闭名单并入所有模式的遮蔽（未隔离的模式也生效）', async () => {
+    const { view } = harness({ closed: new Set(['alpha-skill']) })
+    const minimal = await view.visibilityOf('minimal')
+    expect(minimal.hidden).toEqual(['alpha-skill'])
+    expect(minimal.enabled).toBe(true)
+
+    // 目录里没有这个名字 → 不做无据遮蔽。
+    const { view: absent } = harness({ closed: new Set(['never-existed']) })
+    expect((await absent.visibilityOf('minimal')).hidden).toEqual([])
   })
 })

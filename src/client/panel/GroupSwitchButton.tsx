@@ -20,19 +20,19 @@ interface GroupSwitchButtonProps {
   memberCount: number
   /** True while a batch toggle is in flight. */
   batchBusy: boolean
-  /** True when at least one member is writable. */
-  hasWritable: boolean
+  /** True when at least one member can be switched from the hub. */
+  hasTogglable: boolean
   /** Toggle the whole group; the click's stopPropagation is applied here. */
   onToggle: () => void
 }
 
 export function GroupSwitchButton(props: GroupSwitchButtonProps): JSX.Element {
-  const { state, label, memberCount, batchBusy, hasWritable, onToggle } = props
+  const { state, label, memberCount, batchBusy, hasTogglable, onToggle } = props
   return (
     <button type='button' role='switch' aria-checked={state !== 'off'} aria-label={label}
       className={css.switch + (state === 'on' ? ' ' + css.switchOn : state === 'mixed' ? ' ' + css.switchMixed : '')}
-      disabled={batchBusy || memberCount === 0 || (state !== 'off' && !hasWritable)}
-      title={state !== 'off' && !hasWritable ? tt('groups.noWritable') : undefined}
+      disabled={batchBusy || memberCount === 0 || (state !== 'off' && !hasTogglable)}
+      title={state !== 'off' && !hasTogglable ? tt('groups.noToggleable') : undefined}
       onClick={(event: MouseEvent<HTMLButtonElement>) => { event.stopPropagation(); onToggle() }}>
       <span className={css.switchThumb} />
     </button>

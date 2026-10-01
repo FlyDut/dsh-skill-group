@@ -1,15 +1,14 @@
 /**
  * useSkillHub — 面板的状态聚合根：只持有跨域共享的通知状态与纯视图状态，
  * 各域状态与动作分散在 ./hooks/*，这里按依赖顺序组装（meta → 目录 →
- * 分组 → 来源 → 市场），轮询与派生组装在此。返回形状与拆分前完全一致，
- * 所有视图无需改动。All hooks run unconditionally at the top, so the panel
- * may early-return for the detail and tag-editor views without violating
- * the rules of hooks.
+ * 分组 → 来源 → 市场），轮询与派生组装在此。All hooks run unconditionally
+ * at the top, so the panel may early-return for the detail and tag-editor
+ * views without violating the rules of hooks.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SkillHubApi } from '../api.ts'
-import { isProjectSource, PRIVATE_SOURCE } from '../grouping.ts'
+import { PRIVATE_SOURCE } from '../grouping.ts'
 import { useMetaFlow } from './hooks/useMetaFlow.ts'
 import { useCatalogFlow } from './hooks/useCatalogFlow.ts'
 import { useGroupFlow } from './hooks/useGroupFlow.ts'
@@ -56,24 +55,13 @@ export function useSkillHub(api: SkillHubApi) {
   const [tab, setTab] = useState<'sources' | 'scenes' | 'market' | 'scopes'>('sources')
   const [skillView, setSkillView] = useState<'flat' | 'groups'>('groups')
   const [sourceFilter, setSourceFilter] = useState('all')
-  /** 分组视图里收起的分组（key 为 tag:<id>、col:<name> 或 project 树键）。技能总数 >80 时首次加载自动折叠 personal。 */
+  /** 分组视图里收起的分组（key 为 tag:<id> 或 col:<name>）。技能总数 >80 时首次加载自动折叠 personal。 */
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set())
-  /** 项目级三级树里已细分（按 .dsh/.agents）的项目键。 */
-  const [subdividedProjects, setSubdividedProjects] = useState<ReadonlySet<string>>(new Set())
   const [showLegend, setShowLegend] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
   const toggleGroupCollapse = useCallback((key: string): void => {
     setCollapsedGroups((previous) => {
-      const next = new Set(previous)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-
-  const toggleSubdivide = useCallback((key: string): void => {
-    setSubdividedProjects((previous) => {
       const next = new Set(previous)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -105,7 +93,7 @@ export function useSkillHub(api: SkillHubApi) {
   const groupFlow = useGroupFlow(api, shared, catalogFlow.batchToggleNames, catalogFlow.actionNames)
 
   // ----------------------------------------------------------------- sources
-  const sourceFlow = useSourceFlow(api, shared, catalogFlow.workspace, catalogFlow.load, groupFlow.loadGroups)
+  const sourceFlow = useSourceFlow(api, shared, catalogFlow.load, groupFlow.loadGroups)
 
   // ------------------------------------------------------------------ market
   const marketFlow = useMarketFlow(
@@ -129,8 +117,7 @@ export function useSkillHub(api: SkillHubApi) {
   const sourceOptions = useMemo(() => {
     const skills = catalogFlow.catalog?.skills ?? []
     const repos = [...new Set(skills.map((skill) => origins[skill.name]).filter((repo): repo is string => repo !== undefined))].sort()
-    // 项目级技能（有 workspace 归属）不算「个人」。
-    const hasPrivate = skills.some((skill) => origins[skill.name] === undefined && !isProjectSource(skill.source))
+    const hasPrivate = skills.some((skill) => origins[skill.name] === undefined)
     return [...repos, ...(hasPrivate ? [PRIVATE_SOURCE] : [])]
   }, [catalogFlow.catalog, origins])
 
@@ -167,7 +154,7 @@ export function useSkillHub(api: SkillHubApi) {
     repoDiscoverState: marketFlow.repoDiscoverState, scanningRepo: marketFlow.scanningRepo,
     repoSelected: marketFlow.repoSelected, repoImporting: marketFlow.repoImporting,
     repoResult: marketFlow.repoResult,
-    search: catalogFlow.search, workspace: catalogFlow.workspace,
+    search: catalogFlow.search,
     detail: catalogFlow.detail, detailLoading: catalogFlow.detailLoading,
     busyNames: catalogFlow.busyNames, batchBusy,
     showForm: catalogFlow.showForm, formName: catalogFlow.formName, formDesc: catalogFlow.formDesc,
@@ -183,18 +170,18 @@ export function useSkillHub(api: SkillHubApi) {
     sourceCheck: sourceFlow.sourceCheck, checkingSource: sourceFlow.checkingSource,
     syncingSource: sourceFlow.syncingSource,
     conflictDialog: groupFlow.conflictDialog, confirmDialog: sourceFlow.confirmDialog,
-    deleteSkillDialog: sourceFlow.deleteSkillDialog, deleteGroupDialog: sourceFlow.deleteGroupDialog,
-    confirmClearTrash: sourceFlow.confirmClearTrash, updateAllDialog: marketFlow.updateAllDialog,
+    updateAllDialog: marketFlow.updateAllDialog,
     editingTag: groupFlow.editingTag, editName: groupFlow.editName, membersDraft: groupFlow.membersDraft,
     newTagName: groupFlow.newTagName, tagBusy,
-    editSearch: groupFlow.editSearch, collapsedGroups, subdividedProjects, showLegend, editMode,
+    editSearch: groupFlow.editSearch, collapsedGroups, showLegend, editMode,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
     normalized: catalogFlow.normalized, origins, sourceOptions,
-    filtered: catalogFlow.filtered, sorted: catalogFlow.sorted, shortenedCount: catalogFlow.shortenedCount,
+    filtered: catalogFlow.filtered, sorted: catalogFlow.sorted,
+    shortenedCount: catalogFlow.shortenedCount,
     // actions + setters
-    setLoadError, setSuccessBanner, setSearch: catalogFlow.setSearch, setWorkspace: catalogFlow.setWorkspace,
+    setLoadError, setSuccessBanner, setSearch: catalogFlow.setSearch,
     setDetail: catalogFlow.setDetail, setShowForm: catalogFlow.setShowForm, setFormName: catalogFlow.setFormName,
     setFormDesc: catalogFlow.setFormDesc, setFormContent: catalogFlow.setFormContent, setFormRoot: catalogFlow.setFormRoot,
     setFormMessage: catalogFlow.setFormMessage,
@@ -203,25 +190,21 @@ export function useSkillHub(api: SkillHubApi) {
     setBranchChoice: marketFlow.setBranchChoice, setMarketSyncDialog: marketFlow.setMarketSyncDialog,
     setNewSourceName: marketFlow.setNewSourceName, setConflictDialog: groupFlow.setConflictDialog,
     setConfirmDialog: sourceFlow.setConfirmDialog,
-    setDeleteSkillDialog: sourceFlow.setDeleteSkillDialog, setDeleteGroupDialog: sourceFlow.setDeleteGroupDialog,
-    setConfirmClearTrash: sourceFlow.setConfirmClearTrash, setUpdateAllDialog: marketFlow.setUpdateAllDialog,
+    setUpdateAllDialog: marketFlow.setUpdateAllDialog,
     setEditingTag: groupFlow.setEditingTag, setEditName: groupFlow.setEditName,
     setMembersDraft: groupFlow.setMembersDraft, setNewTagName: groupFlow.setNewTagName,
     setEditSearch: groupFlow.setEditSearch, setShowLegend, setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
     scopeFlow,
-    toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, loadMarket: marketFlow.loadMarket,
-    openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
+    toggleGroupCollapse, setAllGroupsCollapsed, loadMarket: marketFlow.loadMarket,
+    openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle,
     toggleGroup: groupFlow.toggleGroup,
     resolveConflict: groupFlow.resolveConflict,
     runConfirmed: sourceFlow.runConfirmed, checkSources: sourceFlow.checkSources,
-    requestSync: sourceFlow.requestSync, requestDelete: sourceFlow.requestDelete,
-    restoreTrash: sourceFlow.restoreTrash, clearTrash: sourceFlow.clearTrash,
+    requestSync: sourceFlow.requestSync,
     fixingPaths: catalogFlow.fixingPaths, fixDiagnostic: catalogFlow.fixDiagnostic,
     clearListFilters: catalogFlow.clearListFilters, openVersionDialog: marketFlow.openVersionDialog,
-    confirmVersionDialog: marketFlow.confirmVersionDialog, requestDeleteSkill: sourceFlow.requestDeleteSkill,
-    runDeleteSkill: sourceFlow.runDeleteSkill, requestDeleteGroup: sourceFlow.requestDeleteGroup,
-    runDeleteGroup: sourceFlow.runDeleteGroup, createTag: groupFlow.createTag,
+    confirmVersionDialog: marketFlow.confirmVersionDialog, createTag: groupFlow.createTag,
     deleteTag: groupFlow.deleteTag, saveTag: groupFlow.saveTag, reorderTags: groupFlow.reorderTags,
     reorderSourceGroups: groupFlow.reorderSourceGroups,
     addSource: marketFlow.addSource, addMarketSource: marketFlow.addMarketSource,

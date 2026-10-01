@@ -55,7 +55,6 @@ export function RepoScanCard(props: { hub: SkillHubState }): JSX.Element | null 
     // 导入后 catalog 已包含新技能，但 scan 快照的 existing 仍为 false，需用实时 catalog + 本次导入结果兜底，避免已导入仍可选
     const installedNames = new Set<string>([
       ...((hub.catalog?.skills ?? []).map((s) => s.name)),
-      ...((hub.catalog?.disabled ?? []).map((d) => d.name)),
       ...((repoResult?.imported ?? []).map((r) => r.name)),
       ...((repoResult?.skipped ?? []).map((r) => r.name)),
     ])

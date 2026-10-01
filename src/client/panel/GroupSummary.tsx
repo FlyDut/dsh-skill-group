@@ -38,14 +38,6 @@ export function GroupSummary(props: GroupSummaryProps): JSX.Element {
     <span className={css.groupTitleInner}>
       {hubConfig?.showGroupSummary !== false && total > 0 ? <span className={css.useCount}>{total}</span> : null}
       {hubConfig?.showGroupSummary !== false && latest !== undefined ? <span className={css.useTime + ' ' + css.groupTime}>{relativeTimeText(latest)}</span> : null}
-      {scopeModes !== undefined && scopeModes.length > 0
-        ? (
-            <span
-              className={css.badge}
-              title={tt('scope.badgeTitle', { count: scopeModes.length, presets: scopeModes.join(', ') })}
-            >{tt('scope.tab')} · {scopeModes.join(', ')}</span>
-          )
-        : null}
     </span>
   )
 }

@@ -1,4 +1,4 @@
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
 import { isValidRepoRoot } from '../protocol/repo.ts'
 import { normalizeScopePolicy } from '../protocol/scopes.ts'
 import { STORE_VERSION } from './paths.ts'
@@ -11,7 +11,6 @@ export interface MigratedStore {
   tags?: unknown
   sources?: unknown
   marketSources?: unknown
-  trash?: unknown
   skillStats?: unknown
   marketStats?: unknown
   collectionOrder?: unknown
@@ -28,6 +27,9 @@ export interface MigratedStore {
  * instead of bare repo slugs, so a source can pin a release/branch version.
  * v4 to v5: mode-level scope policies are a pure addition — older files lack
  * the field, and the loader validates each row, so it passes through untouched.
+ * v5 to v6: `disabled` becomes a runtime switch list ({ name, disabledAt }) —
+ * the old file-based fields (path/root/addedAt/updatedAt) are dropped on load —
+ * and the `trash` bucket is discarded (the hub no longer deletes skills).
  * Returns null when the file claims a newer schema than this plugin
  * understands, so the caller starts empty instead of risking data loss.
  */
@@ -39,7 +41,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
   const disabled = Array.isArray(record.disabled) ? record.disabled : []
   const config = typeof record.config === 'object' && record.config !== null && !Array.isArray(record.config) ? record.config : undefined
   const tags = Array.isArray(record.tags) ? record.tags : undefined
-  const trash = Array.isArray(record.trash) ? record.trash : undefined
   // v2 stored bare slugs; v3 stores records. Normalize both shapes here.
   const marketSources = Array.isArray(record.marketSources)
     ? record.marketSources.map((entry) => typeof entry === 'string'
@@ -76,7 +77,6 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     ...(tags !== undefined ? { tags } : {}),
     ...(sources !== undefined ? { sources } : {}),
     ...(marketSources !== undefined ? { marketSources } : {}),
-    ...(trash !== undefined ? { trash } : {}),
     // v4 (skillStats) is a pure addition — older files simply lack the field,
     // and the loader validates its shape, so pass it through untouched.
     // marketStats follows the same pattern (validated on load below).
@@ -96,7 +96,6 @@ export interface HydratedState {
   tagsById: Map<string, SkillTag>
   sourcesByRepo: Map<string, SourceRecord>
   marketSources: MarketSourceRecord[]
-  trashByName: Map<string, TrashEntry>
   skillStats: SkillStatsCheckpoint | undefined
   marketStats: MarketStatsSnapshot | undefined
   collectionOrder: string[]
@@ -115,11 +114,13 @@ function cleanStringList(value: unknown): string[] {
  * 绝不因一条脏数据丢掉整个 sidecar（与原 ensureLoaded 内联逻辑一致）。
  */
 export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
+  // v6: only the name and the switch-off time survive; the file-based fields
+  // older versions stored (path/root/addedAt/updatedAt) are dropped here.
   const entries = new Map<string, DisabledSkill>()
   if (Array.isArray(migrated.disabled)) {
     for (const entry of migrated.disabled) {
-      if (typeof entry?.name === 'string' && typeof entry?.path === 'string') {
-        entries.set(entry.name, entry)
+      if (typeof entry?.name === 'string' && entry.name !== '') {
+        entries.set(entry.name, { name: entry.name, disabledAt: typeof entry.disabledAt === 'number' ? entry.disabledAt : 0 })
       }
     }
   }
@@ -181,34 +182,6 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
           repo: item.repo,
           ...(typeof item.ref === 'string' && item.ref !== '' ? { ref: item.ref } : {}),
           ...(typeof item.commitSha === 'string' && item.commitSha !== '' ? { commitSha: item.commitSha } : {}),
-        })
-      }
-    }
-  }
-
-  const trashByName = new Map<string, TrashEntry>()
-  if (Array.isArray(migrated.trash)) {
-    for (const entry of migrated.trash as unknown[]) {
-      const item = entry as { name?: unknown; path?: unknown; movedAt?: unknown; sourcePath?: unknown } | null
-      if (item !== null && typeof item === 'object' && typeof item.name === 'string' && typeof item.path === 'string') {
-        const origin = (item as Record<string, unknown>).origin as { repo?: unknown; root?: unknown; ref?: unknown; commitSha?: unknown } | undefined
-        const tagIds = (item as Record<string, unknown>).tagIds
-        trashByName.set(item.name, {
-          name: item.name,
-          path: item.path,
-          movedAt: typeof item.movedAt === 'number' ? item.movedAt : 0,
-          ...(typeof item.sourcePath === 'string' && item.sourcePath !== '' ? { sourcePath: item.sourcePath } : {}),
-          ...(origin !== null && typeof origin === 'object' && typeof origin.repo === 'string' && origin.repo !== '' && isValidRepoRoot(origin.root)
-            ? {
-                origin: {
-                  repo: origin.repo,
-                  root: origin.root,
-                  ...(typeof origin.ref === 'string' && origin.ref !== '' ? { ref: origin.ref } : {}),
-                  commitSha: typeof origin.commitSha === 'string' ? origin.commitSha : '',
-                },
-              }
-            : {}),
-          ...(Array.isArray(tagIds) ? { tagIds: tagIds.filter((id): id is string => typeof id === 'string') } : {}),
         })
       }
     }
@@ -310,5 +283,5 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     }
   }
 
-  return { entries, config, tagsById, sourcesByRepo, marketSources, trashByName, skillStats, marketStats, collectionOrder, sourceGroupOrder, scopes: [...scopeByPreset.values()] }
+  return { entries, config, tagsById, sourcesByRepo, marketSources, skillStats, marketStats, collectionOrder, sourceGroupOrder, scopes: [...scopeByPreset.values()] }
 }

@@ -20,9 +20,8 @@ export interface ConflictDialogState {
   conflicts: string[]
 }
 
-/** A destructive/sync confirmation waiting for the user's decision. */
+/** A sync confirmation waiting for the user's decision. */
 export interface ConfirmDialogState {
-  kind: 'sync' | 'delete'
   repo: string
   /** Skills the action applies to. */
   skills: string[]

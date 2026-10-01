@@ -20,8 +20,6 @@ export type {
   CatalogResponse,
   SkillDetail,
   SkillDetailResponse,
-  SkillDeleteRequest,
-  SkillDeleteResponse,
   ToggleRequest,
   ToggleResponse,
   ToggleBatchRequest,
@@ -91,17 +89,10 @@ export {
 } from './protocol/scopes.ts'
 export type {
   SourceRecord,
-  TrashEntry,
   SourcesResponse,
   SourceCheckRequest,
   SourceCheckResult,
   SourceCheckResponse,
   SourceSyncRequest,
   SourceSyncResponse,
-  SourceDeleteRequest,
-  SourceDeleteResponse,
-  SourceRestoreRequest,
-  SourceRestoreResponse,
-  SourceTrashClearResponse,
 } from './protocol/sources.ts'
-export { isProjectSource } from './protocol/sources.ts'

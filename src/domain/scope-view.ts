@@ -24,7 +24,7 @@ export interface ScopeSkillMeta {
   source: string
 }
 
-/** 目录快照：当前真实可用的技能及其元数据（已排除全局硬禁用）。 */
+/** 目录快照：当前真实可用的技能及其元数据（含被运行时关闭的技能）。 */
 export interface ScopeCatalogSnapshot {
   /** 技能名，升序。 */
   names: string[]
@@ -44,6 +44,11 @@ interface ScopeViewDeps {
   groups: (snapshot: ScopeCatalogSnapshot) => Promise<Map<string, readonly string[]>>
   /** 某模式的策略；undefined 表示从未配置（= 不隔离）。 */
   policyOf: (presetId: string) => Promise<ScopePolicy | undefined>
+  /**
+   * 全局关闭名单（sidecar 里的运行时开关，只有技能名）。
+   * 它对**每个**模式都生效，与模式自己的隔离策略叠加。
+   */
+  closed: () => Promise<ReadonlySet<string>>
 }
 
 /** 目录快照的稳定摘要：名字与各自来源任一变化，分组都必须重新展开。 */
@@ -54,6 +59,20 @@ function snapshotKey(snapshot: ScopeCatalogSnapshot): string {
 /** 未配置的模式按"不隔离"参与判定。 */
 function unrestricted(presetId: string): ScopePolicy {
   return { presetId, enabled: false, groups: [], skills: [] }
+}
+
+/**
+ * 叠加上"全局运行时关闭"：关闭的技能对**所有**模式都不可见，与模式自己的
+ * 白名单隔离正交。关闭名单里的名字必须真实存在于目录快照里，否则跳过——
+ * 一条指向已消失技能的记录不该凭空制造遮蔽候选。
+ */
+function withClosed(visibility: ScopeVisibility, closed: ReadonlySet<string>, known: ReadonlySet<string>): ScopeVisibility {
+  if (closed.size === 0) return visibility
+  const hiddenSet = new Set(visibility.hidden)
+  for (const name of closed) if (known.has(name)) hiddenSet.add(name)
+  const hidden = [...hiddenSet].sort((a, b) => a.localeCompare(b))
+  const visible = visibility.visible.filter((name) => !hiddenSet.has(name))
+  return { ...visibility, enabled: visibility.enabled || hidden.length > 0, visible, hidden }
 }
 
 /**
@@ -105,26 +124,28 @@ export class ScopeView {
   async visibilityOf(presetId: string): Promise<ScopeVisibility> {
     const snapshot = await this.snapshot()
     const policy = (await this.deps.policyOf(presetId)) ?? unrestricted(presetId)
-    const key = scopeCacheKey(policy, snapshot.names)
+    const closed = await this.deps.closed()
+    const key = scopeCacheKey(policy, snapshot.names) + '\u0002' + [...closed].sort().join('\u0000')
     const cached = this.visibility.get(presetId)
     if (cached !== undefined && cached.key === key) return cached.value
 
     const members = await this.groupIndex(snapshot)
-    const value = resolveScopeVisibility(policy, { members, known: new Set(snapshot.names) }, snapshot.names)
+    const resolved = resolveScopeVisibility(policy, { members, known: new Set(snapshot.names) }, snapshot.names)
+    const value = withClosed(resolved, closed, new Set(snapshot.names))
     this.visibility.set(presetId, { key, value })
     return value
   }
 
   /**
-   * 一个模式需要被 gate 遮蔽的技能及其元数据。
-   * 未启用隔离时返回空表——gate 因此完全不干预该模式。
+   * 一个模式需要被 gate 遮蔽的技能及其元数据（模式隔离 ∪ 全局运行时关闭）。
+   * 没有任何需要遮蔽的技能时返回空表——gate 因此完全不干预该模式。
    * @param presetId - preset id。
    * @returns 技能名 → 元数据；空表表示该模式不需要遮蔽。
    */
   async hiddenOf(presetId: string): Promise<Map<string, ScopeSkillMeta>> {
     const result = new Map<string, ScopeSkillMeta>()
     const visibility = await this.visibilityOf(presetId)
-    if (!visibility.enabled || visibility.hidden.length === 0) return result
+    if (visibility.hidden.length === 0) return result
     const snapshot = await this.snapshot()
     for (const name of visibility.hidden) {
       const meta = snapshot.meta.get(name)

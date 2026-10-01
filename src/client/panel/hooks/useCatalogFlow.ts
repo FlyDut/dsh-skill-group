@@ -1,14 +1,16 @@
 /**
- * useCatalogFlow — 目录域：catalog 加载、详情、开关（单个/禁用态/批量）、
- * 新建、诊断修复，以及列表过滤/排序派生。跨域刷新只通过 shared 通知，
- * 不直接碰其他域的 state。
+ * useCatalogFlow — 目录域：catalog 加载、详情、开关（单个/批量）、新建、
+ * 诊断修复，以及列表过滤/排序派生。跨域刷新只通过 shared 通知，不直接碰
+ * 其他域的 state。
+ *
+ * 关闭的技能**留在**目录里（CatalogSkill.enabled === false），因此既能被
+ * 搜索到，也能在任何视图里一键重新打开：主行与关闭行共用同一份筛选结果。
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type {
   CatalogResponse,
   CatalogSkill,
-  DisabledSkill,
   SkillDetail,
   WritableRoot,
 } from '../../../protocol.ts'
@@ -32,8 +34,6 @@ export function useCatalogFlow(
   const [detailLoading, setDetailLoading] = useState(false)
   const [busyNames, setBusyNames] = useState<ReadonlySet<string>>(new Set())
   const [search, setSearch] = useState('')
-  /** 工作区（项目）路径；空 = 只看用户级技能。 */
-  const [workspace, setWorkspace] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
@@ -47,9 +47,8 @@ export function useCatalogFlow(
 
   const autoCollapsedPersonal = useRef(false)
   /**
-   * 目录请求序号：轮询与工作区切换都会发起 `load()`，慢的旧响应回来时
-   * 若直接 setCatalog，就会把新工作区的数据覆盖回旧的（切工作区后一闪
-   * 回到全局视图）。只接受最后一次发起的请求的响应。
+   * 目录请求序号：轮询与写操作刷新都会发起 `load()`，慢的旧响应回来时若直接
+   * setCatalog，就会把新数据覆盖回旧的。只接受最后一次发起的请求的响应。
    */
   const loadSeq = useRef(0)
   /** 详情请求序号，同 loadSeq：快速连点不同技能时只认最后一次。 */
@@ -58,10 +57,10 @@ export function useCatalogFlow(
   const load = useCallback(async (): Promise<void> => {
     const seq = ++loadSeq.current
     try {
-      const next = await api.catalog(workspace !== '' ? { cwd: workspace } : undefined)
+      const next = await api.catalog()
       if (seq !== loadSeq.current) return
       setCatalog(next)
-      if (!autoCollapsedPersonal.current && next.skills.length + next.disabled.length > 80) {
+      if (!autoCollapsedPersonal.current && next.skills.length > 80) {
         autoCollapsedPersonal.current = true
         collapsePersonal()
       }
@@ -72,26 +71,24 @@ export function useCatalogFlow(
     } finally {
       if (seq === loadSeq.current) setLoading(false)
     }
-  }, [api, workspace, shared, collapsePersonal])
+  }, [api, shared, collapsePersonal])
 
   const openDetail = useCallback(async (name: string): Promise<void> => {
     const seq = ++detailSeq.current
     setDetailLoading(true)
     await runFlow(shared, async () => {
-      const next = await api.skill(name, workspace !== '' ? { cwd: workspace } : undefined)
+      const next = await api.skill(name)
       if (seq !== detailSeq.current) return
       setDetail(next)
     }, () => {
       if (seq === detailSeq.current) setDetailLoading(false)
     })
-  }, [api, workspace, shared])
+  }, [api, shared])
 
   const toggle = useCallback(async (skill: CatalogSkill, enabled: boolean): Promise<void> => {
     setBusyNames((previous) => new Set(previous).add(skill.name))
     await runFlow(shared, async () => {
-      // 带上当前工作区：路由据此重建同一作用域的目录，否则返回值是全局
-      // 目录，setCatalog 会把工作区视图静默重置。
-      const next = await api.toggle(skill.name, enabled, workspace !== '' ? { cwd: workspace } : undefined)
+      const next = await api.toggle(skill.name, enabled)
       setCatalog(next)
     }, () => {
       setBusyNames((previous) => {
@@ -100,34 +97,20 @@ export function useCatalogFlow(
         return next
       })
     })
-  }, [api, workspace, shared])
-
-  const enableDisabled = useCallback(async (record: DisabledSkill): Promise<void> => {
-    setBusyNames((previous) => new Set(previous).add(record.name))
-    await runFlow(shared, async () => {
-      const next = await api.toggle(record.name, true, workspace !== '' ? { cwd: workspace } : undefined)
-      setCatalog(next)
-    }, () => {
-      setBusyNames((previous) => {
-        const next = new Set(previous)
-        next.delete(record.name)
-        return next
-      })
-    })
-  }, [api, workspace, shared])
+  }, [api, shared])
 
   /** Toggle an explicit name set in one write (enables disabled members too). */
   const batchToggleNames = useCallback(async (names: string[], enabled: boolean): Promise<void> => {
     if (names.length === 0) return
     shared.setBatchBusy(true)
     await runFlow(shared, async () => {
-      const next = await api.toggleBatch(names, enabled, workspace !== '' ? { cwd: workspace } : undefined)
+      const next = await api.toggleBatch(names, enabled)
       setCatalog(next.catalog)
       if (next.failures.length > 0) {
         shared.fail('toggle-batch: ' + next.failures.map((failure) => failure.name + ': ' + failure.error).join('; '))
       }
     }, () => shared.setBatchBusy(false))
-  }, [api, workspace, shared])
+  }, [api, shared])
 
   const fixDiagnostic = useCallback(async (path: string): Promise<void> => {
     setFixingPaths((previous) => new Set(previous).add(path))
@@ -172,12 +155,13 @@ export function useCatalogFlow(
 
   const normalized = search.trim().toLocaleLowerCase()
 
-  /** 当前启用且可写的技能名（组开关只作用于它们）。 */
-  const actionNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => skill.writable).map((skill) => skill.name)), [catalog])
+  /** 组开关能作用的技能名 = 目录里的全部技能（关闭只写侧车状态，与来源可写性无关）。 */
+  const actionNames = useMemo(() => new Set((catalog?.skills ?? []).map((skill) => skill.name)), [catalog])
 
   /** 当前启用的全部技能名（含只读，用于派生开关状态）。 */
-  const viewNames = useMemo(() => new Set((catalog?.skills ?? []).map((skill) => skill.name)), [catalog])
+  const viewNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => skill.enabled).map((skill) => skill.name)), [catalog])
 
+  /** 搜索 + 调用方式筛选后的全部技能（含已关闭的，视图各取所需）。 */
   const filtered = useMemo(() => (catalog?.skills ?? []).filter((skill) => {
     if (invocationFilter === 'model' && !skill.invocation.modelInvocable) return false
     if (invocationFilter === 'user' && !skill.invocation.userInvocable) return false
@@ -187,10 +171,11 @@ export function useCatalogFlow(
       || skill.displayName?.toLocaleLowerCase().includes(normalized)
       || skill.shortDescription?.toLocaleLowerCase().includes(normalized)
   }), [catalog, normalized, invocationFilter])
+
+  /** 主行：筛选后的启用技能（所有视图共用；调用次数未知按 0 处理）。 */
+  const sorted = useMemo(() => sortSkills(filtered.filter((skill) => skill.enabled), sortKey, (name) => uses.get(name)?.count), [filtered, sortKey, uses])
   /** Rows actually rendered with a shortened description (shortDescription in use). */
-  const shortenedCount = useMemo(() => filtered.filter((skill) => skill.shortDescription !== undefined).length, [filtered])
-  /** 排序后的技能列表（所有视图共用；调用次数未知按 0 处理）。 */
-  const sorted = useMemo(() => sortSkills(filtered, sortKey, (name) => uses.get(name)?.count), [filtered, sortKey, uses])
+  const shortenedCount = useMemo(() => sorted.filter((skill) => skill.shortDescription !== undefined).length, [sorted])
 
   /** Clear the list filters (search + source + invocation) back to the full view. */
   const clearListFilters = useCallback((): void => {
@@ -200,12 +185,12 @@ export function useCatalogFlow(
   }, [clearSourceFilter])
 
   return {
-    catalog, loading, detail, detailLoading, busyNames, search, workspace,
+    catalog, loading, detail, detailLoading, busyNames, search,
     showForm, formName, formDesc, formContent, formRoot, formBusy, formMessage, fixingPaths,
     invocationFilter, sortKey, normalized, actionNames, viewNames,
     filtered, sorted, shortenedCount,
-    setDetail, setSearch, setWorkspace, setShowForm, setFormName, setFormDesc,
+    setDetail, setSearch, setShowForm, setFormName, setFormDesc,
     setFormContent, setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
-    load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, create, clearListFilters,
+    load, openDetail, toggle, batchToggleNames, fixDiagnostic, create, clearListFilters,
   }
 }

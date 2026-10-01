@@ -1,17 +1,14 @@
 /**
  * 启动期的一次性对账与迁移。
  *
- * 三件事都「尽力而为」：失败只记一行日志，绝不让插件装载失败。
+ * 两件事都「尽力而为」：失败只记一行日志，绝不让插件装载失败。
  *  ① 回收导入中断留下的 `.*.import-*` 临时目录（Issue #3）；
- *  ② 磁盘上已有 `.disabled`、sidecar 却无记录时补录（状态文件被恢复或手改过）；
- *  ③ 旧版 sidecar 配置在 settings 命名空间还没有用户层时迁移过去。
+ *  ② 旧版 sidecar 配置在 settings 命名空间还没有用户层时迁移过去。
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SettingsForms } from '@deepseek-ai/dsh-settings'
 import { ENTRY_ID } from './config.ts'
-import { dshHome } from './env.ts'
 import type { HubConfig } from './protocol.ts'
-import { reconcileDisabledSkills } from './reconcile.ts'
 import { cleanupLeftoverImportDirs } from './repo.ts'
 import { WRITABLE_ROOTS, rootPath } from './skillfs/paths.ts'
 import type { SkillHubStore } from './store.ts'
@@ -37,16 +34,6 @@ export function runStartupTasks(options: StartupOptions): void {
       } catch (error) {
         ctx.logger.warn('[skill-hub] startup cleanup failed', error)
       }
-    }
-    // 对账：磁盘上已有 .disabled、sidecar 却无记录（状态文件被恢复/手改、旧版本
-    // 遗留）时补记录，否则这些技能在面板里既不算启用也不算禁用，来源组空壳。
-    try {
-      const reconciled = await reconcileDisabledSkills(store, dshHome())
-      if (reconciled.length > 0) {
-        ctx.logger.info(`[skill-hub] startup reconciled ${reconciled.length} disabled skill record(s): ${reconciled.map((entry) => entry.name).join(', ')}`)
-      }
-    } catch (error) {
-      ctx.logger.warn('[skill-hub] startup disabled-skill reconcile failed', error)
     }
   })()
 

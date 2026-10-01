@@ -18,7 +18,7 @@ export function useGroupFlow(
   shared: FlowNotices,
   /** 整组开关的执行器（目录域提供，stable）。 */
   batchToggleNames: (names: string[], enabled: boolean) => Promise<void>,
-  /** 当前启用且可写的技能名（目录域派生）。 */
+  /** 目录里存在的技能名：组开关能作用的范围（目录域派生）。 */
   actionNames: ReadonlySet<string>,
 ) {
   const [groupsState, setGroupsState] = useState<GroupsResponse | null>(null)

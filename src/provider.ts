@@ -9,8 +9,8 @@
  * purpose — agent presets own local discovery by mounting their own
  * skill-filesystem into their preset scope layers, so a host-plane query
  * against the registry's empty global layer sees nothing. The hub needs a
- * session-independent management view, so it contributes one itself: the
- * user roots always, plus the project roots when the caller names a cwd.
+ * session-independent management view, so it contributes one itself: the two
+ * user roots (~/.dsh/skills and ~/.agents/skills).
  *
  * Agent views are unaffected: preset layers are nearer than the global
  * layer, so a preset's own filesystem provider wins every duplicate name
@@ -19,15 +19,13 @@
  */
 
 import { readFile, realpath, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillProvider, SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import { errorText } from './error-text.ts'
 import { dshHome } from './env.ts'
-import { findProjectRoot, parseFrontmatter, rootPath, scanRoot } from './skillfs.ts'
+import { parseFrontmatter, rootPath, scanRoot } from './skillfs.ts'
 
 /** Official root ranks (mirrors dsh-skill-filesystem). */
-const PROJECT_DSH_RANK = 100
-const PROJECT_AGENTS_RANK = 200
 const USER_DSH_RANK = 400
 const USER_AGENTS_RANK = 500
 
@@ -106,7 +104,7 @@ export class SkillHubProvider implements SkillProvider {
    */
   private async checkRoots(): Promise<void> {
     let stamp = ''
-    for (const root of await this.roots(undefined)) {
+    for (const root of await this.roots()) {
       for (const entry of await scanRoot(root.base)) {
         try {
           const info = await stat(entry.path)
@@ -126,9 +124,9 @@ export class SkillHubProvider implements SkillProvider {
     }
   }
 
-  async list(options: { cwd?: string; signal?: AbortSignal }): Promise<readonly SkillCandidate[]> {
+  async list(_options: { signal?: AbortSignal } = {}): Promise<readonly SkillCandidate[]> {
     const candidates: SkillCandidate[] = []
-    for (const root of await this.roots(options.cwd)) {
+    for (const root of await this.roots()) {
       for (const entry of await scanRoot(root.base)) {
         let text: string
         try {
@@ -180,31 +178,18 @@ export class SkillHubProvider implements SkillProvider {
   }
 
   /**
-   * The roots this provider lists: user roots always, project roots with cwd.
+   * The roots this provider lists: the two user roots.
    *
    * Roots resolving to the same directory collapse to one entry, keeping the
-   * user identity. Why this matters: `findProjectRoot` walks up to the first
-   * `.dsh`/`.git`, so a workspace with neither marker (e.g. `~/公共`) resolves
-   * its project root to `$HOME` — and `$HOME/.dsh/skills` *is* the user root
-   * whenever `DSH_HOME` is `~/.dsh`. Scanning that one directory under both
-   * `user-dsh` and `project-dsh` reported every user skill twice, and the
-   * management panel keys project rows per workspace, so every such workspace
-   * added another row. The project copy also came back `writable: false`, so the
-   * panel showed a read-only clone of the user's own skill.
+   * user identity: a `~/.agents/skills` symlinked onto `~/.dsh/skills` must
+   * not report every user skill twice.
    */
-  private async roots(cwd?: string): Promise<ProviderRoot[]> {
+  private async roots(): Promise<ProviderRoot[]> {
     // 用户根排在前面：同一目录冲突时保留用户身份（可写、归到用户来源）。
     const roots: ProviderRoot[] = [
       { base: rootPath('user-dsh', this.home), source: 'user-dsh', rank: USER_DSH_RANK },
       { base: rootPath('user-agents', this.home), source: 'user-agents', rank: USER_AGENTS_RANK },
     ]
-    if (cwd !== undefined && cwd !== '') {
-      const project = await findProjectRoot(cwd)
-      roots.push(
-        { base: join(project, '.dsh', 'skills'), source: 'project-dsh', rank: PROJECT_DSH_RANK },
-        { base: join(project, '.agents', 'skills'), source: 'project-agents', rank: PROJECT_AGENTS_RANK },
-      )
-    }
     const seen = new Set<string>()
     const unique: ProviderRoot[] = []
     for (const root of roots) {

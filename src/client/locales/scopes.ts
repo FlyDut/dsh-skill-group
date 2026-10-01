@@ -58,7 +58,6 @@ export const zhScopes = {
   'scope.cancel': '取消',
   'scope.effectNow': '保存后，该模式会话的下一个回合即生效，无需重启。',
   'scope.effectLater': '该模式还没有会话使用过，首次使用它的会话会自动接上。',
-  'scope.badgeTitle': '在 {count} 个模式下不可见：{presets}',
   'scope.groupsEmpty': '还没有任何分组。先在「场景」或「来源」里建一个分组，就能整体勾选。',
 } as const
 
@@ -118,6 +117,5 @@ export const enScopes: Record<keyof typeof zhScopes, string> = {
   'scope.cancel': 'Cancel',
   'scope.effectNow': 'Takes effect on the next turn of a session on this mode — no restart needed.',
   'scope.effectLater': 'No session has used this mode yet; the first one attaches it automatically.',
-  'scope.badgeTitle': 'Invisible in {count} mode(s): {presets}',
   'scope.groupsEmpty': 'No groups yet. Create one under Scenes or Sources to check it as a whole.',
 }

@@ -28,15 +28,15 @@ describe('SkillHubStore', () => {
   })
 
   it('persists disabled entries and reloads them', async () => {
-    await store.addDisabled({ name: 'demo-skill', description: 'demo', path: '/tmp/demo/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1234 })
+    await store.addDisabled({ name: 'demo-skill', disabledAt: 1234 })
     const reloaded = new SkillHubStore(file)
     const entries = await reloaded.listDisabled()
     expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ name: 'demo-skill', path: '/tmp/demo/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1234 })
+    expect(entries[0]).toMatchObject({ name: 'demo-skill', disabledAt: 1234 })
   })
 
   it('removes entries on removeDisabled', async () => {
-    await store.addDisabled({ name: 'a', description: '', path: '/tmp/a.md.disabled', root: 'user-dsh', disabledAt: 1 })
+    await store.addDisabled({ name: 'a', disabledAt: 1 })
     await store.removeDisabled('a')
     expect(await store.listDisabled()).toEqual([])
     expect(await new SkillHubStore(file).listDisabled()).toEqual([])
@@ -45,7 +45,7 @@ describe('SkillHubStore', () => {
   it('survives a corrupt state file', async () => {
     await writeFile(file, 'not json at all', 'utf8')
     expect(await store.listDisabled()).toEqual([])
-    await store.addDisabled({ name: 'x', description: '', path: '/tmp/x.md.disabled', root: 'user-agents', disabledAt: 2 })
+    await store.addDisabled({ name: 'x', disabledAt: 2 })
     const raw = JSON.parse(await readFile(file, 'utf8')) as { disabled: unknown[] }
     expect(raw.disabled).toHaveLength(1)
   })
@@ -200,40 +200,6 @@ describe('SkillHubStore', () => {
     expect(await store.getMarketSource('a/b')).toEqual({ repo: 'a/b', ref: 'v2.0.0' })
   })
 
-  // ------------------------------------------------------- 回收站
-  it('records, lists, and clears trash entries', async () => {
-    await store.addTrash({ name: 'gone-skill', path: '/tmp/.trash/gone-skill-123', movedAt: 42, sourcePath: '/tmp/skills/gone-skill' })
-    await store.addTrash({ name: 'older', path: '/tmp/.trash/older-1', movedAt: 10 })
-    const trash = await store.listTrash()
-    expect(trash.map((entry) => entry.name)).toEqual(['gone-skill', 'older']) // newest first
-    await store.removeTrash('gone-skill')
-    const reloaded = new SkillHubStore(file)
-    expect(await reloaded.listTrash()).toHaveLength(1)
-    expect(await reloaded.getTrash('older')).toMatchObject({ name: 'older' })
-  })
-
-  it('persists the trash source path', async () => {
-    await store.addTrash({ name: 'flat-gone', path: '/tmp/.trash/flat-gone.md-1', movedAt: 7, sourcePath: '/tmp/skills/flat-gone.md' })
-    const reloaded = new SkillHubStore(file)
-    expect(await reloaded.getTrash('flat-gone')).toMatchObject({ name: 'flat-gone', sourcePath: '/tmp/skills/flat-gone.md' })
-  })
-
-  it('persists the trash origin snapshot and scene ids (restore keeps grouping)', async () => {
-    await store.addTrash({
-      name: 'tracked-gone',
-      path: '/tmp/.trash/tracked-gone-1',
-      movedAt: 5,
-      origin: { repo: 'repo/x', root: 'skills', ref: 'v1.0.0', commitSha: 'abc123' },
-      tagIds: ['tag-1', 'tag-2'],
-    })
-    const reloaded = new SkillHubStore(file)
-    expect(await reloaded.getTrash('tracked-gone')).toMatchObject({
-      name: 'tracked-gone',
-      origin: { repo: 'repo/x', root: 'skills', ref: 'v1.0.0', commitSha: 'abc123' },
-      tagIds: ['tag-1', 'tag-2'],
-    })
-  })
-
   // ------------------------------------------------------- 显示配置
   it('persists display toggles in config', async () => {
     await store.setConfig({ showUseCount: false, showGroupSummary: false })
@@ -288,16 +254,6 @@ describe('SkillHubStore', () => {
     await store.addMarketSource('new/repo')
     const reloaded = new SkillHubStore(file)
     expect((await reloaded.listSources()).find((s) => s.repo === 'blader/humanizer')?.root).toBe('')
-  })
-
-  it('keeps the origin of a trashed repo-root skill', async () => {
-    await writeFile(file, JSON.stringify({
-      version: 4,
-      trash: [{ name: 'humanizer', path: '/tmp/trash/humanizer', movedAt: 1, origin: { repo: 'blader/humanizer', root: '', commitSha: 'sha-1' } }],
-    }), 'utf8')
-    const entry = (await store.listTrash()).find((e) => e.name === 'humanizer')
-    // 空 root 曾被 sanitizer 丢掉整个 origin → 恢复后技能会变成「个人技能」。
-    expect(entry?.origin).toMatchObject({ repo: 'blader/humanizer', root: '' })
   })
 
   it('migrates a v3 file (no skillStats) and persists a checkpoint round-trip at the current version', async () => {

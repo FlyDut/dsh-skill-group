@@ -30,7 +30,6 @@ export {
   disabledGate,
   homeOf,
   isWritableSource,
-  resolveWritableSkill,
   savedOf,
 } from './deps.ts'
 export type {
@@ -38,9 +37,6 @@ export type {
   SkillLookupLike,
   ScopeRouteDeps,
   ScopePresetSnapshot,
-  WritableSkill,
-  WritableSkillRefusal,
-  WritableSkillResult,
 } from './deps.ts'
 export { buildCollections, buildGroups } from './collection.ts'
 export {
@@ -48,9 +44,7 @@ export {
   buildCatalog,
   knownSkillNames,
   toDetail,
-  workspaceEntries,
 } from './catalog-data.ts'
-export type { WorkspaceEntry } from './catalog-data.ts'
 
 /** What a route handler receives: fences already passed, URL/body prepared. */
 interface RouteContext {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
-import { conflictsOnClose, filterBySource, filterDisabled, formatRelativeTime, groupNamesOf, groupSwitchView, mergeGroupRows, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
+import type { CatalogResponse, CatalogSkill, CollectionGroup, SkillTag } from '../protocol.ts'
+import { conflictsOnClose, disabledSkills, filterBySource, filterDisabled, formatRelativeTime, groupNamesOf, groupSwitchView, mergeGroupRows, PRIVATE_SOURCE, sortSkills, visibleCollections, type GroupRow } from './grouping.ts'
 
-function skill(name: string, writable = true): CatalogSkill {
+function skill(name: string, writable = true, enabled = true): CatalogSkill {
   return {
     name,
     description: '',
@@ -10,7 +10,13 @@ function skill(name: string, writable = true): CatalogSkill {
     provider: 'filesystem',
     source: 'user-dsh',
     writable,
+    enabled,
   }
+}
+
+/** 运行时关闭的技能：目录里仍是一行 CatalogSkill，只是 enabled=false。 */
+function switchedOff(name: string, description = 'Paused skill'): CatalogSkill {
+  return { ...skill(name), description, enabled: false }
 }
 
 describe('groupSwitchView', () => {
@@ -62,17 +68,6 @@ describe('filterBySource', () => {
     expect(filterBySource(skills, PRIVATE_SOURCE, origins).map((s) => s.name)).toEqual(['c'])
     expect(filterBySource(skills, 'all', origins)).toHaveLength(3)
   })
-
-  it('never buckets project skills as private (they belong to the project tree)', () => {
-    const origins = {}
-    const proj = skill('proj')
-    proj.source = 'project-dsh'
-    const projAgents = skill('proj-agents')
-    projAgents.source = 'project-agents'
-    const skills = [skill('personal'), proj, projAgents]
-    expect(filterBySource(skills, PRIVATE_SOURCE, origins).map((s) => s.name)).toEqual(['personal'])
-    expect(filterBySource(skills, 'all', origins)).toHaveLength(3)
-  })
 })
 
 describe('visibleCollections', () => {
@@ -80,7 +75,7 @@ describe('visibleCollections', () => {
     { name: 'repo/x', skillNames: ['enabled-one', 'disabled-one'] },
     { name: 'repo/ghost', skillNames: ['gone'] },
   ]
-  const disabledOne: DisabledSkill = { name: 'disabled-one', description: 'Paused skill', path: '/x/disabled-one/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1 }
+  const disabledOne: CatalogSkill = switchedOff('disabled-one')
   const origins = { 'enabled-one': 'repo/x', 'disabled-one': 'repo/x' }
 
   it('keeps collections with visible members and drops empty shells', () => {
@@ -102,16 +97,16 @@ describe('visibleCollections', () => {
   })
 
   it('treats a disabled record with no origin as private', () => {
-    const privateRecord = { ...disabledOne, name: 'private-one' }
+    const privateRecord = switchedOff('private-one')
     const privateCollection: CollectionGroup = { name: 'repo/y', skillNames: ['private-one'] }
     expect(visibleCollections([privateCollection], [], [privateRecord], '', PRIVATE_SOURCE, {}).map((e) => e.collection.name)).toEqual(['repo/y'])
   })
 })
 
 describe('filterDisabled', () => {
-  const records: DisabledSkill[] = [
-    { name: 'repo-skill', description: 'From a repo', path: '/x/repo-skill/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1 },
-    { name: 'private-skill', description: 'Paused personal', path: '/x/private-skill/SKILL.md.disabled', root: 'user-dsh', disabledAt: 2 },
+  const records: CatalogSkill[] = [
+    switchedOff('repo-skill', 'From a repo'),
+    switchedOff('private-skill', 'Paused personal'),
   ]
   const origins = { 'repo-skill': 'repo/x' }
 
@@ -159,15 +154,11 @@ describe('sortSkills', () => {
 })
 
 describe('mergeGroupRows', () => {
-  const disabled = (name: string, addedAt?: number): DisabledSkill => ({
-    name,
-    description: 'Paused skill',
-    path: '/x/' + name + '/SKILL.md.disabled',
-    root: 'user-dsh',
-    disabledAt: 1,
+  const disabled = (name: string, addedAt?: number): CatalogSkill => ({
+    ...switchedOff(name),
     ...(addedAt !== undefined ? { addedAt } : {}),
   })
-  const nameOf = (row: { kind: 'skill'; skill: CatalogSkill } | { kind: 'disabled'; record: DisabledSkill }): string =>
+  const nameOf = (row: GroupRow): string =>
     row.kind === 'skill' ? row.skill.name : row.record.name
 
   it('sorts enabled and disabled rows together by name', () => {
@@ -198,6 +189,21 @@ describe('mergeGroupRows', () => {
       { kind: 'skill', skill: enabled },
       { kind: 'disabled', record },
     ])
+  })
+})
+
+describe('disabledSkills', () => {
+  const catalog = (skills: CatalogSkill[]): CatalogResponse => ({
+    ok: true, pluginVersion: '0.0.0', complete: true, skills, diagnostics: [],
+  })
+
+  it('picks the switched-off rows out of the single catalog list', () => {
+    const response = catalog([skill('on-one'), skill('off-one', true, false), skill('off-two', false, false)])
+    expect(disabledSkills(response).map((s) => s.name)).toEqual(['off-one', 'off-two'])
+  })
+
+  it('is empty for a missing catalog', () => {
+    expect(disabledSkills(null)).toEqual([])
   })
 })
 
