@@ -2,6 +2,10 @@
  * Full-page tag (scene) editor: rename / delete header, member checkbox
  * lists (enabled + disabled skills), and the save-members action. Pure
  * presentation — the draft state lives in the panel and arrives as props.
+ *
+ * Members the catalog no longer knows (the skill was deleted or renamed) get
+ * their own checked rows as well: they never render in the two lists above,
+ * so without this the only way out would be hand-editing the sidecar.
  */
 
 import type { JSX, ReactNode } from 'react'
@@ -37,8 +41,12 @@ interface TagEditorViewProps {
 export function TagEditorView(props: TagEditorViewProps): JSX.Element {
   const { tag, notices, editName, membersDraft, editSearch, catalog, tagBusy, onBack, onEditName, onEditSearch, onToggleMember, onRename, onDelete, onSaveMembers } = props
   const editQuery = editSearch.trim().toLocaleLowerCase()
-  const editSkills = (catalog?.skills ?? []).filter((skill) => editQuery.length === 0 || skill.name.toLocaleLowerCase().includes(editQuery) || skill.description.toLocaleLowerCase().includes(editQuery))
-  const editDisabled = disabledSkills(catalog).filter((record) => editQuery.length === 0 || record.name.toLocaleLowerCase().includes(editQuery) || record.description.toLocaleLowerCase().includes(editQuery))
+  const matches = (name: string, description: string): boolean => editQuery.length === 0 || name.toLocaleLowerCase().includes(editQuery) || description.toLocaleLowerCase().includes(editQuery)
+  const editSkills = (catalog?.skills ?? []).filter((skill) => matches(skill.name, skill.description))
+  const editDisabled = disabledSkills(catalog).filter((record) => matches(record.name, record.description))
+  const known = new Set((catalog?.skills ?? []).map((skill) => skill.name))
+  /** 组内引用了、但目录里已经不存在的成员（已删除或改名），可在此勾掉。 */
+  const editGhosts = tag.skillNames.filter((name) => !known.has(name) && (editQuery.length === 0 || name.toLocaleLowerCase().includes(editQuery)))
   return (
     <div className={css.panel}>
       {notices}
@@ -81,6 +89,19 @@ export function TagEditorView(props: TagEditorViewProps): JSX.Element {
             <div className={css.rowMain}>
               <div className={css.rowName}>{record.name}</div>
               <div className={css.rowDesc}>{record.description} · {tt('panel.disabled')}</div>
+            </div>
+          </label>
+        ))}
+        {editGhosts.map((name) => (
+          <label key={name} className={css.row}>
+            <input
+              type='checkbox'
+              checked={membersDraft.has(name)}
+              onChange={(event) => { onToggleMember(name, event.target.checked) }}
+            />
+            <div className={css.rowMain}>
+              <div className={css.rowName}>{name}</div>
+              <div className={css.rowDesc}>{tt('groups.missingOne')}</div>
             </div>
           </label>
         ))}
