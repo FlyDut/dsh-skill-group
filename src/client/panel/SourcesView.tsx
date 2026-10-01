@@ -6,13 +6,12 @@
  * "personal" card (project skills never count as personal).
  */
 
-import { useMemo, useState, type JSX } from 'react'
+import { useMemo, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { filterBySource, filterDisabled, groupSwitchView, isProjectSource, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
+import { filterBySource, filterDisabled, groupSwitchView, isProjectSource, mergeGroupRows, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
-import { useDragReorder } from './useDragReorder.ts'
 import { ReorderButtons } from './ReorderButtons.tsx'
 import { ProjectTree } from './ProjectTree.tsx'
 import { CollectionCard } from './CollectionCard.tsx'
@@ -22,12 +21,10 @@ import css from './panel.module.css'
 export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const { hub } = props
   const { catalog, groupsState, skillView, sourceFilter, origins, sorted, normalized, collapsedGroups, viewNames, sourceCheck, actionNames, checkingSource, syncingSource, batchBusy, busyNames, toggleGroupCollapse, setAllGroupsCollapsed, checkSources, requestSync, requestDelete, requestDeleteGroup, toggleGroup, enableDisabled } = hub
-  const [topDragKey, setTopDragKey] = useState<string | null>(null)
-  const [topOverKey, setTopOverKey] = useState<string | null>(null)
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
   const duplicateNames = useMemo(() => new Set(catalog?.duplicateNames ?? []), [catalog])
 
-  // ----- 顶层分组统一拖拽（project / col:xxx / personal 全部可拖） -----
+  // ----- 顶层分组列表（project / col:xxx / personal，顺序由编辑态的 ↑↓ 按钮维护） -----
   const sourceFiltered = filterBySource(sorted, sourceFilter, origins)
   const projectSkillsAll = sourceFiltered.filter((skill) => isProjectSource(skill.source))
   const hasProject = projectSkillsAll.length > 0
@@ -56,20 +53,9 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     if (result.length === 0) return defaultTopKeys
     return result
   })()
-  const handleTopDrop = (targetKey: string): void => {
-    if (topDragKey === null || topDragKey === targetKey) return
-    const from = topOrderedKeys.indexOf(topDragKey)
-    const to = topOrderedKeys.indexOf(targetKey)
-    if (from === -1 || to === -1) return
-    const next = [...topOrderedKeys]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    void hub.reorderSourceGroups(next)
-  }
-  const drag = useDragReorder({ dragKey: topDragKey, overKey: topOverKey, setDragKey: setTopDragKey, setOverKey: setTopOverKey, onDrop: handleTopDrop })
   /** 顶层分组是否已全部折叠（决定「全部折叠/展开」按钮的文案）。 */
   const allTopCollapsed = topOrderedKeys.length > 0 && topOrderedKeys.every((key) => collapsedGroups.has(key))
-  /** 键盘可用的排序：与相邻项交换后落盘（与拖拽走同一条 store 路径）。 */
+  /** 排序：与相邻项交换后落盘。 */
   const moveTop = (key: string, direction: -1 | 1): void => {
     const from = topOrderedKeys.indexOf(key)
     const to = from + direction
@@ -81,24 +67,28 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, tagBusy: hub.tagBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
+  /** 排序「按使用次数」时取调用统计（与目录域同一个 map）。 */
+  const getUses = (name: string): number | undefined => hub.uses.get(name)?.count
 
   if (skillView === 'flat') {
     // 平铺视图同样要给出恢复入口：关掉开关的技能不能就此从列表里消失
-    // （分组视图的来源卡与个人卡都渲染了这些行，平铺视图原先漏了）。
-    const disabledVisible = filterDisabled(catalog?.disabled ?? [], normalized, sourceFilter, origins)
+    // （分组视图的来源卡与个人卡都渲染了这些行，平铺视图原先漏了）。启用行
+    // 与禁用行合并后统一排序，开关只换样式，行不会跳到列表末尾。
+    const rows = mergeGroupRows(sourceFiltered, filterDisabled(catalog?.disabled ?? [], normalized, sourceFilter, origins), hub.sortKey, getUses)
     return (
       <>
-        {sourceFiltered.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-        {disabledVisible.map((record) => (
-          <DisabledRow
-            key={record.name}
-            record={record}
-            busy={busyNames.has(record.name)}
-            duplicate={duplicateNames.has(record.name)}
-            onEnable={() => { void enableDisabled(record) }}
-            onOpen={() => { void hub.openDetail(record.name) }}
-          />
-        ))}
+        {rows.map((row) => (row.kind === 'skill'
+          ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
+          : (
+              <DisabledRow
+                key={row.record.name}
+                record={row.record}
+                busy={busyNames.has(row.record.name)}
+                duplicate={duplicateNames.has(row.record.name)}
+                onEnable={() => { void enableDisabled(row.record) }}
+                onOpen={() => { void hub.openDetail(row.record.name) }}
+              />
+            )))}
       </>
     )
   }
@@ -116,7 +106,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
         </div>
       ) : null}
       {topOrderedKeys.map((topKey) => {
-        // Project 顶层卡片（可拖）
+        // Project 顶层卡片
         if (topKey === 'project' && hasProject) {
           return (
             <ProjectTree
@@ -131,11 +121,10 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               subdividedProjects={hub.subdividedProjects}
               toggleSubdivide={hub.toggleSubdivide}
               rowProps={rowProps}
-              dragProps={drag('project')}
             />
           )
         }
-        // Collection 卡片（可拖，归属顶层排序）
+        // Collection 卡片（归属顶层排序）
         if (topKey.startsWith('col:')) {
           const colName = topKey.slice(4)
           const entry = visible.find((item) => item.collection.name === colName)
@@ -150,8 +139,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               key={'col:' + collection.name}
               collection={collection}
               scopeModes={hub.scopeFlow.scopeModesByKey.get('col:' + collection.name)}
-              skills={skills}
-              disabledMembers={disabledMembers}
+              rows={mergeGroupRows(skills, disabledMembers, hub.sortKey, getUses)}
               collapsed={collapsed}
               view={view}
               check={check}
@@ -164,7 +152,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               syncingSource={syncingSource}
               batchBusy={batchBusy}
               rowProps={rowProps}
-              dragProps={drag(topKey)}
               toggleGroupCollapse={toggleGroupCollapse}
               checkSources={checkSources}
               requestSync={requestSync}
@@ -176,14 +163,13 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
             />
           )
         }
-        // Personal 顶层卡片（可拖）
+        // Personal 顶层卡片
         if (topKey === 'uncategorized-source' && hasPersonal) {
           if (allPersonalNames.length === 0) return null
           const collapsed = collapsedGroups.has('uncategorized-source')
           return (
-            <section key="uncategorized-source" {...drag('uncategorized-source')}>
+            <section key="uncategorized-source" className={css.section}>
               <div className={css.groupHead}>
-                <span className={css.dragHandle} aria-hidden title={tt('drag.reorder')}>⋮⋮</span>
                 <button type='button' className={css.disclosure} aria-expanded={!collapsed} onClick={() => { toggleGroupCollapse('uncategorized-source') }}>
                   <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
                   <span className={css.groupTitle}>{tt('groups.personal')} · {allPersonalNames.length}<GroupSummary members={allPersonalNames} uses={hub.uses} hubConfig={hub.hubConfig} /></span>
@@ -203,8 +189,9 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               </div>
               {!collapsed ? (
                 <>
-                  {uncategorized.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-                  {personalDisabled.map((record) => (<DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void hub.openDetail(record.name) }} />))}
+                  {mergeGroupRows(uncategorized, personalDisabled, hub.sortKey, getUses).map((row) => (row.kind === 'skill'
+                    ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
+                    : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void enableDisabled(row.record) }} onOpen={() => { void hub.openDetail(row.record.name) }} />))}
                 </>
               ) : null}
             </section>

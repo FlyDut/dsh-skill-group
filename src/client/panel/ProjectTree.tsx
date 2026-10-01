@@ -1,7 +1,6 @@
 /**
  * ProjectTree — 项目级顶层卡片：把项目技能按 workspace 聚合（可折叠），
- * 并支持按 .dsh/.agents 细分两层。顶层拖拽 props 由 SourcesView 传入，
- * 拖拽排序状态与回调仍归 SourcesView 所有。
+ * 并支持按 .dsh/.agents 细分两层。顶层顺序由编辑态的 ↑↓ 按钮维护。
  */
 
 import type { JSX } from 'react'
@@ -10,7 +9,6 @@ import { tt } from '../helpers.ts'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { ReorderButtons } from './ReorderButtons.tsx'
-import type { DragReorderProps } from './useDragReorder.ts'
 import css from './panel.module.css'
 
 export interface ProjectTreeProps {
@@ -24,8 +22,6 @@ export interface ProjectTreeProps {
   toggleSubdivide: (key: string) => void
   /** SkillRow 收窄后的 props（skill 由行内传入）；uses / hubConfig 也取自它。 */
   rowProps: Omit<SkillRowProps, 'skill'>
-  /** 顶层拖拽 props（SourcesView 的 useDragReorder 产出）。 */
-  dragProps: DragReorderProps
   /** 编辑模式（显示上移/下移按钮）。 */
   editMode: boolean
   /** 顶层排序位置边界。 */
@@ -36,7 +32,7 @@ export interface ProjectTreeProps {
 }
 
 export function ProjectTree(props: ProjectTreeProps): JSX.Element {
-  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, dragProps, editMode, canMoveUp, canMoveDown, onMove } = props
+  const { skills, collapsedGroups, toggleGroupCollapse, subdividedProjects, toggleSubdivide, rowProps, editMode, canMoveUp, canMoveDown, onMove } = props
   const topCollapsed = collapsedGroups.has('project')
   // 按 workspace 聚合，与拆分前逻辑一致
   const byProject = new Map<string, { title: string; skills: CatalogSkill[] }>()
@@ -47,9 +43,8 @@ export function ProjectTree(props: ProjectTreeProps): JSX.Element {
     else entry.skills.push(skill)
   }
   return (
-    <section {...dragProps}>
+    <section className={css.section}>
       <div className={css.groupHead}>
-        <span className={css.dragHandle} aria-hidden title={tt('drag.reorder')}>⋮⋮</span>
         <button type='button' className={css.disclosure} aria-expanded={!topCollapsed} onClick={() => { toggleGroupCollapse('project') }}>
           <span className={css.chevron + (topCollapsed ? ' ' + css.chevronCollapsed : '')} />
           <span className={css.groupTitle}>{tt('groups.project')} · {byProject.size}</span>

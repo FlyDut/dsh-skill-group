@@ -23,9 +23,9 @@ export interface StoreFile {
   skillStats?: SkillStatsCheckpoint
   /** Market-stats snapshot (stars/downloads per repo, hourly TTL). */
   marketStats?: MarketStatsSnapshot
-  /** Drag-reorder: collection name order for 来源分组 */
+  /** 顶层排序：来源分组 collection 名称顺序（编辑态 ↑↓ 按钮写入） */
   collectionOrder?: string[]
-  /** Drag-reorder: 来源顶层分组整体顺序（project / col:xxx / uncategorized-source） */
+  /** 顶层排序：来源顶层分组整体顺序（project / col:xxx / uncategorized-source） */
   sourceGroupOrder?: string[]
   /**
    * 模式级技能可见性策略（v5）。每个 preset 一条；缺席的 preset 不做隔离。

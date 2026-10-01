@@ -229,12 +229,6 @@
    flat — indent + a hairline guide only, no nested card surfaces. */
 .projectNest { display: flex; flex-direction: column; margin: 2px 0 0 14px; border-left: 1px solid var(--dsw-alias-border-l1, rgba(128,128,128,.14)); }
 
-/* Drag handle + reorder states — 窄版：尽量收窄占位，仍保留抓取感 */
-.dragHandle { cursor: grab; opacity: .28; font-size: 10px; letter-spacing: 0; padding: 0 1px; width: 8px; overflow: hidden; user-select: none; flex: none; display: inline-flex; align-items: center; justify-content: center; height: 16px; align-self: center; }
-.dragHandle:active { cursor: grabbing; }
-.dragging { opacity: .45; }
-.dragOver { outline: 2px dashed var(--hub-accent); outline-offset: -2px; background: rgba(47,129,247,.07); }
-
 /* Scan list for 276-skill import — theme-agnostic, replaces inline styles */
 .scanList { max-height: 360px; overflow: auto; border: 0.5px solid var(--hub-border-2); border-radius: 12px; margin-top: 8px; background: var(--hub-surface); }
 .scanProgressTrack { flex: 1; height: 6px; background: var(--hub-surface); border-radius: 4px; overflow: hidden; }
@@ -265,9 +259,6 @@
 .iconBtn { width: 28px; height: 28px; }
 .legendToggle { width: 28px; height: 28px; }
 
-/* 拖拽把手：原 8px 宽 + 0.28 透明度太细太淡，鼠标不好抓。 */
-.dragHandle { width: 16px; opacity: .45; }
-.dragHandle:hover { opacity: 1; }
 
 /* 加载骨架屏（替代单行「加载中」）。 */
 .skeleton { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--hub-surface); border-radius: 12px; }

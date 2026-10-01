@@ -1,12 +1,12 @@
 /**
  * CollectionCard — 一个上游来源集合卡片：组头（来源链接 + 成员数 + 用量
  * 汇总）、检查/同步/跟删徽章、三态开关、编辑态删除分组，以及展开后的
- * 启用行与禁用行。数据、动作与顶层拖拽 props 均由 SourcesView 传入。
+ * 启用行与禁用行。数据与动作均由 SourcesView 传入。
  */
 
 import type { JSX } from 'react'
-import type { CatalogSkill, CollectionGroup, DisabledSkill, SourceCheckResult } from '../../protocol.ts'
-import type { GroupSwitchView } from '../grouping.ts'
+import type { CollectionGroup, SourceCheckResult } from '../../protocol.ts'
+import type { GroupRow, GroupSwitchView } from '../grouping.ts'
 import { tt } from '../helpers.ts'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
 import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
@@ -14,16 +14,13 @@ import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { GroupSwitchButton } from './GroupSwitchButton.tsx'
 import { ReorderButtons } from './ReorderButtons.tsx'
-import type { DragReorderProps } from './useDragReorder.ts'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
 export interface CollectionCardProps {
   collection: CollectionGroup
-  /** 该集合内已启用、且通过筛选的技能。 */
-  skills: CatalogSkill[]
-  /** 该集合内已禁用、且通过筛选的记录。 */
-  disabledMembers: DisabledSkill[]
+  /** 该集合内通过筛选的行（启用技能与禁用记录已按当前排序键合并）。 */
+  rows: GroupRow[]
   /** 该集合卡片是否折叠。 */
   collapsed: boolean
   /** 成员开关状态（groupSwitchView 派生）。 */
@@ -49,8 +46,6 @@ export interface CollectionCardProps {
   batchBusy: boolean
   /** SkillRow / DisabledRow 共用的收窄 props（skill/record 由行内传入）。 */
   rowProps: Omit<SkillRowProps, 'skill'>
-  /** 顶层拖拽 props（SourcesView 的 useDragReorder 产出）。 */
-  dragProps: DragReorderProps
   toggleGroupCollapse: SkillHubState['toggleGroupCollapse']
   checkSources: SkillHubState['checkSources']
   requestSync: SkillHubState['requestSync']
@@ -63,16 +58,15 @@ export interface CollectionCardProps {
 
 export function CollectionCard(props: CollectionCardProps): JSX.Element {
   const {
-    collection, skills, disabledMembers, collapsed, view, check, hasWritable, editMode,
+    collection, rows, collapsed, view, check, hasWritable, editMode,
     canMoveUp, canMoveDown, onMove,
-    checkingSource, syncingSource, batchBusy, rowProps, dragProps,
+    checkingSource, syncingSource, batchBusy, rowProps,
     toggleGroupCollapse, checkSources, requestSync, requestDelete, toggleGroup, requestDeleteGroup, enableDisabled, openDetail,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
   return (
-    <section {...dragProps}>
+    <section className={css.section}>
       <div className={css.groupHead}>
-        <span className={css.dragHandle} aria-hidden title={tt('drag.reorder')}>⋮⋮</span>
         <button type='button' className={css.disclosure} aria-expanded={!collapsed} onClick={() => { toggleGroupCollapse('col:' + collection.name) }}>
           <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
           <span className={css.groupTitle}>
@@ -116,10 +110,9 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
       </div>
       {!collapsed ? (
         <>
-          {skills.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
-          {disabledMembers.map((record) => (
-            <DisabledRow key={record.name} record={record} busy={busyNames.has(record.name)} duplicate={duplicateNames.has(record.name)} onEnable={() => { void enableDisabled(record) }} onOpen={() => { void openDetail(record.name) }} />
-          ))}
+          {rows.map((row) => (row.kind === 'skill'
+            ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
+            : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void enableDisabled(row.record) }} onOpen={() => { void openDetail(row.record.name) }} />))}
         </>
       ) : null}
     </section>

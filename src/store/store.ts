@@ -203,7 +203,7 @@ export class SkillHubStore {
     if (changed) await this.persist()
   }
 
-  /** Reorder tag groups by orderedIds (drag-and-drop). */
+  /** Reorder tag groups by orderedIds (编辑态的 ↑↓ 按钮). */
   async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
     await this.ensureLoaded()
     const currentIds = [...this.tagsById.keys()]
@@ -228,7 +228,7 @@ export class SkillHubStore {
     return [...this.collectionOrder]
   }
 
-  /** Reorder collections by orderedNames (drag-and-drop). */
+  /** Reorder collections by orderedNames (编辑态的 ↑↓ 按钮). */
   async reorderCollections(orderedNames: string[]): Promise<string[]> {
     await this.ensureLoaded()
     const uniq = [...new Set(orderedNames.filter((n): n is string => typeof n === 'string' && n !== ''))]
