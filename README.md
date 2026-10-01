@@ -37,11 +37,11 @@ Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin'
 - **Organize** — scenes (tags) plus auto-aggregated source collections, all drag-reorderable and persisted in `~/.dsh/dsh-skill-hub.json`. Edit mode reveals delete/reorder without cluttering the read view.
 - **Mode isolation** — bind scenes, source collections, or individual skills to an **agent preset** (Settings → Skills → Modes). Once a mode enables isolation, only the checked skills stay visible to its sessions: both the model catalog and explicit loads stop working, and **every other mode is untouched**. No preset file is edited and no skill file is moved; turning it off restores access on the next turn.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
-- **Scaffold** — new-skill wizard writing to `~/.dsh/skills` or `~/.agents/skills` (`SKILL.md` template below).
+- **Scaffold** — new-skill dialog (name, description, markdown body, target root) writing to `~/.dsh/skills` or `~/.agents/skills`; the frontmatter is generated from name + description, and a blank body falls back to the placeholder paragraph (`SKILL.md` template below).
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (top-level dot entries such as `.github/` count as repo tooling, not skill content). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
-- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval; plus a self-update check against GitHub releases.
+- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
 
 ## Mode-level skill isolation
 
@@ -129,7 +129,7 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | `/api/skill-hub/skill/delete` | POST | move to trash (snapshots source+scenes) |
 | `/api/skill-hub/toggle` | POST | `{name, enabled}` |
 | `/api/skill-hub/toggle-batch` | POST | `{names, enabled}` |
-| `/api/skill-hub/create` | POST | `{name, description?, root?}` |
+| `/api/skill-hub/create` | POST | `{name, description?, content?, root?}` |
 | `/api/skill-hub/diagnostic/fix` | POST | `{path}` auto-fix frontmatter |
 | `/api/skill-hub/stats` | GET | invocation counts |
 | `/api/skill-hub/config` | GET/POST | runtime config (`null` clears) |
@@ -142,7 +142,6 @@ Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemP
 | `/api/skill-hub/repo/import/progress?jobId=` | GET | poll job |
 | `/api/skill-hub/repo/import/cancel` | POST | cancel job |
 | `/api/skill-hub/sources` etc. | GET/POST | list/check/sync/delete/restore/clear trash |
-| `/api/skill-hub/update` | GET | plugin latest release |
 | `/api/skill-hub/presets` | GET | mode roster + per-mode policy, counts, wiring state |
 | `/api/skill-hub/scope` | POST | write a mode policy (`reset: true` deletes it) |
 | `/api/skill-hub/scope/preview?presetId=` | GET | expansion detail for one mode |
@@ -153,7 +152,7 @@ Unknown paths under `/api/skill-hub/*` answer a 404 naming the path (a `prefix` 
 
 ```bash
 npm run typecheck  # tsc --noEmit
-npm test           # 334 tests, 19 suites
+npm test           # 337 tests, 19 suites
 npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 ```
 

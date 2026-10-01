@@ -30,9 +30,11 @@ export * from './skillfs/scan.ts'
 /**
  * Scaffold a directory-bundle skill: <root>/<name>/SKILL.md with a frontmatter
  * template. Refuses non-kebab-case names.
+ * @param content Markdown body written after the frontmatter; when blank the
+ * scaffold placeholder paragraph is used instead.
  * @returns the created SKILL.md path.
  */
-export async function createSkill(root: WritableRoot, name: string, description: string, home = dshHome()): Promise<string> {
+export async function createSkill(root: WritableRoot, name: string, description: string, home = dshHome(), content = ''): Promise<string> {
   if (!isSkillName(name)) {
     throw new TypeError('skill name must be kebab-case (lowercase letters, digits, dashes): "' + name + '"')
   }
@@ -40,6 +42,8 @@ export async function createSkill(root: WritableRoot, name: string, description:
   const file = join(dir, 'SKILL.md')
   await mkdir(dir, { recursive: true })
   const safeDescription = description.trim() === '' ? 'New dsh skill created from the skill hub.' : description.trim()
+  // 正文由调用方提供时原样写入（只 trim 首尾空白）；留空才落到脚手架占位段。
+  const safeContent = content.trim()
   const body = [
     '---',
     // dump() emits a quoted string when plain text would parse as a number,
@@ -48,10 +52,9 @@ export async function createSkill(root: WritableRoot, name: string, description:
     'description: ' + dump(safeDescription).trim(),
     '---',
     '',
-    '# ' + name,
-    '',
-    'Describe what this skill does, when the agent should use it, and what output is expected.',
-    '',
+    ...(safeContent === ''
+      ? ['# ' + name, '', 'Describe what this skill does, when the agent should use it, and what output is expected.', '']
+      : [safeContent, '']),
   ].join('\n')
   await writeFile(file, body, 'utf8')
   return file

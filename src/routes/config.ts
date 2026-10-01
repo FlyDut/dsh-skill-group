@@ -14,7 +14,7 @@ import {
   type HubConfig,
 } from '../protocol.ts'
 import { fixDiagnosticFile } from '../skillfs.ts'
-import { checkLatestRelease, CURRENT_VERSION } from '../update.ts'
+import { CURRENT_VERSION } from '../version.ts'
 import {
   configOf,
   homeOf,
@@ -103,15 +103,6 @@ export function configRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           config = await deps.updateConfig(patch)
         }
         writeJson(res, 200, configResponse(config, savedOf(deps)))
-      },
-    },
-    // -------------------------------------------------------------- update
-    // 自身更新检查：查询 GitHub latest release。
-    {
-      path: SKILL_HUB_API.update,
-      methods: ['GET'],
-      handler: async ({ res }) => {
-        writeJson(res, 200, await checkLatestRelease())
       },
     },
     // -------------------------------------------------------- diagnostic fix

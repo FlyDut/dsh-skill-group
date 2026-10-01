@@ -4,7 +4,7 @@
  * 不直接碰其他域的 state。
  */
 
-import { useCallback, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type {
   CatalogResponse,
   CatalogSkill,
@@ -37,6 +37,7 @@ export function useCatalogFlow(
   const [showForm, setShowForm] = useState(false)
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
+  const [formContent, setFormContent] = useState('')
   const [formRoot, setFormRoot] = useState<WritableRoot>('user-dsh')
   const [formBusy, setFormBusy] = useState(false)
   const [formMessage, setFormMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
@@ -127,19 +128,19 @@ export function useCatalogFlow(
     })
   }, [api, load, shared])
 
-  const create = useCallback(async (event: FormEvent): Promise<void> => {
-    event.preventDefault()
+  const create = useCallback(async (): Promise<void> => {
     setFormBusy(true)
     setFormMessage(null)
     shared.succeed(null)
     try {
-      const result = await api.create({ name: formName, description: formDesc, root: formRoot })
-      // The form closes on success, so the confirmation lives in the green
-      // banner outside it (a success message inside the closing form is
+      const result = await api.create({ name: formName, description: formDesc, content: formContent, root: formRoot })
+      // The dialog closes on success, so the confirmation lives in the green
+      // banner outside it (a success message inside the closing dialog is
       // never visible).
       shared.succeed(tt('form.success') + result.path)
       setFormName('')
       setFormDesc('')
+      setFormContent('')
       setShowForm(false)
       await load()
     } catch (error) {
@@ -147,7 +148,7 @@ export function useCatalogFlow(
     } finally {
       setFormBusy(false)
     }
-  }, [api, formName, formDesc, formRoot, load, shared])
+  }, [api, formName, formDesc, formContent, formRoot, load, shared])
 
   // ------------------------------------------------------------- derived
 
@@ -182,11 +183,11 @@ export function useCatalogFlow(
 
   return {
     catalog, loading, detail, detailLoading, busyNames, search, workspace,
-    showForm, formName, formDesc, formRoot, formBusy, formMessage, fixingPaths,
+    showForm, formName, formDesc, formContent, formRoot, formBusy, formMessage, fixingPaths,
     invocationFilter, sortKey, normalized, actionNames, viewNames,
     filtered, sorted, shortenedCount,
     setDetail, setSearch, setWorkspace, setShowForm, setFormName, setFormDesc,
-    setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
+    setFormContent, setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
     load, openDetail, toggle, enableDisabled, batchToggleNames, fixDiagnostic, create, clearListFilters,
   }
 }

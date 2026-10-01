@@ -81,30 +81,6 @@ export interface ScopePresetSnapshot {
   mounted: string[]
 }
 
-/**
- * 每个"已启用隔离"的模式 → 它当前隐藏的技能名。
- *
- * 目录视图用它给技能打「在某模式下不可见」的徽章。只有真正启用隔离的模式才
- * 参与，所以没用这个功能的部署在这里的额外开销恒为零。放在依赖层而不是
- * 路由层，是为了让 `catalog-data` 直接用它而不引入路由模块之间的循环 import。
- * @param deps - 路由依赖（`scopes` 缺席时返回空表）。
- * @returns presetId → 隐藏技能名；空表表示没有任何模式在隔离。
- */
-export async function scopeHiddenByPreset(deps: SkillHubRouteDeps): Promise<Map<string, readonly string[]>> {
-  const scopes = deps.scopes
-  const out = new Map<string, readonly string[]>()
-  if (scopes === undefined) return out
-  const snapshot = await scopes.presets()
-  if (!snapshot.available) return out
-  for (const entry of snapshot.entries) {
-    const policy = await scopes.policyOf(entry.id)
-    if (policy?.enabled !== true) continue
-    const visibility = await scopes.visibilityOf(entry.id)
-    if (visibility.hidden.length > 0) out.set(entry.id, visibility.hidden)
-  }
-  return out
-}
-
 /** The resolved hub config a route sees (the shared resolver fills defaults). */
 export function configOf(deps: SkillHubRouteDeps): HubConfig {
   return resolveHubConfig({}, deps.config?.() ?? {})

@@ -1,12 +1,12 @@
 /**
  * Shared dialog family for the panel: one overlay shell plus the specific
- * dialogs (group-close conflict, sync/delete confirm, branch picker, and
- * market sync selection). Every dialog closes on outside click and keeps
- * the same role/aria shell; the panel owns all dialog state.
+ * dialogs (group-close conflict, sync/delete confirm, branch picker, market
+ * sync selection, and the new-skill scaffold). Every dialog closes on outside
+ * click and keeps the same role/aria shell; the panel owns all dialog state.
  */
 
 import { useEffect, useState, type JSX, type ReactNode } from 'react'
-import type { CollectionGroup, SkillTag } from '../../protocol.ts'
+import type { CollectionGroup, SkillTag, WritableRoot } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { groupNamesOf } from '../grouping.ts'
 import css from './panel.module.css'
@@ -54,8 +54,8 @@ export interface MarketSyncDialogState {
   selected: ReadonlySet<string>
 }
 
-/** Overlay + centered alert-dialog shell; outside click or Escape cancels. */
-function DialogShell(props: { onClose: () => void; children: ReactNode }): JSX.Element {
+/** Overlay + centered dialog shell; outside click or Escape cancels. */
+function DialogShell(props: { onClose: () => void; children: ReactNode; role?: 'alertdialog' | 'dialog'; wide?: boolean }): JSX.Element {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') props.onClose()
@@ -65,7 +65,12 @@ function DialogShell(props: { onClose: () => void; children: ReactNode }): JSX.E
   })
   return (
     <div className={css.dialogOverlay} onClick={props.onClose}>
-      <div className={css.dialog} role='alertdialog' aria-modal='true' onClick={(event) => { event.stopPropagation() }}>
+      <div
+        className={props.wide === true ? css.dialog + ' ' + css.dialogWide : css.dialog}
+        role={props.role ?? 'alertdialog'}
+        aria-modal='true'
+        onClick={(event) => { event.stopPropagation() }}
+      >
         {props.children}
       </div>
     </div>
@@ -100,6 +105,64 @@ export function ConfirmDialog(props: {
           {confirmLabel}
         </button>
       </div>
+    </DialogShell>
+  )
+}
+
+/** New-skill scaffold: name + routing description + markdown body + target root, in a dialog. */
+export function CreateSkillDialog(props: {
+  name: string
+  desc: string
+  /** Markdown body written after the generated frontmatter; blank means the scaffold placeholder. */
+  content: string
+  root: WritableRoot
+  busy: boolean
+  /** Inline failure from the last attempt; closes with the dialog. */
+  message: { kind: 'error' | 'success'; text: string } | null
+  onName: (value: string) => void
+  onDesc: (value: string) => void
+  onContent: (value: string) => void
+  onRoot: (value: WritableRoot) => void
+  onCancel: () => void
+  onSubmit: () => void
+}): JSX.Element {
+  const { name, desc, content, root, busy, message, onName, onDesc, onContent, onRoot, onCancel, onSubmit } = props
+  return (
+    <DialogShell role='dialog' wide onClose={onCancel}>
+      <h3 className={css.dialogTitle}>{tt('form.title')}</h3>
+      <form className={css.dialogForm} onSubmit={(event) => { event.preventDefault(); onSubmit() }}>
+        <div className={css.formRow}>
+          <label className={css.formLabel}>{tt('form.name')}</label>
+          <input className={css.input} value={name} autoFocus onChange={(event) => { onName(event.target.value) }} placeholder='code-review' />
+        </div>
+        <div className={css.formRow}>
+          <label className={css.formLabel}>{tt('form.desc')}</label>
+          <input className={css.input} value={desc} onChange={(event) => { onDesc(event.target.value) }} placeholder={tt('form.descPlaceholder')} />
+        </div>
+        <div className={css.formRow}>
+          <label className={css.formLabel}>{tt('form.content')}</label>
+          <textarea
+            className={css.textarea}
+            value={content}
+            rows={9}
+            spellCheck={false}
+            onChange={(event) => { onContent(event.target.value) }}
+            placeholder={tt('form.contentPlaceholder')}
+          />
+        </div>
+        <div className={css.formRow}>
+          <label className={css.formLabel}>{tt('form.root')}</label>
+          <select className={css.select} value={root} onChange={(event) => { onRoot(event.target.value as WritableRoot) }}>
+            <option value='user-dsh'>~/.dsh/skills</option>
+            <option value='user-agents'>~/.agents/skills</option>
+          </select>
+        </div>
+        {message !== null ? <div className={message.kind === 'error' ? css.formError : css.formSuccess}>{message.text}</div> : null}
+        <div className={css.dialogActions}>
+          <button type='button' className={css.button} onClick={onCancel}>{tt('form.cancel')}</button>
+          <button type='submit' className={css.button + ' ' + css.primary} disabled={busy}>{busy ? tt('form.busy') : tt('form.submit')}</button>
+        </div>
+      </form>
     </DialogShell>
   )
 }

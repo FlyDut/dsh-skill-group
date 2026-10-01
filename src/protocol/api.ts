@@ -26,7 +26,6 @@ export const SKILL_HUB_API = {
   repoImport: '/api/skill-hub/repo/import',
   repoImportProgress: '/api/skill-hub/repo/import/progress',
   repoImportCancel: '/api/skill-hub/repo/import/cancel',
-  update: '/api/skill-hub/update',
   groups: '/api/skill-hub/groups',
   tag: '/api/skill-hub/tag',
   tagDelete: '/api/skill-hub/tag/delete',

@@ -53,7 +53,6 @@ export type {
   RepoImportProgressResponse,
   RepoImportCancelRequest,
   RepoImportCancelResponse,
-  UpdateCheckResponse,
 } from './protocol/repo.ts'
 export type {
   SkillTag,

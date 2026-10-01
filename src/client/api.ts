@@ -58,7 +58,6 @@ import {
   type ToggleBatchResponse,
   type ToggleRequest,
   type ToggleResponse,
-  type UpdateCheckResponse,
 } from '../protocol.ts'
 
 /** Error carrying the route's JSON error message. */
@@ -194,11 +193,6 @@ export class SkillHubApi {
   /** Pin a market source to an explicit ref (branch picker). */
   setMarketSourceRef(repo: string, ref: string): Promise<MarketSourcesResponse> {
     return this.post<MarketSourceResponse>(SKILL_HUB_API.marketSourceRef, { repo, ref } satisfies MarketSourceRefRequest)
-  }
-
-  /** Check the hub's own latest GitHub release. */
-  updateCheck(): Promise<UpdateCheckResponse> {
-    return this.get<UpdateCheckResponse>(SKILL_HUB_API.update)
   }
 
   /** Discover importable skills in a GitHub repo. */

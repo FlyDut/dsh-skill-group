@@ -288,7 +288,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           writeError(res, 409, 'skill directory already exists on disk: ' + name + ' (check the discovery diagnostics)')
           return
         }
-        const path = await createSkill(root, name, readString(body, 'description'), homeOf(deps))
+        const path = await createSkill(root, name, readString(body, 'description'), homeOf(deps), readString(body, 'content'))
         // 新技能自动归入默认场景（「通用」）。
         const defaultTag = await deps.store.getDefaultTag()
         if (defaultTag !== undefined) await deps.store.addSkillToTag(defaultTag.id, name)

@@ -138,12 +138,11 @@ export function useSkillHub(api: SkillHubApi) {
   }, [catalogFlow.load, meta.loadUses, groupFlow.loadGroups, sourceFlow.loadSources, meta.loadConfig, scopeFlow.loadScopes])
 
   // ------------------------------------------------- daily auto-check
-  // 打开面板时每天最多自动检查一次（自身更新 + 全部来源 + 全部市场源），
+  // 打开面板时每天最多自动检查一次（全部来源 + 全部市场源），
   // 时间戳存 localStorage 跨会话生效；手动按钮随时可用，不受节流限制。
   useEffect(() => {
     if (!shouldAutoCheck()) return
     markAutoChecked()
-    void meta.checkUpdate()
     void sourceFlow.checkSources()
     void marketFlow.checkMarket()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,7 +151,6 @@ export function useSkillHub(api: SkillHubApi) {
   return {
     // state
     catalog: catalogFlow.catalog, loading: catalogFlow.loading, loadError, successBanner,
-    updateState: meta.updateState,
     repoDiscoverState: marketFlow.repoDiscoverState, scanningRepo: marketFlow.scanningRepo,
     repoSelected: marketFlow.repoSelected, repoImporting: marketFlow.repoImporting,
     repoResult: marketFlow.repoResult,
@@ -160,6 +158,7 @@ export function useSkillHub(api: SkillHubApi) {
     detail: catalogFlow.detail, detailLoading: catalogFlow.detailLoading,
     busyNames: catalogFlow.busyNames, batchBusy,
     showForm: catalogFlow.showForm, formName: catalogFlow.formName, formDesc: catalogFlow.formDesc,
+    formContent: catalogFlow.formContent,
     formRoot: catalogFlow.formRoot, formBusy: catalogFlow.formBusy, formMessage: catalogFlow.formMessage,
     uses: meta.uses, hubConfig: meta.hubConfig, tab, skillView, sourceFilter,
     invocationFilter: catalogFlow.invocationFilter, sortKey: catalogFlow.sortKey,
@@ -184,7 +183,7 @@ export function useSkillHub(api: SkillHubApi) {
     // actions + setters
     setLoadError, setSuccessBanner, setSearch: catalogFlow.setSearch, setWorkspace: catalogFlow.setWorkspace,
     setDetail: catalogFlow.setDetail, setShowForm: catalogFlow.setShowForm, setFormName: catalogFlow.setFormName,
-    setFormDesc: catalogFlow.setFormDesc, setFormRoot: catalogFlow.setFormRoot,
+    setFormDesc: catalogFlow.setFormDesc, setFormContent: catalogFlow.setFormContent, setFormRoot: catalogFlow.setFormRoot,
     setFormMessage: catalogFlow.setFormMessage,
     setRepoSelected: marketFlow.setRepoSelected, setTab, setSkillView,
     setSourceFilter, setInvocationFilter: catalogFlow.setInvocationFilter, setSortKey: catalogFlow.setSortKey,
@@ -198,7 +197,7 @@ export function useSkillHub(api: SkillHubApi) {
     setEditSearch: groupFlow.setEditSearch, setShowLegend, setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
     scopeFlow,
-    toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, checkUpdate: meta.checkUpdate, loadMarket: marketFlow.loadMarket,
+    toggleGroupCollapse, toggleSubdivide, setAllGroupsCollapsed, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle, enableDisabled: catalogFlow.enableDisabled,
     toggleGroup: groupFlow.toggleGroup,
     resolveConflict: groupFlow.resolveConflict,

@@ -3,7 +3,8 @@
  * and filter in one row, per-group tri-state switches with conflict dialogs,
  * upstream source tracking (check / sync / follow upstream deletion into a
  * restorable trash), market sources, disabled re-enable,
- * detail inspection, and the new-skill scaffold form.
+ * detail inspection, and the new-skill scaffold dialog — opened from the
+ * header row, in the same action cluster as the edit toggle.
  *
  * Thin shell: state and flows live in useSkillHub, the tab contents live in
  * SourcesView / ScenesView / MarketView, the dialog family lives in
@@ -14,7 +15,6 @@
  */
 
 import { useState } from 'react'
-import type { WritableRoot } from '../../protocol.ts'
 import { IconSkillOutline16 } from '../icons.tsx'
 import type { SkillHubApi } from '../api.ts'
 import { tt } from '../helpers.ts'
@@ -41,18 +41,18 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   /** 「筛选」面板开合（来源 + 调用方式收进这里；搜索/排序/视图切换始终可见）。 */
   const [filtersOpen, setFiltersOpen] = useState(false)
   const {
-    catalog, loading, loadError, successBanner, updateState, detail, detailLoading, showForm, formName, formDesc,
-    formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
+    catalog, loading, loadError, successBanner, detail, detailLoading, showForm, formName, formDesc,
+    formContent, formRoot, formBusy, formMessage, hubConfig, tab, skillView, sourceFilter, sortKey, search,
     workspace, setWorkspace,
     sourcesState, tagBusy, batchBusy, busyNames, normalized, origins, sourceOptions, filtered,
     conflictDialog, confirmDialog, deleteSkillDialog, deleteGroupDialog, confirmClearTrash, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, editingTag, editName, membersDraft, editSearch, uses, groupsState, sourceCheck, checkingSource, syncingSource,
     showLegend, editMode,
-    setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormRoot, setFormMessage, setTab,
+    setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormContent, setFormRoot, setFormMessage, setTab,
     setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog, setDeleteSkillDialog, setDeleteGroupDialog,
     setConfirmClearTrash, setBranchChoice, setMarketSyncDialog, setEditingTag, setEditName, setMembersDraft, setEditSearch,
     setShowLegend, setEditMode,
-    checkUpdate, loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
+    loadMarket, checkSources, requestSync, requestDelete, restoreTrash, clearTrash, runDeleteSkill, runDeleteGroup,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag, enableDisabled,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
@@ -117,20 +117,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   /** 生效中的筛选条件数（来源 + 调用方式），显示在「筛选」按钮上。 */
   const activeFilterCount = (sourceFilter !== 'all' ? 1 : 0) + (hub.invocationFilter !== 'all' ? 1 : 0)
 
-  /** 检查结果的悬停提示：收敛到「检查更新」按钮上，不再占面板顶部横幅。 */
-  const updateTitle = ((): string | undefined => {
-    if (updateState.status === 'checking') return tt('update.checking')
-    if (updateState.status === 'error') return tt('update.error', { error: updateState.message })
-    if (updateState.status === 'ready') {
-      const data = updateState.data
-      if (data.error !== undefined) return tt('update.error', { error: data.error })
-      if (data.updateAvailable) return tt('update.available', { version: data.latestVersion ?? '', current: data.currentVersion })
-      if (data.latestVersion === null) return tt('update.unavailable')
-      return tt('update.upToDate', { version: data.latestVersion })
-    }
-    return undefined
-  })()
-
   return (
     <div className={css.panel} aria-busy={batchBusy || tagBusy}>
       <div className={css.header}>
@@ -144,6 +130,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
         {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
         <span className={css.actions}>
+          <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setFormMessage(null); setShowForm(true) }}>{tt('panel.new')}</button>
           <button
             type='button'
             className={css.button + (editMode ? ' ' + css.primary : '')}
@@ -151,10 +138,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             title={tt('edit.hint')}
             onClick={() => { setEditMode((value) => !value) }}
           >{tt(editMode ? 'edit.done' : 'edit.start')}</button>
-          <button type='button' className={css.button} disabled={updateState.status === 'checking'} title={updateTitle} onClick={() => { void checkUpdate() }}>{updateState.status === 'checking' ? tt('update.checking') : tt('update.check')}</button>
-          {updateState.status === 'ready' && updateState.data.updateAvailable && updateState.data.url !== null
-            ? <a className={css.updateLink} href={updateState.data.url} target='_blank' rel='noreferrer'>{tt('update.newVersion', { version: updateState.data.latestVersion ?? '' })}</a>
-            : null}
         </span>
       </div>
       <div className={css.subbar}>
@@ -178,36 +161,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
             : null}
         </span>
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
-        <span className={css.actions}>
-          <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setShowForm((value) => !value) }}>{tt('panel.new')}</button>
-        </span>
       </div>
-
-      {showForm ? (
-        <form className={css.form} onSubmit={(event) => { void create(event) }}>
-          <p className={css.hintLine}>{tt('form.capabilityHint')}</p>
-          <div className={css.formRow}>
-            <label className={css.formLabel}>{tt('form.name')}</label>
-            <input className={css.input} value={formName} onChange={(event) => { setFormName(event.target.value) }} placeholder='code-review' />
-          </div>
-          <div className={css.formRow}>
-            <label className={css.formLabel}>{tt('form.desc')}</label>
-            <input className={css.input} value={formDesc} onChange={(event) => { setFormDesc(event.target.value) }} placeholder={tt('form.descPlaceholder')} />
-          </div>
-          <div className={css.formRow}>
-            <label className={css.formLabel}>{tt('form.root')}</label>
-            <select className={css.select} value={formRoot} onChange={(event) => { setFormRoot(event.target.value as WritableRoot) }}>
-              <option value='user-dsh'>~/.dsh/skills</option>
-              <option value='user-agents'>~/.agents/skills</option>
-            </select>
-          </div>
-          {formMessage !== null ? <div className={formMessage.kind === 'error' ? css.formError : css.formSuccess}>{formMessage.text}</div> : null}
-          <div className={css.buttons}>
-            <button type='submit' className={css.button + ' ' + css.primary} disabled={formBusy}>{formBusy ? tt('form.busy') : tt('form.submit')}</button>
-            <button type='button' className={css.button} onClick={() => { setShowForm(false); setFormMessage(null) }}>{tt('form.cancel')}</button>
-          </div>
-        </form>
-      ) : null}
 
       {loadError !== null ? (
         <div className={css.errorBanner} role='alert'>
@@ -382,6 +336,20 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         confirmClearTrash={confirmClearTrash}
         setConfirmClearTrash={setConfirmClearTrash}
         clearTrash={clearTrash}
+        showForm={showForm}
+        formName={formName}
+        formDesc={formDesc}
+        formContent={formContent}
+        formRoot={formRoot}
+        formBusy={formBusy}
+        formMessage={formMessage}
+        setShowForm={setShowForm}
+        setFormName={setFormName}
+        setFormDesc={setFormDesc}
+        setFormContent={setFormContent}
+        setFormRoot={setFormRoot}
+        setFormMessage={setFormMessage}
+        create={create}
       />
     </div>
   )

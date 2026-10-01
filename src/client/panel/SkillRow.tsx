@@ -66,15 +66,6 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
           {count > 0 && hubConfig?.showUseCount !== false ? <span className={css.useCount}>{count}</span> : null}
           {dot}
           {isDuplicate ? <span className={css.badge + ' ' + css.statusError} title={tt('row.duplicateHint')}>{tt('row.duplicate')}</span> : null}
-          {/* 模式级隔离：该技能在哪些模式下看不到（只有真在用隔离时才有值）。 */}
-          {skill.hiddenIn !== undefined && skill.hiddenIn.length > 0
-            ? (
-                <span
-                  className={css.badge}
-                  title={tt('scope.badgeTitle', { count: skill.hiddenIn.length, presets: skill.hiddenIn.join(', ') })}
-                >{tt('scope.tab')} · {skill.hiddenIn.join(', ')}</span>
-              )
-            : null}
           {lastUsed !== undefined && hubConfig?.showUseTime !== false ? <span className={css.useTime}>{relativeTimeText(lastUsed)}</span> : null}
         </div>
         <div className={css.rowDesc} title={skill.description}>{skill.shortDescription ?? skill.description}</div>

@@ -3,7 +3,7 @@
  * 每日自动检查 helpers。从 useSkillHub.ts 原样搬出，行为不变。
  */
 
-import type { MarketCheckResponse, MarketSourceRecord, RepoDiscoverResponse, UpdateCheckResponse } from '../../../protocol.ts'
+import type { MarketCheckResponse, MarketSourceRecord, RepoDiscoverResponse } from '../../../protocol.ts'
 import { errorMessage } from '../../helpers.ts'
 
 /**
@@ -74,13 +74,6 @@ export function markAutoChecked(): void {
     // 无 localStorage：不记录，下次打开仍会尝试（服务端节流兜底）。
   }
 }
-
-/** One-shot self-update check state. */
-export type UpdateState =
-  | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'ready'; data: UpdateCheckResponse }
-  | { status: 'error'; message: string }
 
 /** Repo scanner/import state (drives the market source preview). */
 export type RepoDiscoverState =

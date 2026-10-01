@@ -459,6 +459,32 @@ describe('skill-hub routes', () => {
     expect(bad.status).toBe(400)
   })
 
+  it('writes the submitted markdown body into the new SKILL.md', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.create).handler(
+      fakeReq('POST', SKILL_HUB_API.create, { name: 'body-skill', description: 'Body', content: '## Steps\n\n1. Do it' }),
+      res as never,
+    )
+    expect(res.status).toBe(201)
+    const created = res.json() as import('./protocol.ts').CreateResponse
+    const text = await readFile(created.path, 'utf8')
+    // 正文来自请求体，frontmatter 仍由后端按 name/description 生成。
+    expect(text).toContain('name: body-skill')
+    expect(text).toContain('description: Body')
+    expect(text).toContain('## Steps')
+    expect(text).toContain('1. Do it')
+  })
+
+  it('falls back to the scaffold placeholder when no body is submitted', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.create).handler(fakeReq('POST', SKILL_HUB_API.create, { name: 'plain-skill' }), res as never)
+    expect(res.status).toBe(201)
+    const created = res.json() as import('./protocol.ts').CreateResponse
+    const text = await readFile(created.path, 'utf8')
+    expect(text).toContain('# plain-skill')
+    expect(text).toContain('Describe what this skill does')
+  })
+
   it('refuses to create a duplicate name', async () => {
     skills.get = async () => definition({})
     const res = new FakeResponse()

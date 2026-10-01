@@ -109,17 +109,3 @@ export interface RepoImportCancelResponse {
   status: 'cancelled' | 'done'
 }
 
-/** GET /api/skill-hub/update — check the plugin's own latest GitHub release. */
-export interface UpdateCheckResponse {
-  ok: true
-  /** Installed plugin version (from the bundled host build). */
-  currentVersion: string
-  /** Latest release tag, normalized without the leading v; null when unknown. */
-  latestVersion: string | null
-  /** True when latestVersion is strictly newer than currentVersion. */
-  updateAvailable: boolean
-  /** Release page URL; null when unavailable. */
-  url: string | null
-  /** Best-effort message when the check failed or no release exists. */
-  error?: string
-}

@@ -115,6 +115,15 @@ describe('createSkill / disableSkill / enableSkill', () => {
     expect(parseFrontmatter(text)).toMatchObject({ value: { name: 'demo-skill', description: 'Does demo things' } })
   })
 
+  it('writes a caller-provided markdown body after the frontmatter', async () => {
+    const path = await createSkill('user-dsh', 'body-skill', 'Body', home, '\n## Steps\n\n1. Do it\n')
+    const text = await readFile(path, 'utf8')
+    expect(parseFrontmatter(text)).toMatchObject({ value: { name: 'body-skill', description: 'Body' } })
+    // 正文 trim 后原样接在 frontmatter 之后，脚手架占位段不再出现。
+    expect(text.endsWith('## Steps\n\n1. Do it\n')).toBe(true)
+    expect(text).not.toContain('Describe what this skill does')
+  })
+
   it('scaffolds numeric-looking names as YAML strings', async () => {
     const path = await createSkill('user-dsh', '1312', '1231', home)
     const text = await readFile(path, 'utf8')

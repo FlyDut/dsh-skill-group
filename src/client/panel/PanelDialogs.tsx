@@ -1,14 +1,14 @@
 /**
  * PanelDialogs — SkillHubPanel 底部的对话框接线层（冲突、同步/删除确认、
- * 分支选择、版本选择、市场同步、删除技能、删除分组、清空回收站）。状态与
- * 动作仍由 useSkillHub 的 hub 持有；这里只收窄成显式 props，渲染顺序与
- * 拆分前完全一致。
+ * 分支选择、版本选择、市场同步、删除技能、删除分组、清空回收站、新建技能）。
+ * 状态与动作仍由 useSkillHub 的 hub 持有；这里只收窄成显式 props，渲染顺序
+ * 与拆分前完全一致。
  */
 
 import type { JSX } from 'react'
 import type { CollectionGroup, SkillTag } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
-import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
+import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, CreateSkillDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 
 export interface PanelDialogsProps {
@@ -49,6 +49,21 @@ export interface PanelDialogsProps {
   confirmClearTrash: SkillHubState['confirmClearTrash']
   setConfirmClearTrash: SkillHubState['setConfirmClearTrash']
   clearTrash: SkillHubState['clearTrash']
+  /** 新建技能弹窗（字段草稿 + 提交动作）。 */
+  showForm: SkillHubState['showForm']
+  formName: SkillHubState['formName']
+  formDesc: SkillHubState['formDesc']
+  formContent: SkillHubState['formContent']
+  formRoot: SkillHubState['formRoot']
+  formBusy: SkillHubState['formBusy']
+  formMessage: SkillHubState['formMessage']
+  setShowForm: SkillHubState['setShowForm']
+  setFormName: SkillHubState['setFormName']
+  setFormDesc: SkillHubState['setFormDesc']
+  setFormContent: SkillHubState['setFormContent']
+  setFormRoot: SkillHubState['setFormRoot']
+  setFormMessage: SkillHubState['setFormMessage']
+  create: SkillHubState['create']
 }
 
 export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
@@ -61,6 +76,8 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
     deleteSkillDialog, setDeleteSkillDialog, runDeleteSkill,
     deleteGroupDialog, setDeleteGroupDialog, runDeleteGroup,
     confirmClearTrash, setConfirmClearTrash, clearTrash,
+    showForm, formName, formDesc, formContent, formRoot, formBusy, formMessage,
+    setShowForm, setFormName, setFormDesc, setFormContent, setFormRoot, setFormMessage, create,
   } = props
   return (
     <>
@@ -160,6 +177,24 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
           danger
           onCancel={() => { setConfirmClearTrash(false) }}
           onConfirm={() => { void clearTrash() }}
+        />
+      ) : null}
+
+      {showForm ? (
+        <CreateSkillDialog
+          name={formName}
+          desc={formDesc}
+          content={formContent}
+          root={formRoot}
+          busy={formBusy}
+          message={formMessage}
+          onName={setFormName}
+          onDesc={setFormDesc}
+          onContent={setFormContent}
+          onRoot={setFormRoot}
+          // 关掉弹窗的同时清掉上一次的报错，重开时不会残留旧消息。
+          onCancel={() => { setShowForm(false); setFormMessage(null) }}
+          onSubmit={() => { void create() }}
         />
       ) : null}
     </>

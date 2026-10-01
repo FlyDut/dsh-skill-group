@@ -64,7 +64,6 @@
 .diagRow { font-size: 12px; padding: 9px 14px; border-left: 3px solid var(--hub-warn); background: rgba(210,153,34,.06); }
 .diagPath { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--hub-text-2); word-break: break-all; }
 .diagReason { color: var(--hub-text-3); margin-top: 1px; }
-.updateLink { color: inherit; font-weight: 600; text-decoration: underline; }
 
 .errorBanner { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; color: var(--hub-danger); background: rgba(209,36,47,.07); border-radius: 10px; padding: 10px 14px; white-space: pre-wrap; word-break: break-all; }
 /* Green success banner (create finished); mirrors the error banner shape. */
@@ -181,6 +180,18 @@
 .dialogList { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow: auto; }
 .dialogList li { font-size: 12.5px; opacity: .85; word-break: break-all; }
 .dialogActions { display: flex; justify-content: flex-end; gap: 8px; }
+/* New-skill dialog: field stack above the action row. It is the only dialog
+   with a body editor, so it gets a wider shell and a monospace textarea.
+   Both the shell and its fields are border-box: the shared .dialog is
+   content-box, so a 100%-wide field with horizontal padding used to overflow
+   the form by 24px and force a horizontal scrollbar inside the shell. */
+.dialogForm { display: flex; flex-direction: column; gap: 12px; }
+.dialogForm .input, .dialogForm .select, .dialogForm .textarea { width: 100%; box-sizing: border-box; }
+.dialogWide { width: 100%; max-width: 560px; padding: 18px; box-sizing: border-box; max-height: calc(100vh - 48px); overflow: auto; }
+.dialogWide .dialogTitle { margin-bottom: 12px; }
+.dialogForm .textarea { padding: 10px 12px; border: none; border-radius: 9px; background: var(--hub-surface); color: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.65; outline: none; resize: vertical; }
+.dialogForm .textarea:focus { background: var(--hub-active); }
+.dialogForm .textarea::placeholder { opacity: .45; }
 
 /* Search + filter + view control share one row (skills tab); the search
    field stretches over the remaining width so the row never looks hollow. */
