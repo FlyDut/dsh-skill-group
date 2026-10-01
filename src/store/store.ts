@@ -1,11 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
-import { skillDirPrefix } from '../repo/paths.ts'
-import { StoreError } from './errors.ts'
+import * as marketOps from './domains/market.ts'
+import * as scopeOps from './domains/scopes.ts'
+import * as sourceOps from './domains/sources.ts'
+import * as tagOps from './domains/tags.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
 import { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './paths.ts'
-import { normalizeScopePolicy } from '../protocol/scopes.ts'
 
 /** Sidecar state owner. */
 export class SkillHubStore {
@@ -134,17 +135,7 @@ export class SkillHubStore {
    */
   async saveTag(input: { id?: string; name: string }): Promise<SkillTag> {
     await this.ensureLoaded()
-    const name = input.name.trim()
-    if (name === '') throw new StoreError('validation', 'tag name must not be empty')
-    let tag: SkillTag
-    if (input.id !== undefined) {
-      const existing = this.tagsById.get(input.id)
-      if (existing === undefined) throw new StoreError('not-found', 'tag not found: ' + input.id)
-      tag = { ...existing, name }
-    } else {
-      tag = { id: crypto.randomUUID(), name, skillNames: [] }
-    }
-    this.tagsById.set(tag.id, tag)
+    const tag = tagOps.saveTag(this.tagsById, input)
     await this.persist()
     return tag
   }
@@ -152,26 +143,21 @@ export class SkillHubStore {
   /** Delete a tag by id (no-op when absent). The default scene cannot be deleted. */
   async deleteTag(id: string): Promise<void> {
     await this.ensureLoaded()
-    const tag = this.tagsById.get(id)
-    if (tag?.default === true) throw new StoreError('conflict', 'the default scene cannot be deleted')
-    if (!this.tagsById.delete(id)) return
+    if (!tagOps.deleteTag(this.tagsById, id)) return
     await this.persist()
   }
 
   /** The default scene (「通用」), guaranteed to exist after ensureLoaded. */
   async getDefaultTag(): Promise<SkillTag | undefined> {
     await this.ensureLoaded()
-    return [...this.tagsById.values()].find((tag) => tag.default === true)
+    return tagOps.findDefaultTag(this.tagsById)
   }
 
   /** Append one skill name to a tag (deduplicated; no-op when already a member). */
   async addSkillToTag(id: string, name: string): Promise<SkillTag | undefined> {
     await this.ensureLoaded()
-    const existing = this.tagsById.get(id)
-    if (existing === undefined || name.trim() === '' || existing.skillNames.includes(name)) return existing
-    const tag: SkillTag = { ...existing, skillNames: [...existing.skillNames, name] }
-    this.tagsById.set(id, tag)
-    await this.persist()
+    const { tag, changed } = tagOps.addSkillToTag(this.tagsById, id, name)
+    if (changed) await this.persist()
     return tag
   }
 
@@ -182,42 +168,21 @@ export class SkillHubStore {
    */
   async setTagMembers(id: string, skillNames: readonly string[]): Promise<SkillTag | undefined> {
     await this.ensureLoaded()
-    const existing = this.tagsById.get(id)
-    if (existing === undefined) return undefined
-    const names = [...new Set(skillNames.filter((n) => n.trim() !== ''))]
-    const tag: SkillTag = { ...existing, skillNames: names }
-    this.tagsById.set(id, tag)
-    await this.persist()
+    const { tag, changed } = tagOps.setTagMembers(this.tagsById, id, skillNames)
+    if (changed) await this.persist()
     return tag
   }
 
   /** Remove one skill from every tag group (used when the skill is deleted). */
   async removeSkillFromTags(name: string): Promise<void> {
     await this.ensureLoaded()
-    let changed = false
-    for (const tag of this.tagsById.values()) {
-      if (!tag.skillNames.includes(name)) continue
-      tag.skillNames = tag.skillNames.filter((n) => n !== name)
-      changed = true
-    }
-    if (changed) await this.persist()
+    if (tagOps.removeSkillFromTags(this.tagsById, name)) await this.persist()
   }
 
   /** Reorder tag groups by orderedIds (编辑态的 ↑↓ 按钮). */
   async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
     await this.ensureLoaded()
-    const currentIds = [...this.tagsById.keys()]
-    if (orderedIds.length !== currentIds.length) throw new StoreError('validation', 'orderedIds length mismatch')
-    const seen = new Set<string>()
-    for (const id of orderedIds) {
-      if (typeof id !== 'string' || id === '') throw new StoreError('validation', 'invalid tag id')
-      if (seen.has(id)) throw new StoreError('validation', 'duplicate tag id: ' + id)
-      if (!this.tagsById.has(id)) throw new StoreError('not-found', 'tag not found: ' + id)
-      seen.add(id)
-    }
-    const newMap = new Map<string, SkillTag>()
-    for (const id of orderedIds) newMap.set(id, this.tagsById.get(id)!)
-    this.tagsById = newMap
+    this.tagsById = tagOps.reorderTags(this.tagsById, orderedIds)
     await this.persist()
     return [...this.tagsById.values()]
   }
@@ -264,7 +229,7 @@ export class SkillHubStore {
   async getScope(presetId: string): Promise<ScopePolicy | undefined> {
     await this.ensureLoaded()
     const found = this.scopesByPreset.get(presetId)
-    return found === undefined ? undefined : { ...found, groups: [...found.groups], skills: [...found.skills] }
+    return found === undefined ? undefined : scopeOps.copyScope(found)
   }
 
   /**
@@ -279,19 +244,9 @@ export class SkillHubStore {
    */
   async saveScope(presetId: string, patch: { enabled?: boolean; groups?: string[]; skills?: string[] }): Promise<ScopePolicy> {
     await this.ensureLoaded()
-    const normalized = normalizeScopePolicy({ presetId, enabled: patch.enabled, groups: patch.groups, skills: patch.skills })
-    if (normalized === undefined) throw new StoreError('validation', 'invalid preset id: ' + presetId)
-    const previous = this.scopesByPreset.get(presetId)
-    const next: ScopePolicy = {
-      presetId,
-      // 新建时只接受显式 true；已存在时保持现值。
-      enabled: patch.enabled ?? previous?.enabled ?? false,
-      groups: patch.groups !== undefined ? normalized.groups : (previous?.groups ?? []),
-      skills: patch.skills !== undefined ? normalized.skills : (previous?.skills ?? []),
-    }
-    this.scopesByPreset.set(presetId, next)
+    const next = scopeOps.saveScope(this.scopesByPreset, presetId, patch)
     await this.persist()
-    return { ...next, groups: [...next.groups], skills: [...next.skills] }
+    return scopeOps.copyScope(next)
   }
 
   /**
@@ -323,10 +278,7 @@ export class SkillHubStore {
   /** The source record that tracks a skill name (undefined when untracked). */
   async getSourceForSkill(name: string): Promise<SourceRecord | undefined> {
     await this.ensureLoaded()
-    for (const source of this.sourcesByRepo.values()) {
-      if (source.skills.includes(name)) return source
-    }
-    return undefined
+    return sourceOps.findSourceForSkill(this.sourcesByRepo, name)
   }
 
   /** Remove a source record entirely (no-op when absent). */
@@ -342,67 +294,35 @@ export class SkillHubStore {
    */
   async addSourceSkill(repo: string, root: string, commitSha: string, ref: string | undefined, skillName: string): Promise<void> {
     await this.ensureLoaded()
-    const existing = this.sourcesByRepo.get(repo)
-    if (existing === undefined) {
-      this.sourcesByRepo.set(repo, {
-        repo,
-        ...(ref !== undefined && ref !== '' ? { ref } : {}),
-        root,
-        commitSha,
-        skills: [skillName],
-      })
-    } else {
-      const skills = existing.skills.includes(skillName) ? existing.skills : [...existing.skills, skillName].sort((a, b) => a.localeCompare(b))
-      this.sourcesByRepo.set(repo, { ...existing, skills })
-    }
+    sourceOps.addSourceSkill(this.sourcesByRepo, repo, root, commitSha, ref, skillName)
     await this.persist()
   }
 
   /** Replace a source's skill list (used after sync/confirm-delete). */
   async setSourceSkills(repo: string, skills: readonly string[]): Promise<SourceRecord | undefined> {
     await this.ensureLoaded()
-    const existing = this.sourcesByRepo.get(repo)
-    if (existing === undefined) return undefined
-    const names = [...new Set(skills.filter((n) => n.trim() !== ''))].sort((a, b) => a.localeCompare(b))
-    if (names.length === 0) {
-      this.sourcesByRepo.delete(repo)
-    } else {
-      this.sourcesByRepo.set(repo, { ...existing, skills: names })
-    }
-    await this.persist()
-    return this.sourcesByRepo.get(repo)
+    const existed = this.sourcesByRepo.has(repo)
+    const next = sourceOps.setSourceSkills(this.sourcesByRepo, repo, skills)
+    if (existed) await this.persist()
+    return next
   }
 
   /** Remove one skill from every source record (used when the skill is deleted). */
   async removeSkillFromSources(name: string): Promise<void> {
     await this.ensureLoaded()
-    let changed = false
-    for (const [repo, source] of this.sourcesByRepo) {
-      if (!source.skills.includes(name)) continue
-      const skills = source.skills.filter((n) => n !== name)
-      if (skills.length === 0) this.sourcesByRepo.delete(repo)
-      else this.sourcesByRepo.set(repo, { ...source, skills })
-      changed = true
-    }
-    if (changed) await this.persist()
+    if (sourceOps.removeSkillFromSources(this.sourcesByRepo, name)) await this.persist()
   }
 
   /** Update a source's commit snapshot. */
   async setSourceCommit(repo: string, commitSha: string): Promise<void> {
     await this.ensureLoaded()
-    const existing = this.sourcesByRepo.get(repo)
-    if (existing === undefined) return
-    this.sourcesByRepo.set(repo, { ...existing, commitSha })
-    await this.persist()
+    if (sourceOps.setSourceCommit(this.sourcesByRepo, repo, commitSha)) await this.persist()
   }
 
   /** Update a source's pinned ref (release tag / branch) when the market syncs. */
   async setSourceRef(repo: string, ref: string): Promise<void> {
     await this.ensureLoaded()
-    const existing = this.sourcesByRepo.get(repo)
-    if (existing === undefined || ref.trim() === '') return
-    this.sourcesByRepo.set(repo, { ...existing, ref: ref.trim() })
-    await this.persist()
+    if (sourceOps.setSourceRef(this.sourcesByRepo, repo, ref)) await this.persist()
   }
 
   /**
@@ -417,27 +337,13 @@ export class SkillHubStore {
    */
   async mergeSourceManifest(repo: string, manifest: Record<string, number>, dir?: string): Promise<void> {
     await this.ensureLoaded()
-    const existing = this.sourcesByRepo.get(repo)
-    if (existing === undefined || Object.keys(manifest).length === 0) return
-    const base: Record<string, number> = { ...(existing.manifest ?? {}) }
-    if (dir !== undefined) {
-      const prefix = skillDirPrefix(dir)
-      for (const path of Object.keys(base)) {
-        if (path.startsWith(prefix)) delete base[path]
-      }
-    }
-    this.sourcesByRepo.set(repo, { ...existing, manifest: { ...base, ...manifest } })
-    await this.persist()
+    if (sourceOps.mergeSourceManifest(this.sourcesByRepo, repo, manifest, dir)) await this.persist()
   }
 
   /** skillName → collection name for every recorded origin (derived from sources). */
   async listOrigins(): Promise<Record<string, string>> {
     await this.ensureLoaded()
-    const origins: Record<string, string> = {}
-    for (const source of this.sourcesByRepo.values()) {
-      for (const name of source.skills) origins[name] = source.repo
-    }
-    return origins
+    return sourceOps.listOrigins(this.sourcesByRepo)
   }
 
   // ------------------------------------------------------ market sources
@@ -451,18 +357,13 @@ export class SkillHubStore {
   /** One market source by repo (undefined when absent). */
   async getMarketSource(repo: string): Promise<MarketSourceRecord | undefined> {
     await this.ensureLoaded()
-    return this.marketSources.find((entry) => entry.repo === repo)
+    return marketOps.findMarketSource(this.marketSources, repo)
   }
 
   /** Add a repo (deduplicated), optionally with a pinned ref. Returns the fresh list. */
   async addMarketSource(repo: string, ref?: string): Promise<MarketSourceRecord[]> {
     await this.ensureLoaded()
-    const existing = this.marketSources.find((entry) => entry.repo === repo)
-    if (existing === undefined) {
-      this.marketSources.push(ref !== undefined && ref !== '' ? { repo, ref } : { repo })
-    } else if (ref !== undefined && ref !== '' && existing.ref !== ref) {
-      existing.ref = ref
-    }
+    marketOps.addMarketSource(this.marketSources, repo, ref)
     await this.persist()
     return [...this.marketSources]
   }
@@ -470,31 +371,22 @@ export class SkillHubStore {
   /** Remove a repo (no-op when absent). Returns the fresh list. */
   async removeMarketSource(repo: string): Promise<MarketSourceRecord[]> {
     await this.ensureLoaded()
-    const index = this.marketSources.findIndex((entry) => entry.repo === repo)
-    if (index === -1) return [...this.marketSources]
-    this.marketSources.splice(index, 1)
-    await this.persist()
+    if (marketOps.removeMarketSource(this.marketSources, repo)) await this.persist()
     return [...this.marketSources]
   }
 
   /** Pin a market source to an explicit ref (branch/tag). Returns the record. */
   async setMarketSourceRef(repo: string, ref: string): Promise<MarketSourceRecord | undefined> {
     await this.ensureLoaded()
-    const entry = this.marketSources.find((item) => item.repo === repo)
-    if (entry === undefined || ref.trim() === '') return entry
-    entry.ref = ref.trim()
-    delete entry.commitSha
-    await this.persist()
+    const { entry, changed } = marketOps.setMarketSourceRef(this.marketSources, repo, ref)
+    if (changed) await this.persist()
     return entry
   }
 
   /** Record the commit a market source's pinned ref resolved to (update baseline). */
   async setMarketSourceCommit(repo: string, commitSha: string): Promise<void> {
     await this.ensureLoaded()
-    const entry = this.marketSources.find((item) => item.repo === repo)
-    if (entry === undefined || commitSha === '') return
-    entry.commitSha = commitSha
-    await this.persist()
+    if (marketOps.setMarketSourceCommit(this.marketSources, repo, commitSha)) await this.persist()
   }
 
   // ---------------------------------------------------------------- trash
