@@ -2,9 +2,6 @@ import { join } from 'node:path'
 import { dshHome } from '../env.ts'
 import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
 
-/** 默认场景名（系统预置的兜底场景，新技能自动归入）。 */
-export const DEFAULT_SCENE_NAME = '通用'
-
 /** Wire shape persisted on disk. */
 export interface StoreFile {
   version: number

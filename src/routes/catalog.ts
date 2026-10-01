@@ -211,9 +211,6 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         // 清掉可能残留的同名关闭记录：名字在磁盘上曾经存在、被关闭后又被手工删掉时，
         // 新技能不该一出生就顶着「已关闭」。记录只是状态，不是占用锁。
         await deps.store.removeDisabled(name)
-        // 新技能自动归入默认场景（「通用」）。
-        const defaultTag = await deps.store.getDefaultTag()
-        if (defaultTag !== undefined) await deps.store.addSkillToTag(defaultTag.id, name)
         deps.invalidate?.()
         writeJson(res, 201, { ok: true, path, root } satisfies CreateResponse)
       },

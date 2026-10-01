@@ -647,8 +647,8 @@ describe('skill-hub routes', () => {
         'skills/code-review/SKILL.md': 60,
         'skills/code-review/helper.py': 20,
       })
-      // 导入的技能自动归入默认场景「通用」，场景 tab 里可见。
-      expect((await store.getDefaultTag())?.skillNames).toEqual(['code-review'])
+      // 导入不再把技能塞进任何场景：场景成员只由用户自己勾选。
+      expect(await store.listTags()).toEqual([])
     } finally {
       vi.unstubAllGlobals()
     }
@@ -664,8 +664,8 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.groups).handler(fakeReq('GET', SKILL_HUB_API.groups), res as never)
     expect(res.status).toBe(200)
     const body = res.json() as import('./protocol.ts').GroupsResponse
-    expect(body.tags.filter((t) => t.default !== true)).toHaveLength(1)
-    expect(body.tags.find((t) => t.default !== true)).toMatchObject({ name: 'web', skillNames: ['demo-skill'] })
+    expect(body.tags).toHaveLength(1)
+    expect(body.tags[0]).toMatchObject({ name: 'web', skillNames: ['demo-skill'] })
     expect(body.collections).toEqual([
       { name: 'anthropics/skills', skillNames: ['pdf'] },
       { name: 'superpowers', skillNames: ['demo-skill'] },
@@ -703,8 +703,7 @@ describe('skill-hub routes', () => {
     await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'web' }), created as never)
     expect(created.status).toBe(200)
     const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    // 响应里含默认场景「通用」，新建的排在它后面。
-    const createdTag = createdBody.tags.find((t) => t.default !== true)
+    const createdTag = createdBody.tags.find((t) => t.name === 'web')
     expect(createdTag).toMatchObject({ name: 'web' })
     const id = createdTag!.id
     const renamed = new FakeResponse()
@@ -727,14 +726,13 @@ describe('skill-hub routes', () => {
     const created = new FakeResponse()
     await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'tmp' }), created as never)
     const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    const id = createdBody.tags.find((t) => t.default !== true)!.id
+    const id = createdBody.tags[0].id
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.tagDelete).handler(fakeReq('POST', SKILL_HUB_API.tagDelete, { id }), res as never)
     expect(res.status).toBe(200)
-    // 默认场景「通用」不可删，删普通 tag 后只剩它。
+    // 场景都是普通分组，删掉就是删掉。
     const after = (res.json() as import('./protocol.ts').TagDeleteResponse).tags
-    expect(after.filter((t) => t.default !== true)).toEqual([])
-    expect(after.some((t) => t.default === true)).toBe(true)
+    expect(after).toEqual([])
   })
 
   it('sets tag members and drops names absent from the catalog', async () => {
@@ -742,7 +740,7 @@ describe('skill-hub routes', () => {
     const created = new FakeResponse()
     await routeFor(SKILL_HUB_API.tag).handler(fakeReq('POST', SKILL_HUB_API.tag, { name: 'web' }), created as never)
     const createdBody = created.json() as import('./protocol.ts').TagSaveResponse
-    const id = createdBody.tags.find((t) => t.default !== true)!.id
+    const id = createdBody.tags[0].id
     const res = new FakeResponse()
     await routeFor(SKILL_HUB_API.tagMembers).handler(fakeReq('POST', SKILL_HUB_API.tagMembers, { id, skillNames: ['demo-skill', 'ghost-skill'] }), res as never)
     expect(res.status).toBe(200)

@@ -8,11 +8,6 @@
 import { StoreError } from '../errors.ts'
 import type { SkillTag } from '../../protocol.ts'
 
-/** The default scene (「通用」), if one exists. */
-export function findDefaultTag(tags: Map<string, SkillTag>): SkillTag | undefined {
-  return [...tags.values()].find((tag) => tag.default === true)
-}
-
 /**
  * Create (no id) or rename (with id) a tag and return the saved record.
  * Creating assigns a fresh UUID; renaming keeps members.
@@ -32,10 +27,8 @@ export function saveTag(tags: Map<string, SkillTag>, input: { id?: string; name:
   return tag
 }
 
-/** Delete a tag by id; the default scene is protected. Returns whether one was removed. */
+/** Delete a tag by id. Returns whether one was removed. */
 export function deleteTag(tags: Map<string, SkillTag>, id: string): boolean {
-  const tag = tags.get(id)
-  if (tag?.default === true) throw new StoreError('conflict', 'the default scene cannot be deleted')
   return tags.delete(id)
 }
 

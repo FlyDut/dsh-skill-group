@@ -6,7 +6,7 @@ import * as scopeOps from './domains/scopes.ts'
 import * as sourceOps from './domains/sources.ts'
 import * as tagOps from './domains/tags.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
-import { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './paths.ts'
+import { STORE_VERSION, statePath, type StoreFile } from './paths.ts'
 
 /** Sidecar state owner. */
 export class SkillHubStore {
@@ -57,18 +57,6 @@ export class SkillHubStore {
         console.warn('[skill-hub] sidecar state unreadable, starting empty:', error instanceof Error ? error.message : error)
       }
     }
-    await this.ensureDefaultTag()
-  }
-
-  /**
-   * 保证存在默认场景：没有任何 default 标记的 tag 时创建「通用」。
-   * 新技能创建后自动归入它；用户可改名，但默认场景不可删除。
-   */
-  private async ensureDefaultTag(): Promise<void> {
-    if ([...this.tagsById.values()].some((tag) => tag.default === true)) return
-    const tag: SkillTag = { id: crypto.randomUUID(), name: DEFAULT_SCENE_NAME, skillNames: [], default: true }
-    this.tagsById.set(tag.id, tag)
-    await this.persist()
   }
 
   async listDisabled(): Promise<DisabledSkill[]> {
@@ -138,17 +126,11 @@ export class SkillHubStore {
     return tag
   }
 
-  /** Delete a tag by id (no-op when absent). The default scene cannot be deleted. */
+  /** Delete a tag by id (no-op when absent). */
   async deleteTag(id: string): Promise<void> {
     await this.ensureLoaded()
     if (!tagOps.deleteTag(this.tagsById, id)) return
     await this.persist()
-  }
-
-  /** The default scene (「通用」), guaranteed to exist after ensureLoaded. */
-  async getDefaultTag(): Promise<SkillTag | undefined> {
-    await this.ensureLoaded()
-    return tagOps.findDefaultTag(this.tagsById)
   }
 
   /** Append one skill name to a tag (deduplicated; no-op when already a member). */

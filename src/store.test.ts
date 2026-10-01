@@ -21,10 +21,8 @@ describe('SkillHubStore', () => {
 
   it('starts empty when no state file exists', async () => {
     expect(await store.listDisabled()).toEqual([])
-    // 空 store 自动拥有默认场景「通用」。
-    const tags = await store.listTags()
-    expect(tags).toHaveLength(1)
-    expect(tags[0]).toMatchObject({ name: '通用', default: true })
+    // 空 store 不带任何场景：场景完全由用户创建，没有兜底/默认一说。
+    expect(await store.listTags()).toEqual([])
   })
 
   it('persists disabled entries and reloads them', async () => {
@@ -58,8 +56,7 @@ describe('SkillHubStore', () => {
     await store.setTagMembers(tag.id, ['a', 'b', 'b', ''])
     const reloaded = new SkillHubStore(file)
     const tags = await reloaded.listTags()
-    // 默认场景「通用」始终存在。
-    expect(tags.some((t) => t.default === true)).toBe(true)
+    expect(tags).toHaveLength(1)
     const saved = tags.find((t) => t.id === tag.id)
     expect(saved).toMatchObject({ id: tag.id, name: 'web' })
     // 成员去重 + 去空
@@ -74,25 +71,20 @@ describe('SkillHubStore', () => {
     expect(renamed.skillNames).toEqual(['x'])
   })
 
-  it('deletes a tag and rejects empty names, and refuses to delete the default scene', async () => {
+  it('deletes any tag and rejects empty names', async () => {
     const tag = await store.saveTag({ name: 'tmp' })
     await store.deleteTag(tag.id)
     const after = await store.listTags()
     expect(after.find((t) => t.id === tag.id)).toBeUndefined()
-    // 默认场景不可删除。
-    const def = await store.getDefaultTag()
-    expect(def).toBeDefined()
-    await expect(store.deleteTag(def!.id)).rejects.toThrow(/default scene/)
     await expect(store.saveTag({ name: '  ' })).rejects.toThrow()
   })
 
-  it('adds a skill to a tag (deduplicated) and persists the default scene', async () => {
-    const def = await store.getDefaultTag()
-    expect(def).toBeDefined()
-    await store.addSkillToTag(def!.id, 'a')
-    await store.addSkillToTag(def!.id, 'a')
+  it('adds a skill to a tag (deduplicated) and persists it', async () => {
+    const tag = await store.saveTag({ name: 'web' })
+    await store.addSkillToTag(tag.id, 'a')
+    await store.addSkillToTag(tag.id, 'a')
     const tags = await new SkillHubStore(file).listTags()
-    expect(tags.find((t) => t.default === true)?.skillNames).toEqual(['a'])
+    expect(tags.find((t) => t.id === tag.id)?.skillNames).toEqual(['a'])
   })
 
   it('removes one skill from every tag group', async () => {
@@ -264,6 +256,8 @@ describe('SkillHubStore', () => {
       tags: [{ id: 't1', name: '通用', skillNames: [], default: true }],
     }), 'utf8')
     expect(await store.getSkillStatsState()).toBeUndefined()
+    // 旧文件里的 default 标记（已下线的默认场景机制）不再保留。
+    expect(await store.listTags()).toEqual([{ id: 't1', name: '通用', skillNames: [] }])
     const checkpoint = {
       windowDays: 0,
       frozenBefore: 1000,

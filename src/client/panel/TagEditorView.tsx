@@ -32,7 +32,7 @@ interface TagEditorViewProps {
   onToggleMember: (name: string, checked: boolean) => void
   /** Rename with the current draft (disabled while blank). */
   onRename: () => void
-  /** Delete this tag (hidden for the default scene). */
+  /** Delete this tag. */
   onDelete: () => void
   /** Persist the current member draft and leave the editor. */
   onSaveMembers: () => void
@@ -59,9 +59,7 @@ export function TagEditorView(props: TagEditorViewProps): JSX.Element {
           placeholder={tt('groups.namePlaceholder')}
         />
         <button type='button' className={css.opBtn} disabled={tagBusy || editName.trim() === ''} onClick={onRename}>{tt('groups.rename')}</button>
-        {tag.default !== true
-          ? <button type='button' className={css.opBtn} disabled={tagBusy} onClick={onDelete}>{tt('groups.delete')}</button>
-          : null}
+        <button type='button' className={css.opBtn} disabled={tagBusy} onClick={onDelete}>{tt('groups.delete')}</button>
       </div>
       <p className={css.hintLine}>{tt('groups.membersHint')}</p>
       <input className={css.search} value={editSearch} onChange={(event) => { onEditSearch(event.target.value) }} placeholder={tt('panel.search')} />

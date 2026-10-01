@@ -13,7 +13,7 @@
  * 新代码可按需直引 `from './store/<module>.ts'`。
  */
 
-export { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './store/paths.ts'
+export { STORE_VERSION, statePath, type StoreFile } from './store/paths.ts'
 export { StoreError } from './store/errors.ts'
 export { migrateStore, hydrateMigratedState, type MigratedStore, type HydratedState } from './store/migrate.ts'
 export { SkillHubStore } from './store/store.ts'

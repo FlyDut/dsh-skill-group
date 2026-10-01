@@ -140,13 +140,12 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
   const tagsById = new Map<string, SkillTag>()
   if (Array.isArray(migrated.tags)) {
     for (const entry of migrated.tags as unknown[]) {
-      const tag = entry as { id?: unknown; name?: unknown; skillNames?: unknown; default?: unknown } | null
+      const tag = entry as { id?: unknown; name?: unknown; skillNames?: unknown } | null
       if (tag !== null && typeof tag === 'object' && typeof tag.id === 'string' && typeof tag.name === 'string' && Array.isArray(tag.skillNames)) {
         tagsById.set(tag.id, {
           id: tag.id,
           name: tag.name,
           skillNames: tag.skillNames.filter((n): n is string => typeof n === 'string'),
-          ...(tag.default === true ? { default: true } : {}),
         })
       }
     }

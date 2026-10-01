@@ -6,8 +6,6 @@ export interface SkillTag {
   name: string
   /** 成员技能名（集合技能与独立技能都可加入）。 */
   skillNames: string[]
-  /** 默认场景（「通用」）：系统预置、不可删除、新技能自动归入。 */
-  default?: boolean
 }
 
 /** 系统集合组：按 origin（来源集合标识）自动聚合。 */

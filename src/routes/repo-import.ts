@@ -154,7 +154,6 @@ export function repoImportRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         void (async () => {
           const targetRoot = rootPath('user-dsh', homeOf(deps))
           await mkdir(targetRoot, { recursive: true })
-          const defaultTag = await deps.store.getDefaultTag()
           let needInvalidate = false
           for (const entry of selected) {
             if (controller.signal.aborted) break
@@ -181,7 +180,6 @@ export function repoImportRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
               })
               await deps.store.addSourceSkill(repo, entry.root, commitSha, resolvedRef, entry.name)
               await deps.store.mergeSourceManifest(repo, skillManifest(tree, entry.dir), entry.dir)
-              if (defaultTag !== undefined) await deps.store.addSkillToTag(defaultTag.id, entry.name)
               job.imported.push({ name: entry.name, origin: entry.origin, path: result.skillPath })
               needInvalidate = true
             } catch (error) {
