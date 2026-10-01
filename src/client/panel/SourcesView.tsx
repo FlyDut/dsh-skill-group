@@ -109,7 +109,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
           if (entry === undefined) return null
           const { collection, skills, disabledMembers } = entry
           const collapsed = collapsedGroups.has('col:' + collection.name)
-          const view = groupSwitchView(collection.skillNames, viewNames)
+          const view = groupSwitchView(collection.skillNames, viewNames, actionNames)
           const check = sourceCheck[collection.name]
           const hasTogglable = collection.skillNames.some((name) => actionNames.has(name))
           return (

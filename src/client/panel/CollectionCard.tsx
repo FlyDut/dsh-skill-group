@@ -69,6 +69,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
             <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>
             {' · ' + collection.skillNames.length}
             <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} scopeModes={props.scopeModes} />
+            {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
           </span>
         </button>
         <span className={css.groupOps}>
@@ -86,7 +87,8 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           <GroupSwitchButton
             state={view.state}
             label={collection.name}
-            memberCount={collection.skillNames.length}
+            memberCount={view.enabled.length + view.disabled.length}
+            missingCount={view.missing.length}
             batchBusy={batchBusy}
             hasTogglable={hasTogglable}
             onToggle={() => { toggleGroup('col:' + collection.name, collection.name, view.state) }}

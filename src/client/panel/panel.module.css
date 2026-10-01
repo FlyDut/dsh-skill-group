@@ -143,6 +143,9 @@
 /* Group title inner summary (count + last used) sits inline after the name. */
 .groupTitleInner { display: inline-flex; align-items: baseline; }
 
+/* 组头提示（成员已不在目录中的数量）：弱化的小字，不参与开关状态。 */
+.groupNote { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--hub-text-3); white-space: nowrap; }
+
 /* Source link inside group titles / rows. */
 .sourceLink { color: inherit; font-weight: 600; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }
 .sourceLink:hover { opacity: 1; }

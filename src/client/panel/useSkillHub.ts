@@ -90,7 +90,7 @@ export function useSkillHub(api: SkillHubApi) {
   const catalogFlow = useCatalogFlow(api, meta.uses, shared, collapsePersonal, clearSourceFilter)
 
   // ----------------------------------------------------------------- groups
-  const groupFlow = useGroupFlow(api, shared, catalogFlow.batchToggleNames, catalogFlow.actionNames)
+  const groupFlow = useGroupFlow(api, shared, catalogFlow.batchToggleNames, catalogFlow.actionNames, catalogFlow.viewNames)
 
   // ----------------------------------------------------------------- sources
   const sourceFlow = useSourceFlow(api, shared, catalogFlow.load, groupFlow.loadGroups)

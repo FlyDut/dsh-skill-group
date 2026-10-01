@@ -20,17 +20,31 @@ function switchedOff(name: string, description = 'Paused skill'): CatalogSkill {
 }
 
 describe('groupSwitchView', () => {
-  it('is on when every member is enabled, off when none, mixed otherwise', () => {
-    const enabled = new Set(['a', 'b', 'c'])
-    expect(groupSwitchView(['a', 'b', 'c'], enabled).state).toBe('on')
-    expect(groupSwitchView(['a'], new Set()).state).toBe('off')
-    expect(groupSwitchView(['a', 'b'], new Set(['a'])).state).toBe('mixed')
+  it('is on when every known member is enabled, off when none, mixed otherwise', () => {
+    const members = ['a', 'b', 'c']
+    const known = new Set(members)
+    expect(groupSwitchView(members, new Set(members), known).state).toBe('on')
+    expect(groupSwitchView(members, new Set(), known).state).toBe('off')
+    expect(groupSwitchView(members, new Set(['a']), known).state).toBe('mixed')
   })
 
   it('lists the enabled and disabled sides', () => {
-    const view = groupSwitchView(['a', 'b', 'c'], new Set(['a', 'c']))
+    const view = groupSwitchView(['a', 'b', 'c'], new Set(['a', 'c']), new Set(['a', 'b', 'c']))
     expect(view.enabled).toEqual(['a', 'c'])
     expect(view.disabled).toEqual(['b'])
+    expect(view.missing).toEqual([])
+  })
+
+  it('ignores members the catalog no longer knows, so the switch cannot stick on mixed', () => {
+    // 已删除/改名的成员无法被开关：若把它算作关闭，组开关会永远停在「一半」且点不动。
+    const view = groupSwitchView(['a', 'b', 'gone'], new Set(['a', 'b']), new Set(['a', 'b']))
+    expect(view.state).toBe('on')
+    expect(view.missing).toEqual(['gone'])
+    expect(groupSwitchView(['gone'], new Set(), new Set()).state).toBe('off')
+    const onlyMissing = groupSwitchView(['gone'], new Set(), new Set())
+    expect(onlyMissing.enabled).toEqual([])
+    expect(onlyMissing.disabled).toEqual([])
+    expect(onlyMissing.missing).toEqual(['gone'])
   })
 })
 

@@ -66,7 +66,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
         const skills = sorted.filter((skill) => tag.skillNames.includes(skill.name))
         const disabledMembers = offSkills.filter((record) => tag.skillNames.includes(record.name) && (normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized)))
         const collapsed = collapsedGroups.has('tag:' + tag.id)
-        const view = groupSwitchView(tag.skillNames, viewNames)
+        const view = groupSwitchView(tag.skillNames, viewNames, actionNames)
         const hasTogglable = tag.skillNames.some((name) => actionNames.has(name))
         return (
           <section key={'tag:' + tag.id} className={css.section}>
@@ -76,13 +76,15 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
                 <span className={css.groupTitle}>
                   {tag.name} · {tag.skillNames.length}
                   <GroupSummary members={tag.skillNames} uses={hub.uses} hubConfig={hub.hubConfig} scopeModes={hub.scopeFlow.scopeModesByKey.get('tag:' + tag.id)} />
+                  {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
                 </span>
               </button>
               <span className={css.groupOps}>
                 <GroupSwitchButton
                   state={view.state}
                   label={tag.name}
-                  memberCount={tag.skillNames.length}
+                  memberCount={view.enabled.length + view.disabled.length}
+                  missingCount={view.missing.length}
                   batchBusy={batchBusy}
                   hasTogglable={hasTogglable}
                   onToggle={() => { toggleGroup('tag:' + tag.id, tag.name, view.state) }}

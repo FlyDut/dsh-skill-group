@@ -20,6 +20,8 @@ export function useGroupFlow(
   batchToggleNames: (names: string[], enabled: boolean) => Promise<void>,
   /** 目录里存在的技能名：组开关能作用的范围（目录域派生）。 */
   actionNames: ReadonlySet<string>,
+  /** 当前开启的技能名：判断「关闭会牵连别的组」时只看真正开着的成员。 */
+  enabledNames: ReadonlySet<string>,
 ) {
   const [groupsState, setGroupsState] = useState<GroupsResponse | null>(null)
   const [conflictDialog, setConflictDialog] = useState<ConflictDialogState | null>(null)
@@ -59,19 +61,20 @@ export function useGroupFlow(
    */
   const toggleGroup = useCallback((key: string, name: string, view: GroupSwitchState): void => {
     const members = groupMap().get(key) ?? []
-    if (members.length === 0) return
+    const known = members.filter((member) => actionNames.has(member))
+    if (known.length === 0) return
     if (view === 'off') {
-      void batchToggleNames(members, true)
+      void batchToggleNames(known, true)
       return
     }
     const others = [...groupMap().entries()].filter(([otherKey]) => otherKey !== key).map(([, memberNames]) => ({ members: memberNames }))
-    const conflicts = conflictsOnClose(members, actionNames, others)
+    const conflicts = conflictsOnClose(known, enabledNames, others)
     if (conflicts.length > 0) {
       setConflictDialog({ key, name, conflicts })
     } else {
-      void batchToggleNames(members.filter((member) => actionNames.has(member)), false)
+      void batchToggleNames(known, false)
     }
-  }, [groupMap, actionNames, batchToggleNames])
+  }, [groupMap, actionNames, enabledNames, batchToggleNames])
 
   /** Resolve the open conflict dialog. */
   const resolveConflict = useCallback(async (closeAll: boolean): Promise<void> => {

@@ -8,7 +8,9 @@
  *
  * Switch semantics: a skill's enabled state is global (one runtime switch in
  * the sidecar), so a group switch is derived from its members' actual states:
- * all members enabled → 'on', all disabled → 'off', otherwise 'mixed'.
+ * every known member enabled → 'on', none → 'off', otherwise 'mixed'. Members
+ * the catalog no longer contains are ignored for the state (see
+ * `groupSwitchView`) and only reported as missing.
  * Closing a group whose member is enabled in another group is a conflict the
  * GUI resolves with a dialog; the helpers below compute both sides.
  */
@@ -34,22 +36,39 @@ export interface GroupSwitchView {
   enabled: string[]
   /** Members currently switched off. */
   disabled: string[]
+  /** Members the catalog does not know at all (deleted or renamed upstream). */
+  missing: string[]
 }
 
 /**
- * Derive a group switch view from its member names and the set of currently
- * enabled skill names (catalog.skills). Members outside that set count as
- * switched off.
+ * Derive a group switch view from its member names, the set of currently
+ * enabled skill names and the set of names the catalog actually knows
+ * (catalog.skills).
+ *
+ * Members the catalog does not know cannot be switched either way, so they
+ * must never decide the state: counting them as "off" would leave any group
+ * with a deleted or renamed member stuck in 'mixed' forever, and no click
+ * could clear it (batch toggles only ever send known names). They are reported
+ * in `missing` so the header can say so instead. A group with no known member
+ * is 'off' with its switch disabled.
  */
-export function groupSwitchView(members: readonly string[], enabledNames: ReadonlySet<string>): GroupSwitchView {
+export function groupSwitchView(
+  members: readonly string[],
+  enabledNames: ReadonlySet<string>,
+  knownNames: ReadonlySet<string>,
+): GroupSwitchView {
   const enabled: string[] = []
   const disabled: string[] = []
+  const missing: string[] = []
   for (const name of members) {
-    if (enabledNames.has(name)) enabled.push(name)
+    if (!knownNames.has(name)) missing.push(name)
+    else if (enabledNames.has(name)) enabled.push(name)
     else disabled.push(name)
   }
-  const state: GroupSwitchState = disabled.length === 0 ? 'on' : enabled.length === 0 ? 'off' : 'mixed'
-  return { state, enabled, disabled }
+  const state: GroupSwitchState = enabled.length === 0
+    ? 'off'
+    : disabled.length === 0 ? 'on' : 'mixed'
+  return { state, enabled, disabled, missing }
 }
 
 /** Names of every group a skill belongs to (tags + collections). */
