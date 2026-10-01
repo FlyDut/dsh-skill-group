@@ -1,8 +1,10 @@
 /**
- * 目录域路由：catalog / skill 详情 / toggle / toggle-batch / create / stats。
+ * 目录域路由：catalog / skill 详情 / toggle / toggle-batch / skill 删除 /
+ * create / stats。
  *
  * 开关是运行时的：toggle 只写 sidecar 的关闭名单，文件与发现层一律不动；
- * 真正的遮蔽由执行层的 per-preset 闸门在下一轮接线时生效。
+ * 真正的遮蔽由执行层的 per-preset 闸门在下一轮接线时生效。删除是唯一的破坏性
+ * 操作，只在面板确认之后才落盘，且仅限用户级可写根。
  */
 
 import { stat } from 'node:fs/promises'
@@ -11,13 +13,14 @@ import { isSkillName } from '@deepseek-ai/dsh-skill'
 import {
   SKILL_HUB_API,
   type CreateResponse,
+  type SkillDeleteResponse,
   type SkillDetailResponse,
   type StatsResponse,
   type ToggleBatchResponse,
   type ToggleResponse,
   type WritableRoot,
 } from '../protocol.ts'
-import { createSkill, readSkillInterface, skillDir } from '../skillfs.ts'
+import { createSkill, deleteSkillFiles, readSkillInterface, skillDir } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   applyInterface,
@@ -29,6 +32,7 @@ import {
   queryParam,
   readString,
   readStrings,
+  resolveWritableSkill,
   toDetail,
   writeError,
   writeJson,
@@ -139,6 +143,46 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         }
         deps.invalidate?.()
         writeJson(res, 200, { ok: true, catalog: await buildCatalog(deps), failures } satisfies ToggleBatchResponse)
+      },
+    },
+    // --------------------------------------------------------- skill/delete
+    // 破坏性操作，只在这里落盘：面板编辑态先把行移出显示列表，点「完成」并确认
+    // 之后才发过来。逐名独立成败，越出用户级可写根的一律拒绝。
+    {
+      path: SKILL_HUB_API.skillDelete,
+      methods: ['POST'],
+      jsonBody: true,
+      handler: async ({ res, body }) => {
+        const names = readStrings(body, 'names')
+        if (names.length === 0) { writeError(res, 400, 'names must be a non-empty array'); return }
+        const deleted: string[] = []
+        const failures: Array<{ name: string; error: string }> = []
+        for (const name of names) {
+          try {
+            const target = await resolveWritableSkill(deps, name)
+            if (!target.ok) { failures.push({ name, error: target.error }); continue }
+            await deleteSkillFiles(target.path, homeOf(deps))
+            deleted.push(name)
+          } catch (error) {
+            failures.push({ name, error: errorText(error) })
+          }
+        }
+        if (deleted.length > 0) {
+          // 磁盘上已经没了，sidecar 里不该再留痕：关闭记录与分组/来源跟踪一并清掉。
+          // 清理失败不算删除失败（磁盘才是事实来源），残留记录顶多在分组里多留一个
+          // 「已不在目录中」的名字，所以这里吞掉异常、只保证闸门重算。
+          try {
+            for (const name of deleted) {
+              await deps.store.removeDisabled(name)
+              await deps.store.removeSkillFromTags(name)
+              await deps.store.removeSkillFromSources(name)
+            }
+          } catch {
+            // 见上：记录清理是尽力而为。
+          }
+          deps.invalidate?.()
+        }
+        writeJson(res, 200, { ok: true, deleted, failures, catalog: await buildCatalog(deps) } satisfies SkillDeleteResponse)
       },
     },
     // -------------------------------------------------------------- create

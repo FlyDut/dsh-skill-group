@@ -13,6 +13,8 @@ export const SKILL_HUB_API = {
   toggle: '/api/skill-hub/toggle',
   toggleBatch: '/api/skill-hub/toggle-batch',
   create: '/api/skill-hub/create',
+  /** 删除磁盘上的技能本体（仅限用户级可写根，用户确认后才会调用）。 */
+  skillDelete: '/api/skill-hub/skill/delete',
   stats: '/api/skill-hub/stats',
   config: '/api/skill-hub/config',
   market: '/api/skill-hub/market',

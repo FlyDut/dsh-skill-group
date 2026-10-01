@@ -1,8 +1,8 @@
 /**
  * One switched-on skill row: name + invocation dots + usage meta, the
  * read-only badge (a source's writability only affects file edits, not the
- * runtime switch) and the switch itself. Shared by the flat list and both
- * grouped views.
+ * runtime switch), the edit-mode delete button and the switch itself. Shared by
+ * the flat list and both grouped views.
  */
 
 import type { JSX, KeyboardEvent } from 'react'
@@ -24,10 +24,15 @@ export interface SkillRowProps {
   duplicateNames: ReadonlySet<string>
   toggle: (skill: CatalogSkill, enabled: boolean) => Promise<void>
   openDetail: (name: string) => Promise<void>
+  /**
+   * 编辑态点「删除」：只把行从显示列表里移走（暂存），点「完成」确认后才落盘。
+   * 缺席时（非编辑态，或来源不可写）不渲染删除入口。
+   */
+  stageDelete?: (name: string) => void
 }
 
 export function SkillRow(props: SkillRowProps): JSX.Element {
-  const { skill, uses, hubConfig, busyNames, duplicateNames, toggle, openDetail } = props
+  const { skill, uses, hubConfig, busyNames, duplicateNames, toggle, openDetail, stageDelete } = props
   const stat = uses.get(skill.name)
   const count = stat?.count ?? 0
   const lastUsed = stat?.lastUsed
@@ -67,6 +72,15 @@ export function SkillRow(props: SkillRowProps): JSX.Element {
         <div className={css.rowDesc} title={skill.description}>{skill.shortDescription ?? skill.description}</div>
       </div>
       {skill.writable ? null : <span className={css.badge + ' ' + css.badgeReadonly}>{tt('row.readonly')}</span>}
+      {stageDelete !== undefined && skill.writable ? (
+        <button
+          type='button'
+          className={css.opBtn + ' ' + css.opDanger}
+          title={tt('row.deleteHint')}
+          aria-label={tt('row.delete')}
+          onClick={(event) => { event.stopPropagation(); stageDelete(skill.name) }}
+        >{tt('row.delete')}</button>
+      ) : null}
       <button
         type='button'
         role='switch'

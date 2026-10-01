@@ -21,6 +21,11 @@ interface PanelDialogsProps {
   confirmDialog: SkillHubState['confirmDialog']
   setConfirmDialog: SkillHubState['setConfirmDialog']
   runConfirmed: SkillHubState['runConfirmed']
+  /** 编辑态暂存删除的落盘确认（点「完成」且有暂存时弹）。 */
+  deleteDialog: SkillHubState['deleteDialog']
+  pendingDeletes: SkillHubState['pendingDeletes']
+  setDeleteDialog: SkillHubState['setDeleteDialog']
+  confirmDeletes: () => void
   /** 无 release 的市场源分支选择。 */
   branchChoice: SkillHubState['branchChoice']
   branchBusy: SkillHubState['branchBusy']
@@ -57,6 +62,7 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
   const {
     conflictDialog, tags, collections, setConflictDialog, resolveConflict,
     confirmDialog, setConfirmDialog, runConfirmed,
+    deleteDialog, pendingDeletes, setDeleteDialog, confirmDeletes,
     branchChoice, branchBusy, setBranchChoice, confirmBranchChoice,
     versionDialog, versionBusy, setVersionDialog, confirmVersionDialog,
     marketSyncDialog, syncBusy, setMarketSyncDialog, confirmMarketSync,
@@ -84,6 +90,18 @@ export function PanelDialogs(props: PanelDialogsProps): JSX.Element {
           confirmLabel={tt('source.sync')}
           onCancel={() => { setConfirmDialog(null) }}
           onConfirm={() => { void runConfirmed() }}
+        />
+      ) : null}
+
+      {deleteDialog && pendingDeletes.length > 0 ? (
+        <ConfirmDialog
+          title={tt('edit.deleteTitle', { count: pendingDeletes.length })}
+          text={tt('edit.deleteText')}
+          items={pendingDeletes}
+          confirmLabel={tt('edit.deleteConfirm')}
+          danger
+          onCancel={() => { setDeleteDialog(false) }}
+          onConfirm={confirmDeletes}
         />
       ) : null}
 

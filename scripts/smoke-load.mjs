@@ -114,10 +114,10 @@ await ctx.plugin({ name: mod.name, inject: mod.inject, apply: mod.apply }, plugi
 log('plugin loaded; routes registered:', routes.length)
 
 // 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
-// 32 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
+// 33 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
 const exactRoutes = routes.filter((r) => r.kind === 'exact')
 const prefixRoutes = routes.filter((r) => r.kind === 'prefix')
-check('exact route family mounted exactly once', exactRoutes.length, 32)
+check('exact route family mounted exactly once', exactRoutes.length, 33)
 check('every exact route path is unique', new Set(exactRoutes.map((r) => r.path)).size, exactRoutes.length)
 check('one 404 catch-all covers the family', prefixRoutes.length, 1)
 check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')
@@ -194,6 +194,21 @@ await configRoute.handler(fakeReq('POST', '/api/skill-hub/config', { announceToA
 check('/config accepts re-enabling', onRes.status, 200)
 check('announceToAgent back on re-announces exactly once', sections.length, 1)
 check('/config never echoes a github token field', Object.hasOwn(onRes.json()?.config ?? {}, 'githubToken'), false)
+
+// /skill/delete 是唯一会真删磁盘的路由：这里只做构建产物里的最小往返（空名单拒绝、
+// 未知名字走逐名失败而不是整单失败）。真删目录/平铺文件/软链接的落盘行为由
+// src/routes.test.ts 用真实临时目录逐形态覆盖。
+const deleteRoute = routes.find((r) => r.path === '/api/skill-hub/skill/delete')
+check('/skill/delete route present', deleteRoute !== undefined, true)
+const emptyDeleteRes = fakeRes()
+await deleteRoute.handler(fakeReq('POST', '/api/skill-hub/skill/delete', { names: [] }), emptyDeleteRes)
+check('/skill/delete rejects an empty name list', emptyDeleteRes.status, 400)
+const unknownDeleteRes = fakeRes()
+await deleteRoute.handler(fakeReq('POST', '/api/skill-hub/skill/delete', { names: ['definitely-not-a-skill'] }), unknownDeleteRes)
+const unknownDelete = unknownDeleteRes.json()
+check('/skill/delete reports per-name failures without failing the batch',
+  [unknownDeleteRes.status, unknownDelete.deleted, unknownDelete.failures.length, typeof unknownDelete.failures[0]?.error],
+  [200, [], 1, 'string'])
 
 // ── 落盘与重载 ──────────────────────────────────────────────────────────
 const { readFile } = await import('node:fs/promises')

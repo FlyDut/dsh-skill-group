@@ -6,7 +6,7 @@
 
 import { useMemo, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { disabledSkills, filterBySource, filterDisabled, groupSwitchView, mergeGroupRows, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
+import { filterBySource, filterDisabled, groupSwitchView, mergeGroupRows, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -20,8 +20,8 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const { catalog, groupsState, skillView, sourceFilter, origins, sorted, normalized, collapsedGroups, viewNames, sourceCheck, actionNames, checkingSource, syncingSource, batchBusy, busyNames, toggleGroupCollapse, setAllGroupsCollapsed, checkSources, requestSync, toggleGroup } = hub
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
   const duplicateNames = useMemo(() => new Set(catalog?.duplicateNames ?? []), [catalog])
-  /** 已运行时关闭的行：目录里每行只有一份，按 enabled 过滤即可。 */
-  const offSkills = useMemo(() => disabledSkills(catalog), [catalog])
+  /** 已运行时关闭的行（暂存待删除的在目录域里已经剔除）。 */
+  const offSkills = hub.offSkills
 
   // ----- 顶层分组列表（col:xxx / personal，顺序由编辑态的 ↑↓ 按钮维护） -----
   const sourceFiltered = filterBySource(sorted, sourceFilter, origins)
@@ -62,9 +62,37 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     void hub.reorderSourceGroups(next)
   }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
-  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail }
+  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, stageDelete: hub.editMode ? hub.stageDelete : undefined }
   /** 排序「按使用次数」时取调用统计（与目录域同一个 map）。 */
   const getUses = (name: string): number | undefined => hub.uses.get(name)?.count
+
+  /**
+   * 来源 tab 的工具行：左边「全部折叠/展开」（分组视图才有意义），右边
+   * 「新建」与「编辑/完成」——这两件事就是在直接管理技能文件，所以放在
+   * 技能真正落地的那一 tab 里，而不是面板标题栏。
+   */
+  const listTools = (
+    <div className={css.listTools}>
+      {skillView === 'groups' && topOrderedKeys.length > 1 ? (
+        <button type='button' className={css.opBtn} onClick={() => { setAllGroupsCollapsed(allTopCollapsed ? null : topOrderedKeys) }}>
+          {allTopCollapsed ? tt('groups.expandAll') : tt('groups.collapseAll')}
+        </button>
+      ) : null}
+      <button type='button' className={css.button + ' ' + css.primary} onClick={() => { hub.setFormMessage(null); hub.setShowForm(true) }}>{tt('panel.new')}</button>
+      <button
+        type='button'
+        className={css.button + (hub.editMode ? ' ' + css.primary : '')}
+        aria-pressed={hub.editMode}
+        title={tt('edit.hint')}
+        onClick={() => {
+          // 退出编辑态前先把暂存的删除过一遍确认：取消就留在编辑态，
+          // 暂存内容原样保留（一行都还没落盘）。
+          if (hub.editMode && hub.pendingDeletes.length > 0) { hub.setDeleteDialog(true); return }
+          hub.setEditMode((value) => !value)
+        }}
+      >{tt(hub.editMode ? 'edit.done' : 'edit.start')}</button>
+    </div>
+  )
 
   if (skillView === 'flat') {
     // 平铺视图同样要给出恢复入口：关掉开关的技能不能就此从列表里消失
@@ -73,6 +101,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
     const rows = mergeGroupRows(sourceFiltered, filterDisabled(offSkills, normalized, sourceFilter, origins), hub.sortKey, getUses)
     return (
       <>
+        {listTools}
         {rows.map((row) => (row.kind === 'skill'
           ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
           : (
@@ -83,6 +112,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                 duplicate={duplicateNames.has(row.record.name)}
                 onEnable={() => { void hub.toggle(row.record, true) }}
                 onOpen={() => { void hub.openDetail(row.record.name) }}
+                stageDelete={rowProps.stageDelete}
               />
             )))}
       </>
@@ -94,13 +124,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   return (
     <>
       {isEmptyTop ? <div className={css.empty}>{tt('groups.noCollections')}</div> : null}
-      {topOrderedKeys.length > 1 ? (
-        <div className={css.listTools}>
-          <button type='button' className={css.opBtn} onClick={() => { setAllGroupsCollapsed(allTopCollapsed ? null : topOrderedKeys) }}>
-            {allTopCollapsed ? tt('groups.expandAll') : tt('groups.collapseAll')}
-          </button>
-        </div>
-      ) : null}
+      {listTools}
       {topOrderedKeys.map((topKey) => {
         // Collection 卡片（归属顶层排序）
         if (topKey.startsWith('col:')) {
@@ -162,7 +186,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                 <>
                   {mergeGroupRows(uncategorized, personalDisabled, hub.sortKey, getUses).map((row) => (row.kind === 'skill'
                     ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
-                    : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void hub.toggle(row.record, true) }} onOpen={() => { void hub.openDetail(row.record.name) }} />))}
+                    : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void hub.toggle(row.record, true) }} onOpen={() => { void hub.openDetail(row.record.name) }} stageDelete={rowProps.stageDelete} />))}
                 </>
               ) : null}
             </section>

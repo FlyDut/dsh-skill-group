@@ -175,8 +175,10 @@ export function useSkillHub(api: SkillHubApi) {
     newTagName: groupFlow.newTagName, tagBusy,
     editSearch: groupFlow.editSearch, collapsedGroups, showLegend, editMode,
     versionDialog: marketFlow.versionDialog, versionBusy: marketFlow.versionBusy,
+    pendingDeletes: catalogFlow.pendingDeletes, deleteDialog: catalogFlow.deleteDialog,
     // derived
     actionNames: catalogFlow.actionNames, viewNames: catalogFlow.viewNames,
+    offSkills: catalogFlow.offSkills,
     normalized: catalogFlow.normalized, origins, sourceOptions,
     filtered: catalogFlow.filtered, sorted: catalogFlow.sorted,
     shortenedCount: catalogFlow.shortenedCount,
@@ -190,6 +192,7 @@ export function useSkillHub(api: SkillHubApi) {
     setBranchChoice: marketFlow.setBranchChoice, setMarketSyncDialog: marketFlow.setMarketSyncDialog,
     setNewSourceName: marketFlow.setNewSourceName, setConflictDialog: groupFlow.setConflictDialog,
     setConfirmDialog: sourceFlow.setConfirmDialog,
+    setDeleteDialog: catalogFlow.setDeleteDialog,
     setUpdateAllDialog: marketFlow.setUpdateAllDialog,
     setEditingTag: groupFlow.setEditingTag, setEditName: groupFlow.setEditName,
     setMembersDraft: groupFlow.setMembersDraft, setNewTagName: groupFlow.setNewTagName,
@@ -215,5 +218,7 @@ export function useSkillHub(api: SkillHubApi) {
     checkMarket: marketFlow.checkMarket, loadMarketStats: marketFlow.loadMarketStats,
     syncMarketSource: marketFlow.syncMarketSource, confirmMarketSync: marketFlow.confirmMarketSync,
     updateAll: marketFlow.updateAll, create: catalogFlow.create,
+    stageDelete: catalogFlow.stageDelete, unstageDelete: catalogFlow.unstageDelete,
+    confirmDeletes: catalogFlow.confirmDeletes,
   }
 }

@@ -1,10 +1,12 @@
 /**
  * Skill filesystem operations for the writable roots: scaffolding a new skill
- * bundle and repairing discovery diagnostics in place.
+ * bundle, deleting one the user asked for, and repairing discovery diagnostics
+ * in place.
  *
- * The hub never renames, moves or deletes skill files. Switching a skill off is
- * a runtime decision persisted in the sidecar and enforced by the per-preset
- * gate, so nothing here touches discovery state.
+ * Switching a skill off is a runtime decision persisted in the sidecar and
+ * enforced by the per-preset gate, so it never touches discovery state. The one
+ * destructive operation here, {@link deleteSkillFiles}, runs only after the
+ * user confirms a staged deletion in the panel.
  *
  * Frontmatter parsing mirrors @deepseek-ai/dsh-skill-filesystem semantics:
  * required name (kebab-case) + description, optional whenToUse, invocation
@@ -13,8 +15,8 @@
  * content is the body after the frontmatter block, trimmed.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import { dump } from 'js-yaml'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { parseFrontmatter, repairFrontmatterFileText } from './skillfs/frontmatter.ts'
@@ -59,6 +61,25 @@ export async function createSkill(root: WritableRoot, name: string, description:
   ].join('\n')
   await writeFile(file, body, 'utf8')
   return file
+}
+
+/**
+ * Delete a skill from disk. A directory bundle (`<root>/<name>/SKILL.md`) goes
+ * away whole, a flat `<root>/<name>.md` file on its own.
+ *
+ * The fence is re-checked here rather than trusted from the caller: a path
+ * outside the writable roots is refused. `rm` does not follow symlinks, so a
+ * bundle that is a link to a checkout elsewhere loses the link, not the source.
+ *
+ * @returns the removed path (bundle directory or flat file).
+ */
+export async function deleteSkillFiles(filePath: string, home = dshHome()): Promise<string> {
+  if (rootOfPath(filePath, home) === undefined) throw new TypeError('not a hub writable skill path: ' + filePath)
+  const stats = await lstat(filePath).catch(() => undefined)
+  if (stats === undefined) throw new TypeError('skill is already gone from disk: ' + filePath)
+  const target = stats.isDirectory() ? filePath : basename(filePath) === 'SKILL.md' ? dirname(filePath) : filePath
+  await rm(target, { recursive: true, force: true })
+  return target
 }
 
 /** Repair one file on disk when its frontmatter is auto-fixable. Returns the new text. */

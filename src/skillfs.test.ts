@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createSkill, parseFrontmatter, rootOfPath, scanDiagnostics } from './skillfs.ts'
+import { createSkill, deleteSkillFiles, parseFrontmatter, rootOfPath, scanDiagnostics } from './skillfs.ts'
 
 describe('parseFrontmatter', () => {
   it('parses a healthy frontmatter', () => {
@@ -141,6 +141,41 @@ describe('createSkill', () => {
 
   it('refuses to create a skill whose name is not kebab-case', async () => {
     await expect(createSkill('user-dsh', 'Not Valid', '', home)).rejects.toThrow(/kebab-case/)
+  })
+})
+
+describe('deleteSkillFiles', () => {
+  let dir: string
+  let home: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-del-'))
+    home = join(dir, 'home')
+    await mkdir(join(home, 'skills'), { recursive: true })
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('removes the whole bundle directory behind SKILL.md', async () => {
+    const path = await createSkill('user-dsh', 'demo-skill', 'demo', home)
+    await writeFile(join(dirname(path), 'extra.md'), 'sibling', 'utf8')
+    expect(await deleteSkillFiles(path, home)).toBe(dirname(path))
+    await expect(lstat(dirname(path))).rejects.toThrow()
+  })
+
+  it('keeps the writable-root fence at the filesystem layer', async () => {
+    // 路由层先拒，但真正的写入助手不能依赖调用方已经把过关。
+    const outside = join(dir, 'elsewhere', 'stray.md')
+    await mkdir(dirname(outside), { recursive: true })
+    await writeFile(outside, 'x', 'utf8')
+    await expect(deleteSkillFiles(outside, home)).rejects.toThrow(/not a hub writable skill path/)
+    await expect(lstat(outside)).resolves.toBeDefined()
+  })
+
+  it('reports an already-deleted skill instead of silently succeeding', async () => {
+    await expect(deleteSkillFiles(join(home, 'skills', 'gone', 'SKILL.md'), home)).rejects.toThrow(/already gone/)
   })
 })
 

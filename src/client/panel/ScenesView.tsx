@@ -7,7 +7,7 @@
 
 import { useMemo, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { disabledSkills, groupSwitchView, mergeGroupRows } from '../grouping.ts'
+import { groupSwitchView, mergeGroupRows } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -21,8 +21,8 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
   const { catalog, groupsState, sorted, normalized, collapsedGroups, viewNames, actionNames, batchBusy, busyNames, newTagName, setNewTagName, tagBusy, createTag, toggleGroupCollapse, setAllGroupsCollapsed, toggleGroup, setEditingTag, setEditName, setMembersDraft, setEditSearch } = hub
   /** 重复技能名集合：整表只建一次，行内用 has 取代逐行线性 includes。 */
   const duplicateNames = useMemo(() => new Set(catalog?.duplicateNames ?? []), [catalog])
-  /** 已运行时关闭的行。 */
-  const offSkills = useMemo(() => disabledSkills(catalog), [catalog])
+  /** 已运行时关闭的行（暂存待删除的在目录域里已经剔除）。 */
+  const offSkills = hub.offSkills
   const tagKeys = (groupsState?.tags ?? []).map((tag) => 'tag:' + tag.id)
   /** 所有场景是否已折叠（决定「全部折叠/展开」按钮的文案）。 */
   const allTagsCollapsed = tagKeys.length > 0 && tagKeys.every((key) => collapsedGroups.has(key))
@@ -37,7 +37,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
     void hub.reorderTags(next)
   }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
-  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail }
+  const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, stageDelete: hub.editMode ? hub.stageDelete : undefined }
   /** 排序「按使用次数」时取调用统计（与目录域同一个 map）。 */
   const getUses = (name: string): number | undefined => hub.uses.get(name)?.count
   return (
@@ -105,7 +105,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
               <>
                 {mergeGroupRows(skills, disabledMembers, hub.sortKey, getUses).map((row) => (row.kind === 'skill'
                   ? <SkillRow key={row.skill.name} skill={row.skill} {...rowProps} />
-                  : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void hub.toggle(row.record, true) }} onOpen={() => { void hub.openDetail(row.record.name) }} />))}
+                  : <DisabledRow key={row.record.name} record={row.record} busy={busyNames.has(row.record.name)} duplicate={duplicateNames.has(row.record.name)} onEnable={() => { void hub.toggle(row.record, true) }} onOpen={() => { void hub.openDetail(row.record.name) }} stageDelete={rowProps.stageDelete} />))}
               </>
             ) : null}
           </section>

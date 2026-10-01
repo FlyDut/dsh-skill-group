@@ -46,13 +46,14 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     tagBusy, batchBusy, sourceOptions, filtered,
     conflictDialog, confirmDialog, branchChoice, branchBusy, marketSyncDialog,
     syncBusy, editingTag, editName, membersDraft, editSearch, uses, groupsState, sourceCheck, checkingSource, syncingSource,
-    showLegend, editMode,
+    showLegend, editMode, pendingDeletes, deleteDialog,
     setLoadError, setSuccessBanner, setDetail, setShowForm, setFormName, setFormDesc, setFormContent, setFormRoot, setFormMessage, setTab,
     setSkillView, setSourceFilter, setSortKey, setSearch, setConflictDialog, setConfirmDialog,
     setBranchChoice, setMarketSyncDialog, setEditingTag, setEditName, setMembersDraft, setEditSearch,
-    setShowLegend, setEditMode,
+    setShowLegend, setEditMode, setDeleteDialog,
     loadMarket, checkSources, requestSync,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag,
+    unstageDelete, confirmDeletes,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
@@ -151,16 +152,6 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           : null}
         {catalog !== null && !catalog.complete ? <span className={css.hint}>{tt('panel.incomplete')}</span> : null}
         {catalog !== null && (catalog.duplicateNames?.length ?? 0) > 0 ? <button type='button' className={css.opBtn} title={tt('row.duplicateHint')} onClick={() => { clearListFilters() }}>⚠ {tt('row.duplicate')}×{(catalog.duplicateNames ?? []).length}</button> : null}
-        <span className={css.actions}>
-          <button type='button' className={css.button + ' ' + css.primary} onClick={() => { setFormMessage(null); setShowForm(true) }}>{tt('panel.new')}</button>
-          <button
-            type='button'
-            className={css.button + (editMode ? ' ' + css.primary : '')}
-            aria-pressed={editMode}
-            title={tt('edit.hint')}
-            onClick={() => { setEditMode((value) => !value) }}
-          >{tt(editMode ? 'edit.done' : 'edit.start')}</button>
-        </span>
       </div>
       <div className={css.subbar}>
         <span className={css.segmented}>
@@ -173,6 +164,21 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
       </div>
 
       {notices}
+
+      {editMode && pendingDeletes.length > 0 ? (
+        <div className={css.pendingBar} role='status'>
+          <span className={css.pendingLabel}>{tt('edit.pending', { count: pendingDeletes.length })}</span>
+          <span className={css.pendingNames}>
+            {pendingDeletes.map((name) => (
+              <span key={name} className={css.pendingItem}>
+                {name}
+                <button type='button' className={css.opBtn} onClick={() => { unstageDelete(name) }}>{tt('edit.undo')}</button>
+              </span>
+            ))}
+          </span>
+          <span className={css.pendingHint}>{tt('edit.pendingHint')}</span>
+        </div>
+      ) : null}
 
       {showLegend ? (
         <div className={css.legend}>
@@ -294,6 +300,10 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         confirmDialog={confirmDialog}
         setConfirmDialog={setConfirmDialog}
         runConfirmed={runConfirmed}
+        deleteDialog={deleteDialog}
+        pendingDeletes={pendingDeletes}
+        setDeleteDialog={setDeleteDialog}
+        confirmDeletes={() => hub.confirmDeletes().then((allLanded) => { if (allLanded) setEditMode(false) })}
         branchChoice={branchChoice}
         branchBusy={branchBusy}
         setBranchChoice={setBranchChoice}

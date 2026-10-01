@@ -30,6 +30,7 @@ export {
   disabledGate,
   homeOf,
   isWritableSource,
+  resolveWritableSkill,
   savedOf,
 } from './deps.ts'
 export type {
@@ -37,6 +38,7 @@ export type {
   SkillLookupLike,
   ScopeRouteDeps,
   ScopePresetSnapshot,
+  WritableSkill,
 } from './deps.ts'
 export { buildCollections, buildGroups } from './collection.ts'
 export {

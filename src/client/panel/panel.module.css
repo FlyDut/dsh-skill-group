@@ -146,6 +146,13 @@
 /* 组头提示（成员已不在目录中的数量）：弱化的小字，不参与开关状态。 */
 .groupNote { margin-left: 8px; font-size: 11px; font-weight: 400; color: var(--hub-text-3); white-space: nowrap; }
 
+/* 编辑态暂存删除栏：贴在横幅下方，说明「还没落盘、点完成才确认」。 */
+.pendingBar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: rgba(209,36,47,.08); border: 1px solid rgba(209,36,47,.25); font-size: 12px; }
+.pendingLabel { font-weight: 600; color: var(--hub-danger); white-space: nowrap; }
+.pendingNames { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pendingItem { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--hub-hover); }
+.pendingHint { color: var(--hub-text-3); font-size: 11px; }
+
 /* Source link inside group titles / rows. */
 .sourceLink { color: inherit; font-weight: 600; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }
 .sourceLink:hover { opacity: 1; }

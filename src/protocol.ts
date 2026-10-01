@@ -24,6 +24,8 @@ export type {
   ToggleResponse,
   ToggleBatchRequest,
   ToggleBatchResponse,
+  SkillDeleteRequest,
+  SkillDeleteResponse,
   CreateRequest,
   CreateResponse,
 } from './protocol/catalog.ts'

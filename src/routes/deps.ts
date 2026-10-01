@@ -10,11 +10,32 @@ import type { ScopeVisibility } from '../domain/scope-policy.ts'
 import type { PresetRosterEntry } from '../enforcement/roster.ts'
 import { dshHome } from '../env.ts'
 import { type SkillHubStore } from '../store.ts'
+import { rootOfPath } from '../skillfs.ts'
 import { writeError } from './http.ts'
 
 /** Sources the hub may toggle (the user-level filesystem roots). */
 export function isWritableSource(source: string): source is WritableRoot {
   return source === 'user-dsh' || source === 'user-agents'
+}
+
+/** 一个「用户级可写根里的技能」的解析结果；ok=false 时按 status/error 原样回写。 */
+export type WritableSkill =
+  | { ok: true; name: string; root: WritableRoot; path: string }
+  | { ok: false; status: number; error: string }
+
+/**
+ * 解析破坏性操作的目标技能：名字必须还在目录里、来源必须是用户级可写根、磁盘
+ * 路径必须落在该根内。围栏在这里复核，不靠调用方自觉。
+ */
+export async function resolveWritableSkill(deps: SkillHubRouteDeps, name: string): Promise<WritableSkill> {
+  const skill = await deps.skills.get(name)
+  if (skill === undefined) return { ok: false, status: 404, error: 'skill not found: ' + name }
+  if (!isWritableSource(skill.source)) return { ok: false, status: 409, error: 'skill is not user-level (' + skill.source + '): ' + name }
+  const path = skill.path
+  if (path === undefined || path === '') return { ok: false, status: 409, error: 'skill has no file on disk: ' + name }
+  const root = rootOfPath(path, homeOf(deps))
+  if (root === undefined) return { ok: false, status: 409, error: 'skill file is outside the hub writable roots: ' + name }
+  return { ok: true, name, root, path }
 }
 
 /** Lookup options the hub forwards to the registry. */

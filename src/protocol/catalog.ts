@@ -139,6 +139,29 @@ export interface ToggleBatchResponse {
   failures: Array<{ name: string; error: string }>
 }
 
+/**
+ * POST /api/skill-hub/skill/delete — 删除磁盘上的技能本体。
+ *
+ * 只接受用户级可写根（~/.dsh/skills、~/.agents/skills）内、且此刻仍在目录里的
+ * 技能；目录包整个删掉，平铺的单个 .md 只删文件，软链接只删链接本身。其他来源
+ * （项目/内置/运行时/第三方 provider）逐个报错，一个文件都不动。
+ */
+export interface SkillDeleteRequest {
+  /** 要删除的技能名（面板在编辑态暂存，点「完成」确认后一次性提交）。 */
+  names: string[]
+}
+
+/** POST /api/skill-hub/skill/delete */
+export interface SkillDeleteResponse {
+  ok: true
+  /** 已从磁盘删除的技能名。 */
+  deleted: string[]
+  /** Per-name failures (unknown/read-only skills); empty means all landed. */
+  failures: Array<{ name: string; error: string }>
+  /** Fresh catalog after the mutation. */
+  catalog: CatalogResponse
+}
+
 /** POST /api/skill-hub/create */
 export interface CreateRequest {
   /** Kebab-case skill name (validated with the official isSkillName grammar). */

@@ -29,6 +29,8 @@ import {
   type ScopeSaveResponse,
   type SkillDetail,
   type SkillDetailResponse,
+  type SkillDeleteRequest,
+  type SkillDeleteResponse,
   type SkillTag,
   type SourceCheckRequest,
   type SourceCheckResponse,
@@ -147,6 +149,16 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
 
   create(payload: CreateRequest): Promise<CreateResponse> {
     return this.post<CreateResponse>(SKILL_HUB_API.create, payload)
+  }
+
+  /**
+   * Delete skills from disk. Destructive and irreversible: the panel only calls
+   * this after the user confirms a staged deletion. Unknown/read-only names come
+   * back in `failures`; the fresh catalog is returned either way.
+   */
+  deleteSkills(names: string[]): Promise<SkillDeleteResponse> {
+    const payload: SkillDeleteRequest = { names }
+    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, payload)
   }
 
   stats(): Promise<StatsResponse> {

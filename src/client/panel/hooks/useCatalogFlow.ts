@@ -1,10 +1,13 @@
 /**
  * useCatalogFlow — 目录域：catalog 加载、详情、开关（单个/批量）、新建、
- * 诊断修复，以及列表过滤/排序派生。跨域刷新只通过 shared 通知，不直接碰
- * 其他域的 state。
+ * 诊断修复、编辑态暂存的删除，以及列表过滤/排序派生。跨域刷新只通过 shared
+ * 通知，不直接碰其他域的 state。
  *
  * 关闭的技能**留在**目录里（CatalogSkill.enabled === false），因此既能被
  * 搜索到，也能在任何视图里一键重新打开：主行与关闭行共用同一份筛选结果。
+ *
+ * 删除是破坏性的：编辑态点「删除」只把名字放进 pendingDeletes（行立即从列表
+ * 消失），点「完成」并确认后才调一次 /skill/delete 落盘。
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -16,7 +19,7 @@ import type {
 } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
 import { errorMessage, tt } from '../../helpers.ts'
-import { sortSkills, type SortKey } from '../../grouping.ts'
+import { disabledSkills, sortSkills, type SortKey } from '../../grouping.ts'
 import { runFlow, type FlowNotices, type UsesMap } from './shared.ts'
 
 export function useCatalogFlow(
@@ -44,6 +47,10 @@ export function useCatalogFlow(
   const [fixingPaths, setFixingPaths] = useState<ReadonlySet<string>>(new Set())
   const [invocationFilter, setInvocationFilter] = useState<'all' | 'model' | 'user'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('name')
+  /** 编辑态暂存的待删除名：只影响显示，确认后才落盘。 */
+  const [pendingDeletes, setPendingDeletes] = useState<readonly string[]>([])
+  /** 「完成」时的删除确认框（暂存非空才打开）。 */
+  const [deleteDialog, setDeleteDialog] = useState(false)
 
   const autoCollapsedPersonal = useRef(false)
   /**
@@ -129,6 +136,44 @@ export function useCatalogFlow(
     })
   }, [api, load, shared])
 
+  // -------------------------------------------------------- staged deletion
+
+  /** 编辑态点「删除」：只把名字暂存起来，行立刻从各视图消失。 */
+  const stageDelete = useCallback((name: string): void => {
+    setPendingDeletes((previous) => previous.includes(name) ? previous : [...previous, name])
+  }, [])
+
+  /** 撤销一条暂存（待删除栏里的「撤销」）。 */
+  const unstageDelete = useCallback((name: string): void => {
+    setPendingDeletes((previous) => previous.filter((entry) => entry !== name))
+  }, [])
+
+  /**
+   * 落盘删除：一次性提交全部暂存名。返回「是否全部落盘」——请求本身失败、
+   * 或其中任意一个名字失败都算 false，此时失败的名字仍留在暂存栏里，调用方
+   * 据此决定是否退出编辑态（退出就等于把待办藏起来）。
+   */
+  const confirmDeletes = useCallback(async (): Promise<boolean> => {
+    const names = [...pendingDeletes]
+    setDeleteDialog(false)
+    if (names.length === 0) return true
+    let allLanded = false
+    shared.setBatchBusy(true)
+    await runFlow(shared, async () => {
+      const next = await api.deleteSkills(names)
+      setCatalog(next.catalog)
+      // 失败的名字留在暂存栏里，用户可以撤销或重试；成功的已经离场。
+      setPendingDeletes(next.failures.map((failure) => failure.name))
+      allLanded = next.failures.length === 0
+      if (next.failures.length > 0) {
+        shared.fail('delete: ' + next.failures.map((failure) => failure.name + ': ' + failure.error).join('; '))
+      } else {
+        shared.succeed(tt('row.deleted', { count: next.deleted.length }))
+      }
+    }, () => shared.setBatchBusy(false))
+    return allLanded
+  }, [api, pendingDeletes, shared])
+
   const create = useCallback(async (): Promise<void> => {
     setFormBusy(true)
     setFormMessage(null)
@@ -155,14 +200,21 @@ export function useCatalogFlow(
 
   const normalized = search.trim().toLocaleLowerCase()
 
+  /** 暂存待删除的名字：确认落盘之前，它们先从各视图里消失（目录数据不动）。 */
+  const stagedNames = useMemo(() => new Set(pendingDeletes), [pendingDeletes])
+
   /** 组开关能作用的技能名 = 目录里的全部技能（关闭只写侧车状态，与来源可写性无关）。 */
-  const actionNames = useMemo(() => new Set((catalog?.skills ?? []).map((skill) => skill.name)), [catalog])
+  const actionNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => !stagedNames.has(skill.name)).map((skill) => skill.name)), [catalog, stagedNames])
 
   /** 当前启用的全部技能名（含只读，用于派生开关状态）。 */
-  const viewNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => skill.enabled).map((skill) => skill.name)), [catalog])
+  const viewNames = useMemo(() => new Set((catalog?.skills ?? []).filter((skill) => skill.enabled && !stagedNames.has(skill.name)).map((skill) => skill.name)), [catalog, stagedNames])
+
+  /** 已运行时关闭的行（暂存待删的同样先移出）。 */
+  const offSkills = useMemo(() => disabledSkills(catalog).filter((record) => !stagedNames.has(record.name)), [catalog, stagedNames])
 
   /** 搜索 + 调用方式筛选后的全部技能（含已关闭的，视图各取所需）。 */
   const filtered = useMemo(() => (catalog?.skills ?? []).filter((skill) => {
+    if (stagedNames.has(skill.name)) return false
     if (invocationFilter === 'model' && !skill.invocation.modelInvocable) return false
     if (invocationFilter === 'user' && !skill.invocation.userInvocable) return false
     if (normalized.length === 0) return true
@@ -170,7 +222,7 @@ export function useCatalogFlow(
       || skill.description.toLocaleLowerCase().includes(normalized)
       || skill.displayName?.toLocaleLowerCase().includes(normalized)
       || skill.shortDescription?.toLocaleLowerCase().includes(normalized)
-  }), [catalog, normalized, invocationFilter])
+  }), [catalog, normalized, invocationFilter, stagedNames])
 
   /** 主行：筛选后的启用技能（所有视图共用；调用次数未知按 0 处理）。 */
   const sorted = useMemo(() => sortSkills(filtered.filter((skill) => skill.enabled), sortKey, (name) => uses.get(name)?.count), [filtered, sortKey, uses])
@@ -187,10 +239,12 @@ export function useCatalogFlow(
   return {
     catalog, loading, detail, detailLoading, busyNames, search,
     showForm, formName, formDesc, formContent, formRoot, formBusy, formMessage, fixingPaths,
-    invocationFilter, sortKey, normalized, actionNames, viewNames,
+    invocationFilter, sortKey, normalized, actionNames, viewNames, offSkills,
     filtered, sorted, shortenedCount,
+    pendingDeletes, deleteDialog,
     setDetail, setSearch, setShowForm, setFormName, setFormDesc,
-    setFormContent, setFormRoot, setFormMessage, setInvocationFilter, setSortKey,
+    setFormContent, setFormRoot, setFormMessage, setInvocationFilter, setSortKey, setDeleteDialog,
     load, openDetail, toggle, batchToggleNames, fixDiagnostic, create, clearListFilters,
+    stageDelete, unstageDelete, confirmDeletes,
   }
 }

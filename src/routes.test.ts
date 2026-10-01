@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
@@ -303,6 +303,87 @@ describe('skill-hub routes', () => {
     expect(body.failures).toHaveLength(1)
     expect(body.failures[0].name).toBe('missing-x')
     expect(await store.listDisabled()).toHaveLength(1)
+  })
+
+  it('deletes a bundle directory from disk and drops its sidecar traces', async () => {
+    const bundle = join(home, 'skills', 'demo-skill')
+    await mkdir(bundle, { recursive: true })
+    await writeFile(join(bundle, 'SKILL.md'), '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
+    skills.get = async (name: string) => definition({ name, path: join(bundle, 'SKILL.md') })
+    // 关闭记录 + 场景成员 + 来源跟踪：三处 sidecar 痕迹都该随删除消失。
+    await store.addDisabled({ name: 'demo-skill', disabledAt: 1 })
+    const tag = await store.saveTag({ name: 'scene-x' })
+    await store.addSkillToTag(tag.id, 'demo-skill')
+    await store.addSourceSkill('owner/repo', 'skills', 'abc123', 'v1', 'demo-skill')
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { names: ['demo-skill'] }), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
+    expect(body.deleted).toEqual(['demo-skill'])
+    expect(body.failures).toEqual([])
+    // 整个技能目录（不只是 SKILL.md）都没了。
+    await expect(lstat(bundle)).rejects.toThrow()
+    expect(await store.getDisabled('demo-skill')).toBeUndefined()
+    expect((await store.listTags()).find((entry) => entry.id === tag.id)?.skillNames).toEqual([])
+    expect((await store.listOrigins())['demo-skill']).toBeUndefined()
+  })
+
+  it('deletes a flat skill file on its own', async () => {
+    const file = join(home, 'skills', 'flat-skill.md')
+    await writeFile(file, '---\nname: flat-skill\ndescription: flat\n---', 'utf8')
+    skills.get = async (name: string) => definition({ name, path: file })
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { names: ['flat-skill'] }), res as never)
+    expect(res.status).toBe(200)
+    expect((res.json() as import('./protocol.ts').SkillDeleteResponse).deleted).toEqual(['flat-skill'])
+    await expect(lstat(file)).rejects.toThrow()
+    // 父目录还在：删的是文件，不是可写根。
+    await expect(lstat(join(home, 'skills'))).resolves.toBeDefined()
+  })
+
+  it('unlinks a symlinked bundle instead of deleting what it points at', async () => {
+    // 市场/自己 checkout 的技能常以软链接挂进可写根：删的必须是链接本身。
+    const checkout = join(dir, 'checkout', 'linked-skill')
+    await mkdir(checkout, { recursive: true })
+    await writeFile(join(checkout, 'SKILL.md'), '---\nname: linked-skill\ndescription: linked\n---', 'utf8')
+    const link = join(home, 'skills', 'linked-skill')
+    await symlink(checkout, link, 'dir')
+    skills.get = async (name: string) => definition({ name, path: join(link, 'SKILL.md') })
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { names: ['linked-skill'] }), res as never)
+    expect(res.status).toBe(200)
+    expect((res.json() as import('./protocol.ts').SkillDeleteResponse).deleted).toEqual(['linked-skill'])
+    await expect(lstat(link)).rejects.toThrow()
+    // 链接指向的目录与其内容原封不动。
+    await expect(lstat(join(checkout, 'SKILL.md'))).resolves.toBeDefined()
+  })
+
+  it('refuses read-only sources and paths outside the writable roots, per name', async () => {
+    const outside = join(dir, 'elsewhere', 'stray', 'SKILL.md')
+    await mkdir(dirname(outside), { recursive: true })
+    await writeFile(outside, '---\nname: stray\ndescription: stray\n---', 'utf8')
+    skills.get = async (name: string) => name === 'bundled-x'
+      ? definition({ name, source: 'bundled', provider: 'bundled', path: join(home, 'skills', 'bundled-x', 'SKILL.md') })
+      : definition({ name, path: outside })
+
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { names: ['bundled-x', 'stray'] }), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').SkillDeleteResponse
+    expect(body.deleted).toEqual([])
+    expect(body.failures.map((failure) => failure.name)).toEqual(['bundled-x', 'stray'])
+    expect(body.failures[0].error).toContain('not user-level')
+    expect(body.failures[1].error).toContain('outside the hub writable roots')
+    // 两份文件都还在：拒绝的路径一个字节都没动。
+    await expect(lstat(outside)).resolves.toBeDefined()
+  })
+
+  it('rejects an empty name list', async () => {
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(fakeReq('POST', SKILL_HUB_API.skillDelete, { names: [] }), res as never)
+    expect(res.status).toBe(400)
   })
 
   it('creates a skill scaffold and rejects bad names', async () => {
