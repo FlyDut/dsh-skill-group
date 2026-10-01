@@ -15,6 +15,7 @@ import { useGroupFlow } from './hooks/useGroupFlow.ts'
 import { useSourceFlow } from './hooks/useSourceFlow.ts'
 import { useMarketFlow } from './hooks/useMarketFlow.ts'
 import { useScopeFlow } from './hooks/useScopeFlow.ts'
+import { useWorkspaceFlow } from './hooks/useWorkspaceFlow.ts'
 import { markAutoChecked, POLL_MS, shouldAutoCheck, SLOW_POLL_MS, type FlowNotices } from './hooks/shared.ts'
 
 /** The hook's result: the panel's complete state + action surface. */
@@ -52,7 +53,7 @@ export function useSkillHub(api: SkillHubApi) {
 
   // ------------------------------------------------------------ view state
   // 纯视图状态：不触发数据加载，只影响渲染。
-  const [tab, setTab] = useState<'sources' | 'scenes' | 'market' | 'scopes'>('sources')
+  const [tab, setTab] = useState<'sources' | 'scenes' | 'market' | 'scopes' | 'workspaces'>('sources')
   const [skillView, setSkillView] = useState<'flat' | 'groups'>('groups')
   const [sourceFilter, setSourceFilter] = useState('all')
   /** 分组视图里收起的分组（key 为 tag:<id> 或 col:<name>）。技能总数 >80 时首次加载自动折叠 personal。 */
@@ -106,9 +107,11 @@ export function useSkillHub(api: SkillHubApi) {
     sourceFlow.sourceCheck,
   )
 
-  // ------------------------------------------------------------------ modes
-  // 模式域消费分组（勾选项）与目录（技能清单），所以排在它们之后。
+  // --------------------------------------------------- modes + workspaces
+  // 两个可见性域消费同一份分组（勾选项）与目录（技能清单），所以排在它们之后。
+  // 它们各自编辑一份策略；会话实际看到的是两边取并集（宿主侧合成），面板只展示。
   const scopeFlow = useScopeFlow(api, shared, groupFlow.groupsState, catalogFlow.catalog)
+  const workspaceFlow = useWorkspaceFlow(api, shared, groupFlow.groupsState, catalogFlow.catalog)
 
   // ------------------------------------------------------------- derived
   /** skillName → origin repo（无来源记录的技能不在此映射中，筛选中视为 private）。 */
@@ -132,10 +135,11 @@ export function useSkillHub(api: SkillHubApi) {
     void sourceFlow.loadSources()
     void meta.loadConfig()
     void scopeFlow.loadScopes()
+    void workspaceFlow.loadWorkspaces()
     const fast = window.setInterval(() => { void catalogFlow.load() }, POLL_MS)
-    const slow = window.setInterval(() => { void meta.loadUses(); void groupFlow.loadGroups(); void sourceFlow.loadSources(); void meta.loadConfig(); void scopeFlow.loadScopes() }, SLOW_POLL_MS)
+    const slow = window.setInterval(() => { void meta.loadUses(); void groupFlow.loadGroups(); void sourceFlow.loadSources(); void meta.loadConfig(); void scopeFlow.loadScopes(); void workspaceFlow.loadWorkspaces() }, SLOW_POLL_MS)
     return () => { window.clearInterval(fast); window.clearInterval(slow) }
-  }, [catalogFlow.load, meta.loadUses, groupFlow.loadGroups, sourceFlow.loadSources, meta.loadConfig, scopeFlow.loadScopes])
+  }, [catalogFlow.load, meta.loadUses, groupFlow.loadGroups, sourceFlow.loadSources, meta.loadConfig, scopeFlow.loadScopes, workspaceFlow.loadWorkspaces])
 
   // ------------------------------------------------- daily auto-check
   // 打开面板时每天最多自动检查一次（全部来源 + 全部市场源），
@@ -198,7 +202,7 @@ export function useSkillHub(api: SkillHubApi) {
     setMembersDraft: groupFlow.setMembersDraft, setNewTagName: groupFlow.setNewTagName,
     setEditSearch: groupFlow.setEditSearch, setShowLegend, setEditMode,
     setVersionDialog: marketFlow.setVersionDialog,
-    scopeFlow,
+    scopeFlow, workspaceFlow,
     toggleGroupCollapse, setAllGroupsCollapsed, loadMarket: marketFlow.loadMarket,
     openDetail: catalogFlow.openDetail, toggle: catalogFlow.toggle,
     toggleGroup: groupFlow.toggleGroup,

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { collectionKey, skillKey, sourceKey, tagKey, type ScopePolicy } from '../protocol/scopes.ts'
-import { expandScopePolicy, resolveScopeVisibility, scopeCacheKey, type ScopeGroupIndex } from './scope-policy.ts'
+import { expandScopePolicy, mergePolicyEntries, resolveScopeVisibility, scopeCacheKey, type ScopeGroupIndex } from './scope-policy.ts'
 
 const KNOWN = ['alpha-skill', 'beta-skill', 'gamma-skill'] as const
 
@@ -148,5 +148,42 @@ describe('scopeCacheKey', () => {
   it('目录变化时改变', () => {
     const a = scopeCacheKey(policy({ groups: [tagKey('t1')] }), KNOWN)
     expect(scopeCacheKey(policy({ groups: [tagKey('t1')] }), [...KNOWN, 'delta-skill'])).not.toBe(a)
+  })
+})
+
+describe('mergePolicyEntries', () => {
+  it('全部缺省时等价于不限制', () => {
+    const merged = mergePolicyEntries([undefined, undefined])
+    expect(merged).toEqual({ enabled: false, groups: [], skills: [] })
+    expect(resolveScopeVisibility(merged, index(), KNOWN)).toMatchObject({ enabled: false, hidden: [] })
+  })
+
+  it('任一主体启用即启用（模式与工作区是并集而非覆盖）', () => {
+    const merged = mergePolicyEntries([
+      policy({ enabled: false, groups: [tagKey('t1')] }),
+      policy({ enabled: true, groups: [tagKey('t2')] }),
+    ])
+    expect(merged.enabled).toBe(true)
+    expect(merged.groups).toEqual([tagKey('t1'), tagKey('t2')])
+  })
+
+  it('成员直接拼接，重复项由展开层的 Set 收敛', () => {
+    const merged = mergePolicyEntries([
+      policy({ groups: [tagKey('t1')], skills: ['alpha-skill'] }),
+      policy({ groups: [tagKey('t1'), collectionKey('acme/skills')], skills: ['alpha-skill', 'beta-skill'] }),
+    ])
+    expect(merged.groups).toHaveLength(3)
+    const visibility = resolveScopeVisibility(merged, index(), KNOWN)
+    expect(visibility.visible).toEqual(['alpha-skill', 'beta-skill'])
+    // 所有键都解析成功：合并不会制造悬空项。
+    expect(visibility.dangling).toEqual([])
+    expect(visibility.resolved[tagKey('t1')]).toEqual(['alpha-skill', 'beta-skill'])
+  })
+
+  it('一个主体不限制时不会替另一个主体放行', () => {
+    // 未配置的主体传 undefined；已配置主体的白名单照旧生效。
+    const merged = mergePolicyEntries([policy({ groups: [tagKey('t2')] }), undefined])
+    expect(merged.enabled).toBe(true)
+    expect(resolveScopeVisibility(merged, index(), KNOWN).hidden).toEqual(['alpha-skill', 'beta-skill'])
   })
 })

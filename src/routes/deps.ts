@@ -5,9 +5,10 @@
 
 import type { ServerResponse } from 'node:http'
 import type { SkillDefinition, SkillSummary } from '@deepseek-ai/dsh-skill'
-import { resolveHubConfig, type HubConfig, type ScopePolicy, type WritableRoot } from '../protocol.ts'
+import { resolveHubConfig, type HubConfig, type ScopePolicy, type WorkspacePolicy, type WritableRoot } from '../protocol.ts'
 import type { ScopeVisibility } from '../domain/scope-policy.ts'
 import type { PresetRosterEntry } from '../enforcement/roster.ts'
+import type { WorkspaceRosterEntry } from '../enforcement/workspace-roster.ts'
 import { dshHome } from '../env.ts'
 import { type SkillHubStore } from '../store.ts'
 import { rootOfPath } from '../skillfs.ts'
@@ -67,6 +68,11 @@ export interface SkillHubRouteDeps {
    * 其余路由完全不受影响（与 stats 的可选接线同一模式）。
    */
   scopes?: ScopeRouteDeps
+  /**
+   * 工作区级技能隔离的宿主接口。缺席时 /workspaces 与 /workspace 返回"能力
+   * 不可用"，其余路由完全不受影响（与 scopes 同一模式）。
+   */
+  workspaces?: WorkspaceRouteDeps
 }
 
 /**
@@ -100,6 +106,40 @@ export interface ScopePresetSnapshot {
   active: string[]
   /** 已挂载、可用于接线的 preset id。 */
   mounted: string[]
+}
+
+/**
+ * 工作区隔离的路由接口：与 {@link ScopeRouteDeps} 一一对应，只是主体换成工作区
+ * id，且策略变化会影响**所有**主体的闸门（同一个 preset 在不同工作区的隐藏集合
+ * 不同），所以通知没有参数。
+ */
+export interface WorkspaceRouteDeps {
+  /** 工作区名单 + 运行时接线状态。 */
+  workspaces: () => Promise<WorkspaceRosterSnapshot>
+  /** 全部已保存的工作区策略；用于如实列出"工作区已删、策略还在"的孤儿行。 */
+  listPolicies: () => Promise<WorkspacePolicy[]>
+  /** 某工作区此刻的可见性判定（含展开明细）。 */
+  visibilityOf: (workspaceId: string) => Promise<ScopeVisibility>
+  /** 某工作区的策略；undefined 表示从未配置。 */
+  policyOf: (workspaceId: string) => Promise<WorkspacePolicy | undefined>
+  /** 保存策略（部分更新）。 */
+  savePolicy: (workspaceId: string, patch: { enabled?: boolean; groups?: string[]; skills?: string[] }) => Promise<WorkspacePolicy>
+  /** 删除策略，让该工作区回到"不隔离"。 */
+  deletePolicy: (workspaceId: string) => Promise<boolean>
+  /** 策略落地后通知执行层刷新闸门缓存（下一个 turn 生效）。 */
+  notifyPolicyChanged: () => void
+}
+
+/** 一次 /workspaces 读取所需的全部宿主数据。 */
+export interface WorkspaceRosterSnapshot {
+  /** 工作区名单能力是否可用（workspaceRegistry / dsh-scope 齐备）。 */
+  available: boolean
+  /** 不可用原因。 */
+  reason?: string
+  /** 工作区名单；能力不可用或服务缺席时为空数组。 */
+  entries: WorkspaceRosterEntry[]
+  /** 已启用隔离但闸门尚未接上的策略数（面板据此提示"需要一次会话激活"）。 */
+  pendingCount: number
 }
 
 /** The resolved hub config a route sees (the shared resolver fills defaults). */

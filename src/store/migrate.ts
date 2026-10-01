@@ -1,6 +1,6 @@
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, WorkspacePolicy } from '../protocol.ts'
 import { isValidRepoRoot } from '../protocol/repo.ts'
-import { normalizeScopePolicy } from '../protocol/scopes.ts'
+import { normalizeScopePolicy, normalizeWorkspacePolicy } from '../protocol/scopes.ts'
 import { STORE_VERSION } from './paths.ts'
 
 /** Normalized raw sidecar document after schema migration (fields still unvalidated). */
@@ -16,6 +16,7 @@ export interface MigratedStore {
   collectionOrder?: unknown
   sourceGroupOrder?: unknown
   scopes?: unknown
+  workspaces?: unknown
 }
 
 /**
@@ -30,6 +31,7 @@ export interface MigratedStore {
  * v5 to v6: `disabled` becomes a runtime switch list ({ name, disabledAt }) —
  * the old file-based fields (path/root/addedAt/updatedAt) are dropped on load —
  * and the `trash` bucket is discarded (the hub no longer deletes skills).
+ * v6 to v7: workspace-level policies are a pure addition, same pattern as v5.
  * Returns null when the file claims a newer schema than this plugin
  * understands, so the caller starts empty instead of risking data loss.
  */
@@ -86,6 +88,8 @@ export function migrateStore(parsed: unknown): MigratedStore | null {
     ...(Array.isArray(record.sourceGroupOrder) ? { sourceGroupOrder: record.sourceGroupOrder } : {}),
     // v5 (scopes) is a pure addition, same pattern as v4.
     ...(record.scopes !== undefined ? { scopes: record.scopes } : {}),
+    // v7 (workspaces) is the same pure addition, keyed by workspace id.
+    ...(record.workspaces !== undefined ? { workspaces: record.workspaces } : {}),
   }
 }
 
@@ -101,6 +105,7 @@ export interface HydratedState {
   collectionOrder: string[]
   sourceGroupOrder: string[]
   scopes: ScopePolicy[]
+  workspaces: WorkspacePolicy[]
 }
 
 /** 小优化：统一的非空字符串数组清洗（去空、去重可选由调用方处理）。 */
@@ -282,5 +287,14 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
     }
   }
 
-  return { entries, config, tagsById, sourcesByRepo, marketSources, skillStats, marketStats, collectionOrder, sourceGroupOrder, scopes: [...scopeByPreset.values()] }
+  // v7 工作区策略：口径与模式策略一致，只是键换成工作区 id。
+  const workspaceById = new Map<string, WorkspacePolicy>()
+  if (Array.isArray(migrated.workspaces)) {
+    for (const entry of migrated.workspaces as unknown[]) {
+      const policy = normalizeWorkspacePolicy(entry)
+      if (policy !== undefined) workspaceById.set(policy.workspaceId, policy)
+    }
+  }
+
+  return { entries, config, tagsById, sourcesByRepo, marketSources, skillStats, marketStats, collectionOrder, sourceGroupOrder, scopes: [...scopeByPreset.values()], workspaces: [...workspaceById.values()] }
 }

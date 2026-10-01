@@ -330,6 +330,37 @@ describe('PresetWiring', () => {
       .toEqual(['alpha-skill', 'beta-skill'])
   })
 
+  it('端到端：隐藏集合按会话目录现算（工作区）——同一 preset 下不同 cwd 结果不同', async () => {
+    const state = await scenario()
+    const standingKey = {}
+    seedStandingScope(state, standingKey, 'coding')
+    const ALPHA = '/w/alpha'
+    // 自定义 hiddenOf：只有目录等于 /w/alpha 的会话隐藏 alpha-skill。
+    const wiring = new PresetWiring({
+      ctx: state.hubCtx,
+      runtime: async () => ({
+        livePresetMounts: () => state.mounts,
+        createScope: (ctx, key) => createScope(ctx, key),
+      }),
+      isEnforced: async () => true,
+      hiddenOf: async (_presetId, cwd) => (cwd === ALPHA ? new Map([['alpha-skill', HIDDEN_META]]) : new Map()),
+    })
+    const agentKey = {}
+    createScope(state.hubCtx, agentKey, { parent: standingKey })
+    await wiring.sync()
+
+    // 同一个 agent scope，换了 cwd 就是另一个工作区：可见集不同。
+    expect((await state.hubCtx.skills.snapshot({ scope: agentKey, cwd: ALPHA })).skills.filter(isModelInvocable).map((s) => s.name))
+      .toEqual(['beta-skill'])
+    expect((await state.hubCtx.skills.snapshot({ scope: agentKey, cwd: '/w/beta' })).skills.filter(isModelInvocable).map((s) => s.name))
+      .toEqual(['alpha-skill', 'beta-skill'])
+    // 显式加载同样按目录判定。
+    expect(await state.hubCtx.skills.get('alpha-skill', { scope: agentKey, cwd: ALPHA })).toBeUndefined()
+    expect((await state.hubCtx.skills.get('alpha-skill', { scope: agentKey, cwd: '/w/beta' }))?.content).toBe('body of alpha-skill')
+
+    await wiring.dispose()
+  })
+
   it('端到端：策略变更后 invalidate 让新的隐藏集合立刻生效', async () => {
     const state = await scenario()
     const standingKey = {}

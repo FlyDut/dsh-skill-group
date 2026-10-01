@@ -130,6 +130,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               key={'col:' + collection.name}
               collection={collection}
               scopeModes={hub.scopeFlow.scopeModesByKey.get('col:' + collection.name)}
+              scopeWorkspaces={hub.workspaceFlow.workspaceNamesByKey.get('col:' + collection.name)}
               rows={mergeGroupRows(skills, disabledMembers, hub.sortKey, getUses)}
               collapsed={collapsed}
               view={view}

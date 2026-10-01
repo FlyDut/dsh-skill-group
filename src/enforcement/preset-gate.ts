@@ -1,6 +1,10 @@
 /**
- * 执行层 · 模式闸门（gate）：把一个 preset 的"不该看到的技能"变成**同名遮蔽
- * 候选**，注册进该 preset 的 standing 作用域层。
+ * 执行层 · 模式闸门（gate）：把一个会话"不该看到的技能"变成**同名遮蔽候选**，
+ * 注册进该会话所用 preset 的 standing 作用域层。
+ *
+ * 隐藏集合是**按工作目录**算出来的：同一个 preset 在 A 工作区里可能隔离成
+ * 一组技能、在 B 工作区里是另一组（工作区策略），所以 `list()` 每次都把注册表
+ * 转发的 `cwd` 交给闭包，由宿主按"模式策略 ∪ 工作区策略"重新解析。
  *
  * 为什么是遮蔽而不是删除：`ctx.skills` 的分层合并是"最近的层赢同名"，一个层
  * 无法删掉另一层的条目——但它可以用一个更近/同层更小 rank 的同名候选把它顶掉。
@@ -41,21 +45,22 @@ export class PresetGateProvider implements SkillProvider {
 
   /**
    * @param presetId - 该实例负责的 preset（只用于日志与诊断）。
-   * @param readHidden - 读取当前应被遮蔽的技能及元数据；空表表示不干预。
+   * @param readHidden - 按会话工作目录读取当前应被遮蔽的技能及元数据；
+   *   空表表示不干预（`cwd` 缺省时只算模式策略）。
    */
   constructor(
     private readonly presetId: string,
-    private readonly readHidden: () => Promise<ReadonlyMap<string, ScopeSkillMeta>>,
+    private readonly readHidden: (cwd?: string) => Promise<ReadonlyMap<string, ScopeSkillMeta>>,
   ) {}
 
   /**
    * 只返回被隐藏技能的同名遮蔽候选；可见技能一律不返回，让真正发现它们的
    * provider 在自己的秩上正常胜出。
-   * @param options - 注册表转发给 provider 的查找上下文（本 provider 只关心取消信号）。
+   * @param options - 注册表转发给 provider 的查找上下文（工作目录 + 取消信号）。
    * @returns 遮蔽候选列表。
    */
-  async list(options: { signal?: AbortSignal }): Promise<readonly SkillCandidate[]> {
-    const hidden = await this.readHidden()
+  async list(options: SkillLookupOptions): Promise<readonly SkillCandidate[]> {
+    const hidden = await this.readHidden(options.cwd)
     options.signal?.throwIfAborted()
     if (hidden.size === 0) return []
     const candidates: SkillCandidate[] = []

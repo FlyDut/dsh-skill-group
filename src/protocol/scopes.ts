@@ -1,6 +1,10 @@
 /**
- * 模式级技能隔离（Scope）的共享契约：模式策略的数据模型、分组键的构造与
- * 解析、以及 /presets 与 /scope 三个端点的载荷形状。
+ * 技能可见性策略（Scope）的共享契约：模式策略与工作区策略的数据模型、分组键
+ * 的构造与解析、以及 /presets、/scope、/workspaces、/workspace 端点的载荷形状。
+ *
+ * 两种策略的形状与语义完全相同（白名单），只是主体不同：模式策略按 preset 约束
+ * 会话，工作区策略按 DSH 工作区约束会话。一个会话实际可见的技能是两者的**并集**
+ * ——任一边没启用就不约束，见 domain/scope-policy.ts 的 expandScopePolicy。
  *
  * 这一层**不依赖任何宿主 SDK**：宿主半边（`domain/`、`enforcement/`、
  * `routes/`）与浏览器半边（面板）都从这里 import 同一个词汇表，避免两侧对
@@ -53,6 +57,22 @@ export function parseScopeEntry(key: string): { kind: keyof typeof SCOPE_ENTRY_P
 }
 
 /**
+ * 一个可见性策略的共同部分：白名单开关 + 分组键清单 + 单技能清单。
+ *
+ * 判定函数（`expandScopePolicy` / `resolveScopeVisibility` / `scopeCacheKey`）
+ * 只读这三个字段，因此模式策略、工作区策略、以及"两者合并后的策略"都能直接喂
+ * 进去，不需要任何分支。
+ */
+export interface PolicyEntries {
+  /** 是否真正执行隔离；关掉只保留面板预览。 */
+  enabled: boolean
+  /** 勾选的分组键（见 {@link SCOPE_ENTRY_PREFIX}）。 */
+  groups: readonly string[]
+  /** 单独勾选的技能名（裸名，不是 `skill:` 键）。 */
+  skills: readonly string[]
+}
+
+/**
  * 一个模式的技能可见性策略。
  *
  * 语义是**白名单**：`enabled` 为真时，只有 `groups` ∪ `skills` 展开出的技能
@@ -60,14 +80,25 @@ export function parseScopeEntry(key: string): { kind: keyof typeof SCOPE_ENTRY_P
  * `enabled` 为假（默认）时该模式不做任何隔离。**未出现在策略里的模式一律不
  * 限制**——这是向后兼容的默认，避免升级后突然吞掉已有会话的技能。
  */
-export interface ScopePolicy {
+export interface ScopePolicy extends PolicyEntries {
   /** preset id（= preset 目录名，例如 `coding`）。 */
   presetId: string
-  /** 是否真正执行隔离；关掉只保留面板预览。 */
-  enabled: boolean
   /** 勾选的分组键（见 {@link SCOPE_ENTRY_PREFIX}）。 */
   groups: string[]
   /** 单独勾选的技能名（裸名，不是 `skill:` 键）。 */
+  skills: string[]
+}
+
+/**
+ * 一个 DSH 工作区的技能可见性策略。语义与 {@link ScopePolicy} 完全一致，
+ * 只是主体换成工作区 id；工作区与模式的清单取**并集**后才是会话真正可见的集合。
+ */
+export interface WorkspacePolicy extends PolicyEntries {
+  /** DSH 工作区 id（`ctx.workspaceRegistry` 里的 uuid）。 */
+  workspaceId: string
+  /** 勾选的分组键（见 {@link SCOPE_ENTRY_PREFIX}）。 */
+  groups: string[]
+  /** 单独勾选的技能名（裸名）。 */
   skills: string[]
 }
 
@@ -108,6 +139,42 @@ export interface PresetsResponse {
   pendingCount: number
 }
 
+/** 某工作区的策略 + 它的注册信息（面板一行）。 */
+export interface WorkspaceScopeRow {
+  /** 工作区 id（uuid）。 */
+  id: string
+  /** 工作区标题（`Workspace.title`）；注册表里已不存在时为 undefined。 */
+  title?: string
+  /** 工作区目录（`Workspace.path`，已 realpath）；已不存在时为 undefined。 */
+  path?: string
+  /** 该工作区当前的会话数（仅统计用）。 */
+  sessionCount: number
+  /**
+   * 工作区是否仍在 DSH 注册表里。false = 策略是孤儿（工作区被删了），
+   * 面板如实展示并允许清掉它，但绝不自动删除。
+   */
+  present: boolean
+  /** 该工作区当前的策略。 */
+  policy: WorkspacePolicy
+  /** 展开后可见的技能数。 */
+  visibleCount: number
+  /** 因此被隐藏的技能数。 */
+  hiddenCount: number
+}
+
+/** GET /api/skill-hub/workspaces */
+export interface WorkspacesResponse {
+  ok: true
+  /** 工作区名单能力是否可用（部署没挂 workspaceRegistry 时为 false）。 */
+  available: boolean
+  /** `available` 为 false 时的原因文案（面板原样显示）。 */
+  unavailableReason?: string
+  /** 已注册的工作区（注册表顺序）+ 仅剩策略的孤儿行。 */
+  workspaces: WorkspaceScopeRow[]
+  /** 已启用工作区隔离但闸门还没接上的策略数（面板提示用）。 */
+  pendingCount: number
+}
+
 /** POST /api/skill-hub/scope — 部分更新某个模式的策略。 */
 export interface ScopeSaveRequest {
   presetId: string
@@ -134,6 +201,28 @@ export interface ScopeSaveResponse {
   policy: ScopePolicy | null
 }
 
+/** POST /api/skill-hub/workspace — 部分更新某个工作区的策略。字段语义同 {@link ScopeSaveRequest}。 */
+export interface WorkspaceSaveRequest {
+  workspaceId: string
+  /** 省略则保持现值。 */
+  enabled?: boolean
+  /** 省略则保持现值；提供时整体替换。 */
+  groups?: string[]
+  /** 省略则保持现值；提供时整体替换。 */
+  skills?: string[]
+  /** 为真时删除该工作区的策略（回到"不隔离"），其余字段忽略。 */
+  reset?: boolean
+  /** 空白名单的二次确认标记，语义同 {@link ScopeSaveRequest.confirmEmpty}。 */
+  confirmEmpty?: boolean
+}
+
+/** POST /api/skill-hub/workspace */
+export interface WorkspaceSaveResponse {
+  ok: true
+  /** 保存后的策略；`reset` 时为 null（该工作区已回到不隔离）。 */
+  policy: WorkspacePolicy | null
+}
+
 /** GET /api/skill-hub/scope/preview?presetId= */
 export interface ScopePreviewResponse {
   ok: true
@@ -155,6 +244,9 @@ export const MAX_SCOPE_ENTRIES = 2000
 /** 一个 preset id 的合法形状（与 dsh 的 PRESET_ID 同口径：一个路径段）。 */
 export const PRESET_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 
+/** 一个工作区 id 的合法形状（uuid；与 preset 同口径的一个短标识）。 */
+export const WORKSPACE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
 /**
  * 把任意输入清洗成一个策略。坏条目丢弃而不是整体拒绝——与 sidecar 其余
  * 字段的容错口径一致；`presetId` 非法时返回 undefined（调用方据此 400）。
@@ -169,6 +261,20 @@ export function normalizeScopePolicy(raw: unknown): ScopePolicy | undefined {
   const groups = cleanKeys(record.groups)
   const skills = cleanNames(record.skills)
   return { presetId, enabled: record.enabled === true, groups, skills }
+}
+
+/**
+ * 把任意输入清洗成一个工作区策略。容错口径与 {@link normalizeScopePolicy}
+ * 完全一致；`workspaceId` 非法时返回 undefined。
+ * @param raw - 未知形状的输入（sidecar 文档或 HTTP 体）。
+ * @returns 清洗后的策略，或 workspaceId 不可用时的 undefined。
+ */
+export function normalizeWorkspacePolicy(raw: unknown): WorkspacePolicy | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const record = raw as Record<string, unknown>
+  const workspaceId = typeof record.workspaceId === 'string' ? record.workspaceId.trim() : ''
+  if (!WORKSPACE_ID_RE.test(workspaceId)) return undefined
+  return { workspaceId, enabled: record.enabled === true, groups: cleanKeys(record.groups), skills: cleanNames(record.skills) }
 }
 
 /** 清洗分组键列表：仅保留可解析的键，去空去重，保序，受上限约束。 */

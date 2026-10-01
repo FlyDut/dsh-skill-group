@@ -43,4 +43,8 @@ export const SKILL_HUB_API = {
   scope: '/api/skill-hub/scope',
   /** 读取某个模式的可见性展开明细（面板预览）。 */
   scopePreview: '/api/skill-hub/scope/preview',
+  /** 工作区名单 + 每个工作区的策略与展开计数。 */
+  workspaces: '/api/skill-hub/workspaces',
+  /** 写入某个工作区的策略（部分更新；`reset: true` 删除策略）。 */
+  workspace: '/api/skill-hub/workspace',
 } as const

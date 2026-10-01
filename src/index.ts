@@ -103,9 +103,12 @@ export function apply(ctx: Context, config?: Config): void {
   // surfaces must not care. The value is held (not snapshotted) so a hot
   // reload is picked up by the next read.
   let agentPresets: unknown
+  // `ctx.workspaceRegistry`，同一套软注入：没有工作区注册表的部署只是没有"工作区"
+  // 可配。同样持有值（而不是快照），热重载后下一次读取就能跟上。
+  let workspaceRegistry: unknown
 
-  // 模式级技能隔离的装配（策略 / 判定 / 运行时效果三层）见 scope-assembly.ts。
-  const scopes = assembleScopes({ ctx, store, presets: () => agentPresets })
+  // 技能可见性隔离的装配（策略 / 判定 / 运行时效果三层）见 scope-assembly.ts。
+  const scopes = assembleScopes({ ctx, store, presets: () => agentPresets, workspaces: () => workspaceRegistry })
 
   // The raw saved config layer (fields the user explicitly overrode); the
   // config route reports it so callers can mark overridden fields. Empty when
@@ -198,6 +201,7 @@ export function apply(ctx: Context, config?: Config): void {
           saved,
           updateConfig,
           scopes: scopes.deps,
+          workspaces: scopes.workspaceDeps,
         }).map((route) => ctx.webServer.register(route))
         return () => {
           for (const dispose of disposers) dispose()
@@ -235,6 +239,12 @@ export function apply(ctx: Context, config?: Config): void {
   // sync 一次，让 /presets 立刻能报出名单。
   ctx.inject(['agentPresets'] as unknown as ['skills'], (pctx) => {
     agentPresets = (pctx as unknown as { agentPresets?: unknown }).agentPresets
+    sync()
+  })
+
+  // `ctx.workspaceRegistry` 同样是可选依赖：缺席时「工作区」tab 只报告能力不可用。
+  ctx.inject(['workspaceRegistry'] as unknown as ['skills'], (pctx) => {
+    workspaceRegistry = (pctx as unknown as { workspaceRegistry?: unknown }).workspaceRegistry
     sync()
   })
 

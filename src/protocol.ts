@@ -65,23 +65,31 @@ export type {
   TagMembersResponse,
 } from './protocol/groups.ts'
 export type {
+  PolicyEntries,
   ScopePolicy,
+  WorkspacePolicy,
   PresetScopeRow,
   PresetsResponse,
   ScopeSaveRequest,
   ScopeSaveResponse,
   ScopePreviewResponse,
+  WorkspaceScopeRow,
+  WorkspacesResponse,
+  WorkspaceSaveRequest,
+  WorkspaceSaveResponse,
 } from './protocol/scopes.ts'
 export {
   SCOPE_ENTRY_PREFIX,
   MAX_SCOPE_ENTRIES,
   PRESET_ID_RE,
+  WORKSPACE_ID_RE,
   tagKey,
   collectionKey,
   sourceKey,
   skillKey,
   parseScopeEntry,
   normalizeScopePolicy,
+  normalizeWorkspacePolicy,
   cleanKeys,
   cleanNames,
 } from './protocol/scopes.ts'

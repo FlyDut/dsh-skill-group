@@ -31,6 +31,20 @@ describe('PresetGateProvider', () => {
     })
   })
 
+  it('把查找的 cwd 透传给隐藏集合读取（工作区按会话目录判定）', async () => {
+    const seen: Array<string | undefined> = []
+    const provider = new PresetGateProvider('coding', async (cwd) => {
+      seen.push(cwd)
+      return cwd === '/w/alpha' ? new Map([['alpha-skill', meta()]]) : new Map()
+    })
+
+    expect((await provider.list({ cwd: '/w/alpha' }) as SkillCandidate[]).map((c) => c.name)).toEqual(['alpha-skill'])
+    expect(await provider.list({ cwd: '/w/beta' })).toEqual([])
+    // 没有 cwd（无工作区的查找）退化为"没有工作区隐藏集合"。
+    expect(await provider.list({})).toEqual([])
+    expect(seen).toEqual(['/w/alpha', '/w/beta', undefined])
+  })
+
   it('候选形状满足注册表的硬校验（provider 必须自报其注册名）', async () => {
     const [candidate] = await gate(new Map([['alpha-skill', meta()]])).list({}) as SkillCandidate[]
     expect(candidate.provider).toBe(GATE_PROVIDER_NAME)

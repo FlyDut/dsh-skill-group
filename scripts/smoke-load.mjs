@@ -101,6 +101,14 @@ ctx.provide('agentPresets', {
   ],
 })
 
+// 真实部署里由 dsh-workspace 提供服务；这里给一个最小替身，让 /workspaces 能列出条目。
+ctx.provide('workspaceRegistry', {
+  list: () => [
+    { id: 'ws-alpha', path: '/w/alpha', title: 'Alpha 工程', sessionIds: ['s1', 's2'] },
+    { id: 'ws-beta', path: '/w/beta' },
+  ],
+})
+
 // ── 装载构建产物 ────────────────────────────────────────────────────────
 const mod = await import('../lib/index.js')
 check('plugin name', mod.name, 'skill-hub')
@@ -114,10 +122,10 @@ await ctx.plugin({ name: mod.name, inject: mod.inject, apply: mod.apply }, plugi
 log('plugin loaded; routes registered:', routes.length)
 
 // 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
-// 31 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
+// 33 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
 const exactRoutes = routes.filter((r) => r.kind === 'exact')
 const prefixRoutes = routes.filter((r) => r.kind === 'prefix')
-check('exact route family mounted exactly once', exactRoutes.length, 31)
+check('exact route family mounted exactly once', exactRoutes.length, 33)
 check('every exact route path is unique', new Set(exactRoutes.map((r) => r.path)).size, exactRoutes.length)
 check('one 404 catch-all covers the family', prefixRoutes.length, 1)
 check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')
@@ -126,6 +134,8 @@ const presetsRoute = routes.find((r) => r.path === '/api/skill-hub/presets')
 check('/presets route present', presetsRoute !== undefined, true)
 check('/scope route present', routes.some((r) => r.path === '/api/skill-hub/scope'), true)
 check('/scope/preview route present', routes.some((r) => r.path === '/api/skill-hub/scope/preview'), true)
+check('/workspaces route present', routes.some((r) => r.path === '/api/skill-hub/workspaces'), true)
+check('/workspace route present', routes.some((r) => r.path === '/api/skill-hub/workspace'), true)
 
 // ── 走一遍真实 HTTP handler ─────────────────────────────────────────────
 function fakeReq(method, url, body) {
@@ -173,6 +183,32 @@ await routes.find((r) => r.path === '/api/skill-hub/scope/preview').handler(
 check('/scope/preview answers 200', previewRes.status, 200)
 log('  preview:', JSON.stringify(previewRes.json()))
 
+const workspacesRes = fakeRes()
+await routes.find((r) => r.path === '/api/skill-hub/workspaces').handler(
+  fakeReq('GET', '/api/skill-hub/workspaces'), workspacesRes,
+)
+const listedWorkspaces = workspacesRes.json()
+check('/workspaces answers 200', workspacesRes.status, 200)
+check('/workspaces reports available (registry shape resolved)', listedWorkspaces.available, true)
+check('/workspaces lists the registry rows with policy projection',
+  listedWorkspaces.workspaces.map((w) => [w.id, w.title, w.sessionCount, w.present, w.policy.enabled]),
+  [['ws-alpha', 'Alpha 工程', 2, true, false], ['ws-beta', undefined, 0, true, false]])
+check('/workspaces starts with nothing pending', listedWorkspaces.pendingCount, 0)
+
+const saveWorkspaceRes = fakeRes()
+await routes.find((r) => r.path === '/api/skill-hub/workspace').handler(
+  fakeReq('POST', '/api/skill-hub/workspace', { workspaceId: 'ws-alpha', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] }),
+  saveWorkspaceRes,
+)
+check('/workspace saves a policy', saveWorkspaceRes.status, 200)
+check('/workspace echoes it back', saveWorkspaceRes.json().policy,
+  { workspaceId: 'ws-alpha', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] })
+const orphanRes = fakeRes()
+await routes.find((r) => r.path === '/api/skill-hub/workspaces').handler(
+  fakeReq('GET', '/api/skill-hub/workspaces'), orphanRes,
+)
+check('/workspaces counts an enabled policy with no gate wired as pending', orphanRes.json().pendingCount, 1)
+
 // 未知路径必须由兜底路由回写明路径的 404（落到宿主 SPA fallback 会变 401，
 // 排查时会被误读成鉴权问题）。
 const notFoundRes = fakeRes()
@@ -213,7 +249,9 @@ check('/skill/delete reports per-name failures without failing the batch',
 // ── 落盘与重载 ──────────────────────────────────────────────────────────
 const { readFile } = await import('node:fs/promises')
 const persisted = JSON.parse(await readFile(join(home, 'dsh-skill-group.json'), 'utf8'))
-check('sidecar schema bumped to v6', persisted.version, 6)
+check('sidecar schema bumped to v7', persisted.version, 7)
+check('workspace policy persisted', persisted.workspaces,
+  [{ workspaceId: 'ws-alpha', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] }])
 check('policy persisted', persisted.scopes, [{ presetId: 'smoke-preset', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] }])
 
 // ── 卸载：全部副作用必须撤干净 ─────────────────────────────────────────

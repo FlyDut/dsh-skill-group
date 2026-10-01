@@ -38,6 +38,8 @@ export type {
   SkillLookupLike,
   ScopeRouteDeps,
   ScopePresetSnapshot,
+  WorkspaceRouteDeps,
+  WorkspaceRosterSnapshot,
   WritableSkill,
 } from './deps.ts'
 export { buildCollections, buildGroups } from './collection.ts'

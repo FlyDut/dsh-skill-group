@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, WorkspacePolicy } from '../protocol.ts'
 import * as marketOps from './domains/market.ts'
 import * as scopeOps from './domains/scopes.ts'
 import * as sourceOps from './domains/sources.ts'
@@ -21,6 +21,8 @@ export class SkillHubStore {
   private sourceGroupOrder: string[] = []
   /** v5: 模式（preset）→ 技能可见性策略；缺席的 preset 不做隔离。 */
   private scopesByPreset = new Map<string, ScopePolicy>()
+  /** v7: 工作区 id → 技能可见性策略；与模式策略取并集后生效。 */
+  private workspacesById = new Map<string, WorkspacePolicy>()
   private loaded = false
   /** Serializes persist runs: concurrent mutators must not let an earlier
    *  snapshot overwrite a later one (rename is atomic, ordering is not). */
@@ -49,6 +51,7 @@ export class SkillHubStore {
         this.collectionOrder = state.collectionOrder
         this.sourceGroupOrder = state.sourceGroupOrder
         this.scopesByPreset = new Map(state.scopes.map((policy) => [policy.presetId, policy] as const))
+        this.workspacesById = new Map(state.workspaces.map((policy) => [policy.workspaceId, policy] as const))
       }
     } catch (error) {
       // Missing or unreadable state starts empty; never crash the plugin.
@@ -222,6 +225,47 @@ export class SkillHubStore {
   async deleteScope(presetId: string): Promise<boolean> {
     await this.ensureLoaded()
     if (!this.scopesByPreset.delete(presetId)) return false
+    await this.persist()
+    return true
+  }
+
+  // --------------------------------------------------------- workspaces
+
+  /** 全部工作区策略，按 workspaceId 排序。 */
+  async listWorkspacePolicies(): Promise<WorkspacePolicy[]> {
+    await this.ensureLoaded()
+    return [...this.workspacesById.values()].sort((a, b) => a.workspaceId.localeCompare(b.workspaceId))
+  }
+
+  /** 一个工作区的策略；没有保存过时返回 undefined（= 不隔离）。 */
+  async getWorkspacePolicy(workspaceId: string): Promise<WorkspacePolicy | undefined> {
+    await this.ensureLoaded()
+    const found = this.workspacesById.get(workspaceId)
+    return found === undefined ? undefined : scopeOps.copyWorkspacePolicy(found)
+  }
+
+  /**
+   * 保存一个工作区的策略（部分更新；缺席字段保持现值）。规则与
+   * {@link saveScope} 完全一致：新建默认不启用，提供的清单整体替换。
+   * @param workspaceId - 目标工作区；形状非法时抛 StoreError。
+   * @param patch - 要落地的字段。
+   * @returns 保存后的策略快照。
+   */
+  async saveWorkspacePolicy(workspaceId: string, patch: { enabled?: boolean; groups?: string[]; skills?: string[] }): Promise<WorkspacePolicy> {
+    await this.ensureLoaded()
+    const next = scopeOps.saveWorkspacePolicy(this.workspacesById, workspaceId, patch)
+    await this.persist()
+    return scopeOps.copyWorkspacePolicy(next)
+  }
+
+  /**
+   * 删除一个工作区的策略（回到"不限制"）。
+   * @param workspaceId - 目标工作区。
+   * @returns 是否确实删掉了一条。
+   */
+  async deleteWorkspacePolicy(workspaceId: string): Promise<boolean> {
+    await this.ensureLoaded()
+    if (!this.workspacesById.delete(workspaceId)) return false
     await this.persist()
     return true
   }
@@ -413,6 +457,7 @@ export class SkillHubStore {
         ...(this.collectionOrder.length > 0 ? { collectionOrder: [...this.collectionOrder] } : {}),
         ...(this.sourceGroupOrder.length > 0 ? { sourceGroupOrder: [...this.sourceGroupOrder] } : {}),
         ...(this.scopesByPreset.size > 0 ? { scopes: [...this.scopesByPreset.values()] } : {}),
+        ...(this.workspacesById.size > 0 ? { workspaces: [...this.workspacesById.values()] } : {}),
       }
       const tmp = this.file + '.tmp'
       await mkdir(dirname(this.file), { recursive: true })

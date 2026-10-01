@@ -334,6 +334,65 @@ describe('SkillHubStore', () => {
     expect((await store.listScopes()).map((p) => p.presetId)).toEqual(['coding'])
   })
 
+  it('starts with no workspace policies and reports an unconfigured workspace as unrestricted', async () => {
+    // v6 旧文件没有 workspaces 字段：装载后为空，getWorkspacePolicy 返回 undefined，
+    // 语义是"该工作区不隔离"——升级不能吞掉任何已有会话的技能。
+    await writeFile(file, JSON.stringify({ version: 6, disabled: [], scopes: [] }), 'utf8')
+    expect(await store.listWorkspacePolicies()).toEqual([])
+    expect(await store.getWorkspacePolicy('proj-alpha')).toBeUndefined()
+  })
+
+  it('round-trips a workspace policy and keeps execution off unless explicitly enabled', async () => {
+    const created = await store.saveWorkspacePolicy('proj-alpha', { groups: ['tag:t1'], skills: ['alpha-skill'] })
+    expect(created).toEqual({ workspaceId: 'proj-alpha', enabled: false, groups: ['tag:t1'], skills: ['alpha-skill'] })
+
+    const reloaded = new SkillHubStore(file)
+    expect(await reloaded.getWorkspacePolicy('proj-alpha')).toEqual(created)
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { version: number; workspaces?: unknown[] }
+    expect(raw.version).toBe(STORE_VERSION)
+    expect(raw.workspaces).toEqual([created])
+    // 模式与工作区共用一份 sidecar：各自的桶互不影响。
+    expect(await store.listScopes()).toEqual([])
+  })
+
+  it('partially updates a workspace policy: omitted fields keep their value', async () => {
+    await store.saveWorkspacePolicy('proj-alpha', { groups: ['tag:t1'], skills: ['alpha-skill'], enabled: true })
+    expect(await store.saveWorkspacePolicy('proj-alpha', { skills: [] }))
+      .toEqual({ workspaceId: 'proj-alpha', enabled: true, groups: ['tag:t1'], skills: [] })
+    expect((await store.saveWorkspacePolicy('proj-alpha', { enabled: false })).groups).toEqual(['tag:t1'])
+  })
+
+  it('normalizes workspace entries and rejects an unusable workspace id', async () => {
+    const policy = await store.saveWorkspacePolicy('proj-alpha', { groups: ['tag:t1', 'alpha-skill', 'tag:t1', ''], skills: ['beta-skill', 'beta-skill'] })
+    expect(policy.groups).toEqual(['tag:t1', 'skill:alpha-skill'])
+    expect(policy.skills).toEqual(['beta-skill'])
+    await expect(store.saveWorkspacePolicy('has space', { groups: [] })).rejects.toThrow(/invalid workspace id/)
+  })
+
+  it('deletes a workspace policy, returning the workspace to unrestricted', async () => {
+    await store.saveWorkspacePolicy('proj-alpha', { enabled: true, groups: ['tag:t1'] })
+    expect(await store.deleteWorkspacePolicy('proj-alpha')).toBe(true)
+    expect(await store.deleteWorkspacePolicy('proj-alpha')).toBe(false)
+    expect(await store.getWorkspacePolicy('proj-alpha')).toBeUndefined()
+  })
+
+  it('drops a corrupt workspace row instead of failing the whole sidecar', async () => {
+    await writeFile(file, JSON.stringify({
+      version: 7,
+      disabled: [],
+      workspaces: [
+        { workspaceId: 'proj-alpha', enabled: true, groups: ['tag:t1'], skills: [] },
+        { workspaceId: 'proj-alpha', enabled: false, groups: [], skills: [] },
+        { workspaceId: 42, enabled: true },
+        'garbage',
+        { enabled: true },
+      ],
+    }), 'utf8')
+    // 重复 id 后者覆盖前者，坏行整体丢弃。
+    expect((await store.listWorkspacePolicies()).map((policy) => policy.workspaceId)).toEqual(['proj-alpha'])
+    expect((await store.getWorkspacePolicy('proj-alpha'))?.enabled).toBe(false)
+  })
+
   it('drops a corrupt skillStats bucket instead of trusting bad counts', async () => {
     await writeFile(file, JSON.stringify({
       version: 4,

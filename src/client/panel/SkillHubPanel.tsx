@@ -12,8 +12,8 @@
  * owns only the shared chrome (header, banners, filter bar, shared sections)
  * and the view routing. It keeps a single piece of local state (the
  * filter-panel toggle); every flow hook runs unconditionally at the top of
- * useSkillHub, so the detail / tag-editor / scope-editor early returns below
- * stay inside the rules of hooks.
+ * useSkillHub, so the detail / tag-editor / scope-editor / workspace-editor
+ * early returns below stay inside the rules of hooks.
  */
 
 import { useState } from 'react'
@@ -28,6 +28,7 @@ import { SourcesView } from './SourcesView.tsx'
 import { ScenesView } from './ScenesView.tsx'
 import { MarketView } from './MarketView.tsx'
 import { ScopesView } from './ScopesView.tsx'
+import { WorkspacesView } from './WorkspacesView.tsx'
 import { PanelDialogs } from './PanelDialogs.tsx'
 import { useSkillHub } from './useSkillHub.ts'
 import css from './panel.module.css'
@@ -53,7 +54,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     setShowLegend, setEditMode, setDeleteDialog,
     loadMarket, checkSources, requestSync,
     runConfirmed, resolveConflict, confirmBranchChoice, confirmMarketSync, create, saveTag, deleteTag,
-    unstageDelete, confirmDeletes,
+    unstageDelete,
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
@@ -129,10 +130,13 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     )
   }
 
-  // 模式编辑器与 detail / 场景编辑器同类：整页替换，因此在这里提前返回。
-  // 它只有从「模式」tab 点「配置」才会进入，此时不会有 tab 可切。
+  // 模式 / 工作区编辑器与 detail / 场景编辑器同类：整页替换，因此在这里提前返回。
+  // 它们只有从各自的 tab 点「配置」才会进入，此时不会有 tab 可切。
   if (hub.scopeFlow.editingPreset !== null) {
     return <ScopesView hub={hub} notices={notices} />
+  }
+  if (hub.workspaceFlow.editingWorkspace !== null) {
+    return <WorkspacesView hub={hub} notices={notices} />
   }
 
   /** 生效中的筛选条件数（来源 + 调用方式），显示在「筛选」按钮上。 */
@@ -159,6 +163,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
           <button type='button' className={css.segBtn + (tab === 'scenes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scenes') }}>{tt('view.scenes')}</button>
           <button type='button' className={css.segBtn + (tab === 'market' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('market'); void loadMarket() }}>{tt('view.market')}</button>
           <button type='button' className={css.segBtn + (tab === 'scopes' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('scopes'); void hub.scopeFlow.loadScopes() }}>{tt('scope.tab')}</button>
+          <button type='button' className={css.segBtn + (tab === 'workspaces' ? ' ' + css.segBtnActive : '')} onClick={() => { setTab('workspaces'); void hub.workspaceFlow.loadWorkspaces() }}>{tt('workspace.tab')}</button>
         </span>
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
       </div>
@@ -203,6 +208,9 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
       ) : tab === 'scopes' ? (
         // 模式视图是自成一体的列表 + 编辑器，不共享目录筛选栏。
         <ScopesView hub={hub} />
+      ) : tab === 'workspaces' ? (
+        // 工作区视图与模式视图对称：自成一体的列表 + 编辑器。
+        <WorkspacesView hub={hub} />
       ) : catalog !== null ? (
         <>
           <div className={css.filterBar}>

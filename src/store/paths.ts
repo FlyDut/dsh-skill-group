@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { dshHome } from '../env.ts'
-import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord } from '../protocol.ts'
+import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, WorkspacePolicy } from '../protocol.ts'
 
 /** Wire shape persisted on disk. */
 export interface StoreFile {
@@ -27,6 +27,11 @@ export interface StoreFile {
    * 与 `disabled` 正交：那里是全局运行时关闭（所有模式都看不到），这里只是某些模式看不到。
    */
   scopes?: ScopePolicy[]
+  /**
+   * 工作区级技能可见性策略（v7）。每个 DSH 工作区一条；与 `scopes` 取并集后
+   * 才是一个会话真正可见的集合。
+   */
+  workspaces?: WorkspacePolicy[]
 }
 
 /** Resolve the sidecar state path (injectable in tests). */
@@ -35,4 +40,4 @@ export function statePath(home = dshHome()): string {
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */
-export const STORE_VERSION = 6
+export const STORE_VERSION = 7

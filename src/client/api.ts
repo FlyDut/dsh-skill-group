@@ -48,6 +48,9 @@ import {
   type ToggleBatchResponse,
   type ToggleRequest,
   type ToggleResponse,
+  type WorkspaceSaveRequest,
+  type WorkspaceSaveResponse,
+  type WorkspacesResponse,
 } from '../protocol.ts'
 
 /**
@@ -287,5 +290,15 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
   /** 写入某个模式的策略（部分更新；reset 删除策略）。 */
   saveScope(payload: ScopeSaveRequest): Promise<ScopeSaveResponse> {
     return this.post<ScopeSaveResponse>(SKILL_HUB_API.scope, payload)
+  }
+
+  /** DSH 工作区名单 + 每个工作区的策略、可见/隐藏计数。 */
+  workspaces(): Promise<WorkspacesResponse> {
+    return this.get<WorkspacesResponse>(SKILL_HUB_API.workspaces)
+  }
+
+  /** 写入某个工作区的策略（部分更新；reset 删除策略）。 */
+  saveWorkspace(payload: WorkspaceSaveRequest): Promise<WorkspaceSaveResponse> {
+    return this.post<WorkspaceSaveResponse>(SKILL_HUB_API.workspace, payload)
   }
 }

@@ -47,10 +47,14 @@ interface PresetWiringDeps {
   ctx: Context
   /** 载入运行时能力；返回 undefined 表示不可用（原因另行记录）。 */
   runtime: () => Promise<RuntimeBindings | undefined>
-  /** 该 preset 当前是否需要闸门（策略已启用隔离）。 */
+  /** 该 preset 当前是否需要闸门（模式策略或任一工作区策略已启用隔离）。 */
   isEnforced: (presetId: string) => Promise<boolean>
-  /** 该 preset 当前应被遮蔽的技能与元数据。 */
-  hiddenOf: (presetId: string) => Promise<ReadonlyMap<string, ScopeSkillMeta>>
+  /**
+   * 该 preset 在某个工作目录下应被遮蔽的技能与元数据。
+   * @param presetId - 目标 preset。
+   * @param cwd - 会话工作目录（缺省时只算模式策略）。
+   */
+  hiddenOf: (presetId: string, cwd?: string) => Promise<ReadonlyMap<string, ScopeSkillMeta>>
   /** 诊断输出（默认走 ctx.logger）。 */
   log?: (level: 'info' | 'warn', message: string) => void
 }
@@ -219,7 +223,7 @@ export class PresetWiring {
   private async install(presetId: string, key: object, runtime: RuntimeBindings): Promise<void> {
     try {
       const scope = runtime.createScope(this.deps.ctx, key)
-      const provider = new PresetGateProvider(presetId, () => this.deps.hiddenOf(presetId))
+      const provider = new PresetGateProvider(presetId, (cwd) => this.deps.hiddenOf(presetId, cwd))
       let control: { invalidate: () => void } | undefined
       // 通过 scoped ctx 注册：SkillRegistry 把 this.ctx 重绑定到调用者，因此这次
       // 注册落进该 preset 的 layer，而不是 hub 所在的 global layer。
