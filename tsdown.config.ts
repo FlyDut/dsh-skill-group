@@ -22,11 +22,12 @@ import { transform } from 'lightningcss'
 
 /**
  * Plugin id stamped into the __ModuleLoader__.load handoff and style tags.
- * FROZEN: this is the browser-side module id the shell already registers the
- * plugin under, so it keeps the pre-rename name even though the npm package is
- * now @flydut/dsh-skill-group. Changing it would break the client half.
+ * MUST equal the package name: the web loader matches the client factory id
+ * against the package name of the plugin row (ui-plugin reference: "The
+ * browser artifact registers a lazy factory whose id equals the package
+ * name"). A stale id makes boot fail with "loaded without registering".
  */
-const ID = 'dsh-skill-hub'
+const ID = '@flydut/dsh-skill-group'
 
 /**
  * The shell's shared module table (vendored from dsh-web-ui's

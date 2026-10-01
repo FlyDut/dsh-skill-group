@@ -167,7 +167,7 @@ importers:
   .:
     dependencies:
       '@deepseek-ai/dsh-client-runtime':
-        specifier: '>=0.1.1-rc.2 <0.2.0-0'
+        specifier: '>=0.1.1-rc.2 <0.3.0-0'
         version: 0.1.1-rc.2(b89775a0a3c6adce2806c7f18e885266)
       js-yaml:
         specifier: ^4.1.0
