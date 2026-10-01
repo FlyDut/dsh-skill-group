@@ -87,6 +87,25 @@ export function filterBySource(skills: readonly CatalogSkill[], source: string, 
   })
 }
 
+/**
+ * Apply the search box and the origin filter to hub-disabled records.
+ *
+ * Every view that can flip a skill's switch off needs a way back to it — the
+ * disabled row is that way back — so the flat list and the grouped personal
+ * card share this filter instead of each re-deriving it (the flat list used to
+ * drop disabled skills entirely, which made them unreachable outside a scene).
+ */
+export function filterDisabled(
+  records: readonly DisabledSkill[],
+  normalized: string,
+  source: string,
+  origins: Readonly<Record<string, string>>,
+): DisabledSkill[] {
+  return records.filter((record) =>
+    (normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized))
+    && (source === 'all' || (origins[record.name] ?? PRIVATE_SOURCE) === source))
+}
+
 /** One origin collection with the members visible under the current filters. */
 export interface VisibleCollection {
   collection: CollectionGroup

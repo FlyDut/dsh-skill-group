@@ -8,7 +8,7 @@
 
 import { useMemo, useState, type JSX } from 'react'
 import { tt } from '../helpers.ts'
-import { filterBySource, groupSwitchView, isProjectSource, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
+import { filterBySource, filterDisabled, groupSwitchView, isProjectSource, PRIVATE_SOURCE, visibleCollections } from '../grouping.ts'
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
@@ -83,7 +83,24 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, editMode: hub.editMode, tagBusy: hub.tagBusy, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, requestDeleteSkill: hub.requestDeleteSkill }
 
   if (skillView === 'flat') {
-    return <>{sourceFiltered.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}</>
+    // 平铺视图同样要给出恢复入口：关掉开关的技能不能就此从列表里消失
+    // （分组视图的来源卡与个人卡都渲染了这些行，平铺视图原先漏了）。
+    const disabledVisible = filterDisabled(catalog?.disabled ?? [], normalized, sourceFilter, origins)
+    return (
+      <>
+        {sourceFiltered.map((skill) => <SkillRow key={skill.name} skill={skill} {...rowProps} />)}
+        {disabledVisible.map((record) => (
+          <DisabledRow
+            key={record.name}
+            record={record}
+            busy={busyNames.has(record.name)}
+            duplicate={duplicateNames.has(record.name)}
+            onEnable={() => { void enableDisabled(record) }}
+            onOpen={() => { void hub.openDetail(record.name) }}
+          />
+        ))}
+      </>
+    )
   }
 
   // 空状态：没有任何分组时提示

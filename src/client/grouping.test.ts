@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
-import { conflictsOnClose, filterBySource, formatRelativeTime, groupNamesOf, groupSwitchView, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
+import { conflictsOnClose, filterBySource, filterDisabled, formatRelativeTime, groupNamesOf, groupSwitchView, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -105,6 +105,27 @@ describe('visibleCollections', () => {
     const privateRecord = { ...disabledOne, name: 'private-one' }
     const privateCollection: CollectionGroup = { name: 'repo/y', skillNames: ['private-one'] }
     expect(visibleCollections([privateCollection], [], [privateRecord], '', PRIVATE_SOURCE, {}).map((e) => e.collection.name)).toEqual(['repo/y'])
+  })
+})
+
+describe('filterDisabled', () => {
+  const records: DisabledSkill[] = [
+    { name: 'repo-skill', description: 'From a repo', path: '/x/repo-skill/SKILL.md.disabled', root: 'user-dsh', disabledAt: 1 },
+    { name: 'private-skill', description: 'Paused personal', path: '/x/private-skill/SKILL.md.disabled', root: 'user-dsh', disabledAt: 2 },
+  ]
+  const origins = { 'repo-skill': 'repo/x' }
+
+  it('matches on name and description, and passes everything when blank', () => {
+    expect(filterDisabled(records, '', 'all', origins).map((r) => r.name)).toEqual(['repo-skill', 'private-skill'])
+    expect(filterDisabled(records, 'repo-skill', 'all', origins).map((r) => r.name)).toEqual(['repo-skill'])
+    expect(filterDisabled(records, 'paused', 'all', origins).map((r) => r.name)).toEqual(['private-skill'])
+    expect(filterDisabled(records, 'zzz', 'all', origins)).toEqual([])
+  })
+
+  it('follows the origin filter and treats an untracked record as private', () => {
+    expect(filterDisabled(records, '', 'repo/x', origins).map((r) => r.name)).toEqual(['repo-skill'])
+    expect(filterDisabled(records, '', PRIVATE_SOURCE, origins).map((r) => r.name)).toEqual(['private-skill'])
+    expect(filterDisabled(records, '', 'repo/other', origins)).toEqual([])
   })
 })
 
