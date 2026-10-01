@@ -30,7 +30,7 @@ export type {
   CreateResponse,
 } from './protocol/catalog.ts'
 export type { SkillStat, StatsResponse, SkillStatsCheckpoint } from './protocol/stats.ts'
-export type { ErrorResponse, HubConfig, HubSettingsValue, RedactedHubConfig, ConfigResponse, ConfigRequest } from './protocol/config.ts'
+export type { ErrorResponse, HubConfig, HubSettingsValue, RedactedHubConfig, ConfigResponse } from './protocol/config.ts'
 export { HUB_CONFIG_DEFAULTS, HUB_ENTRY_ID, HEX_COLOR_RE, GITHUB_TOKEN_RE, resolveHubConfig, redactGithubToken } from './protocol/config.ts'
 export type {
   MarketSourceRecord,
@@ -51,7 +51,6 @@ export type {
   RepoImportRequest,
   RepoImportResponse,
   RepoImportProgressResponse,
-  RepoImportCancelRequest,
   RepoImportCancelResponse,
 } from './protocol/repo.ts'
 export type {
@@ -66,7 +65,6 @@ export type {
   TagMembersResponse,
   TagReorderRequest,
   TagReorderResponse,
-  CollectionReorderRequest,
   CollectionReorderResponse,
   SourceGroupReorderRequest,
   SourceGroupReorderResponse,

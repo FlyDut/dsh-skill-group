@@ -17,8 +17,8 @@ import { basename, dirname, join } from 'node:path'
 import { dump } from 'js-yaml'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { parseFrontmatter, repairFrontmatterFileText } from './skillfs/frontmatter.ts'
-import { rootOfPath, rootPath } from './skillfs/paths.ts'
-import { dshHome } from './store.ts'
+import { rootOfPath, skillDir } from './skillfs/paths.ts'
+import { dshHome } from './env.ts'
 import type { TrashEntry, WritableRoot } from './protocol.ts'
 
 // Barrel: the frontmatter parser, the writable-root path helpers and the
@@ -38,7 +38,7 @@ export async function createSkill(root: WritableRoot, name: string, description:
   if (!isSkillName(name)) {
     throw new TypeError('skill name must be kebab-case (lowercase letters, digits, dashes): "' + name + '"')
   }
-  const dir = join(rootPath(root, home), name)
+  const dir = skillDir(root, name, home)
   const file = join(dir, 'SKILL.md')
   await mkdir(dir, { recursive: true })
   const safeDescription = description.trim() === '' ? 'New dsh skill created from the skill hub.' : description.trim()

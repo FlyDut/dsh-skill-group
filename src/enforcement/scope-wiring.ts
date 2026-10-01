@@ -42,7 +42,7 @@ export interface RuntimeBindings {
 }
 
 /** 接线器依赖。 */
-export interface PresetWiringDeps {
+interface PresetWiringDeps {
   /** hub 的宿主 ctx；`createScope` 挂在它下面，随插件卸载一起回收。 */
   ctx: Context
   /** 载入运行时能力；返回 undefined 表示不可用（原因另行记录）。 */
@@ -56,7 +56,7 @@ export interface PresetWiringDeps {
 }
 
 /** 接线状态快照（面板展示与诊断）。 */
-export interface WiringStatus {
+interface WiringStatus {
   /** 运行时能力是否可用。 */
   available: boolean
   /** 不可用原因；可用时缺省。 */

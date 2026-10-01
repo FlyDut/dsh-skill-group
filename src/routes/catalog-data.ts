@@ -13,7 +13,7 @@ import {
   type SkillDetail,
   type WritableRoot,
 } from '../protocol.ts'
-import { rootPath, readSkillInterface, scanDiagnostics, type SkillInterface } from '../skillfs.ts'
+import { readSkillInterface, scanDiagnostics, skillDir, skillLocationCandidates, type SkillInterface } from '../skillfs.ts'
 import { CURRENT_VERSION } from '../version.ts'
 import { homeOf, isWritableSource, type SkillHubRouteDeps } from './deps.ts'
 
@@ -129,8 +129,7 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
   const timesByName = new Map<string, { addedAt: number; updatedAt: number }>()
   await Promise.all([...byName.values()].map(async ({ skill }) => {
     if (!isWritableSource(skill.source)) return
-    const base = rootPath(skill.source as WritableRoot, home)
-    for (const candidate of [join(base, skill.name, 'SKILL.md'), join(base, skill.name), join(base, skill.name + '.md')]) {
+    for (const candidate of skillLocationCandidates(skill.source as WritableRoot, skill.name, home)) {
       try {
         const times = await stat(candidate)
         timesByName.set(skill.name, { addedAt: times.birthtimeMs, updatedAt: times.mtimeMs })
@@ -147,7 +146,7 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
   await Promise.all([...byName.entries()].map(async ([logicalKey, { skill, workspace }]) => {
     const candidates: string[] = []
     if (isWritableSource(skill.source as WritableRoot)) {
-      candidates.push(join(rootPath(skill.source as WritableRoot, home), skill.name))
+      candidates.push(skillDir(skill.source as WritableRoot, skill.name, home))
     } else if (isProjectSource(skill.source) && workspace !== undefined) {
       candidates.push(join(workspace, skill.source === 'project-dsh' ? '.dsh/skills' : '.agents/skills', skill.name))
     } else if (isProjectSource(skill.source)) {

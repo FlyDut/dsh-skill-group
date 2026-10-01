@@ -1,6 +1,5 @@
-import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { dshHome } from '../store.ts'
+import { agentsHome, dshHome } from '../env.ts'
 import type { WritableRoot } from '../protocol.ts'
 
 /** Root ids this module may write to. */
@@ -8,10 +7,9 @@ export const WRITABLE_ROOTS: readonly WritableRoot[] = ['user-dsh', 'user-agents
 
 /** Resolve the absolute directory of one writable root. */
 export function rootPath(root: WritableRoot, home = dshHome()): string {
-  const agentsHome = process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
   switch (root) {
     case 'user-dsh': return join(home, 'skills')
-    case 'user-agents': return join(agentsHome, 'skills')
+    case 'user-agents': return join(agentsHome(), 'skills')
     default: throw new TypeError('unknown root: ' + String(root))
   }
 }
@@ -37,4 +35,21 @@ export function rootOfPath(path: string, home = dshHome()): WritableRoot | undef
     }
   }
   return undefined
+}
+
+/** Absolute directory of one skill under a writable root: <root>/<name>. */
+export function skillDir(root: WritableRoot, name: string, home = dshHome()): string {
+  return join(rootPath(root, home), name)
+}
+
+/**
+ * The on-disk shapes of one skill under a writable root, in probe order: the
+ * directory bundle's SKILL.md, the bare directory (for directory-level
+ * metadata), then the flat <name>.md. Callers stat the list in order and stop
+ * at the first hit.
+ */
+export function skillLocationCandidates(root: WritableRoot, name: string, home = dshHome()): string[] {
+  const base = rootPath(root, home)
+  const dir = join(base, name)
+  return [join(dir, 'SKILL.md'), dir, join(base, name + '.md')]
 }

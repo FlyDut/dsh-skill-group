@@ -3,7 +3,7 @@ import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { errorText } from '../error-text.ts'
 
 /** One parsed frontmatter outcome (official provider semantics). */
-export interface FrontmatterValue {
+interface FrontmatterValue {
   name: string
   description: string
   whenToUse?: string

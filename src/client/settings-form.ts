@@ -18,7 +18,7 @@ interface StagedEdit {
 }
 
 /** One editable field spec: formatting plus text parsing. */
-export interface FieldSpec {
+interface FieldSpec {
   field: string
   format: (value: unknown) => string
   parse: (text: string) => { kind: 'set'; value: unknown } | { kind: 'clear' } | undefined

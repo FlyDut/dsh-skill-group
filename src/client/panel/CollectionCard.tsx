@@ -17,7 +17,7 @@ import { ReorderButtons } from './ReorderButtons.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
-export interface CollectionCardProps {
+interface CollectionCardProps {
   collection: CollectionGroup
   /** 该集合内通过筛选的行（启用技能与禁用记录已按当前排序键合并）。 */
   rows: GroupRow[]

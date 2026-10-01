@@ -11,7 +11,7 @@ import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
 /** Props one group switch needs: the derived state plus its group identity. */
-export interface GroupSwitchButtonProps {
+interface GroupSwitchButtonProps {
   /** Derived switch state of the group (all/none/some members enabled). */
   state: GroupSwitchState
   /** Accessible name of the group (aria-label). */

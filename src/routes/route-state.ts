@@ -57,7 +57,7 @@ export interface ImportJob {
   createdAt: number
 }
 export const importJobs = new Map<string, ImportJob>()
-export const IMPORT_JOB_TTL_MS = 5 * 60_000
+const IMPORT_JOB_TTL_MS = 5 * 60_000
 export const IMPORT_JOB_MAX = 100
 export function gcImportJobs(): void {
   const now = Date.now()

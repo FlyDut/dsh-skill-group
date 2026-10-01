@@ -107,7 +107,7 @@ export function filterDisabled(
 }
 
 /** One origin collection with the members visible under the current filters. */
-export interface VisibleCollection {
+interface VisibleCollection {
   collection: CollectionGroup
   /** Enabled, currently visible members. */
   skills: CatalogSkill[]
@@ -190,7 +190,7 @@ export function mergeGroupRows(
 }
 
 /** Localized relative-time tuple; the caller resolves it via tt(). */
-export interface RelativeTime {
+interface RelativeTime {
   key: 'time.justNow' | 'time.minutesAgo' | 'time.hoursAgo' | 'time.daysAgo' | 'time.weeksAgo'
   value?: number
 }

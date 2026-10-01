@@ -12,47 +12,12 @@
 import { isSkillName } from '@deepseek-ai/dsh-skill'
 import { REPO_ROOT_RE } from '../protocol/repo.ts'
 import type { RepoRoot, RepoSkillEntry } from '../protocol.ts'
+import { REPO_ROOT, isRepoRoot, skillDirPrefix, skillFileAt } from './paths.ts'
 import type { RepoFile, RepoRef, RepoTreeItem } from './types.ts'
 
-/**
- * Sentinel root for a skill whose SKILL.md sits directly at the repository
- * root instead of under a top-level directory. That layout is legal and used
- * upstream (a Claude Code plugin manifest may declare `"skills": ["./"]`),
- * and the empty string is the representation that composes with plain prefix
- * arithmetic: an empty prefix *is* the repo root. Every path helper below
- * special-cases it, because `'' + '/' + name` would produce a bogus absolute
- * `/name` that matches no tree path.
- */
-export const REPO_ROOT: RepoRoot = ''
-
-/** True when a root denotes the repo root itself (the repo is the skill dir). */
-export function isRepoRoot(root: string): boolean {
-  return root === REPO_ROOT
-}
-
-/**
- * The tree prefix delimiting a skill directory: empty for the repo-root skill
- * (it owns the whole tree), otherwise `<dir>/`. Single source for collect,
- * manifest, diff and the store's baseline cleanup, so they can never disagree.
- */
-export function skillDirPrefix(dir: string): string {
-  return isRepoRoot(dir) ? '' : dir + '/'
-}
-
-/**
- * A path inside a skill directory, as it appears in the repo tree. Both
- * directions of this mapping matter: repo paths are always '/'-joined (never
- * node:path's OS separator, these are GitHub paths shown in the UI), and the
- * repo-root case must not grow a leading slash.
- */
-export function skillPathIn(dir: string, relative: string): string {
-  return skillDirPrefix(dir) + relative
-}
-
-/** The SKILL.md path inside a skill directory. */
-export function skillFileAt(dir: string): string {
-  return skillPathIn(dir, 'SKILL.md')
-}
+// 路径语义（REPO_ROOT 哨兵与四个前缀帮助函数）在 ./paths.ts，这里转出以保持
+// 既有 `from './discovery.ts'` 与 `from '../repo.ts'` 导入面不变。
+export { REPO_ROOT, isRepoRoot, skillDirPrefix, skillPathIn, skillFileAt } from './paths.ts'
 
 /**
  * Top-level dot entries are repo tooling, never part of a skill: `.github/`,

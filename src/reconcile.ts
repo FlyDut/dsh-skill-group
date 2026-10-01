@@ -13,10 +13,10 @@
 import { readFile, stat } from 'node:fs/promises'
 import type { DisabledSkill } from './protocol.ts'
 import { parseFrontmatter, rootPath, scanDisabledRoot, WRITABLE_ROOTS } from './skillfs.ts'
-import { dshHome } from './store.ts'
+import { dshHome } from './env.ts'
 
 /** Narrow store view used by the reconcile (SkillHubStore satisfies it). */
-export interface DisabledReconcileStore {
+interface DisabledReconcileStore {
   listDisabled(): Promise<DisabledSkill[]>
   addDisabled(entry: DisabledSkill): Promise<void>
 }

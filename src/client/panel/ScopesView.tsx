@@ -25,7 +25,7 @@
 import { useMemo, useState, type JSX } from 'react'
 import type { CatalogResponse, PresetScopeRow } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
-import { scopeGroupOptions, useScopeFlow } from './hooks/useScopeFlow.ts'
+import { scopeGroupOptions } from './hooks/useScopeFlow.ts'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 

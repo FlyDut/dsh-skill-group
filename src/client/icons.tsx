@@ -14,7 +14,7 @@
 import type { JSX } from 'react'
 
 /** Props understood by the dsh icon family: size + optional className. */
-export interface IconProps {
+interface IconProps {
   size?: number
   className?: string
 }

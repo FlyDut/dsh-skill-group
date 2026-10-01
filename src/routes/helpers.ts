@@ -53,7 +53,7 @@ export {
 export type { WorkspaceEntry } from './catalog-data.ts'
 
 /** What a route handler receives: fences already passed, URL/body prepared. */
-export interface RouteContext {
+interface RouteContext {
   req: IncomingMessage
   res: ServerResponse
   /** Request URL parsed against a localhost base (query reading for GET). */
@@ -62,7 +62,7 @@ export interface RouteContext {
   body: Record<string, unknown>
 }
 
-export type RouteHandler = (context: RouteContext) => Promise<void>
+type RouteHandler = (context: RouteContext) => Promise<void>
 
 /** One declarative route: path + accepted methods + the business handler. */
 export interface RouteSpec {

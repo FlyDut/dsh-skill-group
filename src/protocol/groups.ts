@@ -83,11 +83,6 @@ export interface TagReorderResponse {
   tags: SkillTag[]
 }
 
-/** POST /api/skill-hub/collections/reorder — 拖拽重排来源集合 */
-export interface CollectionReorderRequest {
-  /** 按新顺序排列的集合名列表（需包含全部 name） */
-  orderedNames: string[]
-}
 /** POST /api/skill-hub/collections/reorder */
 export interface CollectionReorderResponse {
   ok: true

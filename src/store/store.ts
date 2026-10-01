@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
-import { skillDirPrefix } from '../repo/discovery.ts'
+import { skillDirPrefix } from '../repo/paths.ts'
 import { StoreError } from './errors.ts'
 import { hydrateMigratedState, migrateStore } from './migrate.ts'
 import { DEFAULT_SCENE_NAME, STORE_VERSION, statePath, type StoreFile } from './paths.ts'

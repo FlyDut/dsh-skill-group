@@ -7,7 +7,7 @@ import { stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { errorText } from '../error-text.ts'
 import { RepoFetchError } from '../repo.ts'
-import { StoreError } from '../store.ts'
+import { StoreError } from '../store/errors.ts'
 
 /** Cap on JSON request bodies (toggle/create payloads are tiny). */
 export const MAX_JSON_BODY_BYTES = 64 * 1024

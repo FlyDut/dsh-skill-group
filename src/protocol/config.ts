@@ -147,29 +147,5 @@ export interface ConfigResponse {
   githubTokenSet: boolean
 }
 
-/** POST /api/skill-hub/config — a partial patch; omitted fields keep their values. */
-export interface ConfigRequest {
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  enabled?: boolean | null
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  announceToAgent?: boolean | null
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  showUseCount?: boolean | null
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  showUseTime?: boolean | null
-  /** Set the field; null clears the saved override so it re-inherits the default. */
-  showGroupSummary?: boolean | null
-  /** Set the dot color; null clears the saved override so it re-inherits the default. */
-  dotModelColor?: string | null
-  /** Set the dot color; null clears the saved override so it re-inherits the default. */
-  dotUserColor?: string | null
-  /** 统计滚动窗口天数（0 = 全部历史）；null 清除覆盖回默认。 */
-  statsWindowDays?: number | null
-  /** 自动统计扫描间隔（分钟）；null 清除覆盖回默认。 */
-  statsScanMinutes?: number | null
-  /** Set the GitHub token; null/empty clears it back to anonymous. */
-  githubToken?: string | null
-}
-
 /** GitHub token validation shared by host routes and the settings card. */
 export const GITHUB_TOKEN_RE = /^[A-Za-z0-9_\-]{8,255}$/

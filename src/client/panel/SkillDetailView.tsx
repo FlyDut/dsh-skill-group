@@ -12,7 +12,7 @@ import css from './panel.module.css'
 import { dotStyle, formatDateTime, shortSha } from './format.ts'
 import { SourceStatusBadge } from './SourceStatusBadge.tsx'
 
-export interface SkillDetailViewProps {
+interface SkillDetailViewProps {
   detail: SkillDetail
   hubConfig: HubConfig | null
   /** skillName → usage stat (count + last used). */

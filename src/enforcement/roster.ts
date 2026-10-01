@@ -10,7 +10,7 @@
  */
 
 /** `ctx.agentPresets` 的结构视图（只取投影需要的字段，便于测试替身）。 */
-export interface AgentPresetsLike {
+interface AgentPresetsLike {
   /** 全部 preset。 */
   list: () => Promise<readonly AgentPresetLike[]>
   /** 未指定时默认使用的 preset id。 */
@@ -18,7 +18,7 @@ export interface AgentPresetsLike {
 }
 
 /** 一个 preset 的读数。 */
-export interface AgentPresetLike {
+interface AgentPresetLike {
   id: string
   trust: 'system' | 'user'
   name?: string

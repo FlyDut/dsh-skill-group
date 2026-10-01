@@ -100,9 +100,6 @@ export interface RepoImportProgressResponse {
 }
 
 /** POST /api/skill-hub/repo/import/cancel */
-export interface RepoImportCancelRequest {
-  jobId: string
-}
 export interface RepoImportCancelResponse {
   ok: true
   jobId: string

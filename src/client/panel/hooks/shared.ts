@@ -49,9 +49,9 @@ export const SLOW_POLL_MS = 60_000
 export const USES_CATCH_UP_MAX = 72
 
 /** localStorage key of the last daily auto-check timestamp (survives sessions). */
-export const AUTO_CHECK_KEY = 'skill-hub.last-auto-check'
+const AUTO_CHECK_KEY = 'skill-hub.last-auto-check'
 /** Daily auto-check interval: at most one network round per day. */
-export const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60_000
+const AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60_000
 
 /** Whether the daily auto-check should run now (first visit or ≥24h since the last). */
 export function shouldAutoCheck(): boolean {

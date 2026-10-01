@@ -46,9 +46,8 @@ import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike,
 import { SkillHubStore } from './store.ts'
 import { reconcileDisabledSkills } from './reconcile.ts'
 import { cleanupLeftoverImportDirs, setGithubToken } from './repo.ts'
-import { dshHome } from './store.ts'
-import { join } from 'node:path'
-import { homedir } from 'node:os'
+import { dshHome } from './env.ts'
+import { WRITABLE_ROOTS, rootPath } from './skillfs/paths.ts'
 
 /** Stable cordis plugin name (matches cordis.patch.yml insert id). */
 export const name = 'skill-hub'
@@ -440,9 +439,7 @@ export function apply(ctx: Context, config?: Config): void {
   // document; the sidecar keeps its (now-stale) copy untouched.
   // Startup: 清理 Issue #3 遗留的 .*.import-* 临时目录（尽早回收，不阻塞）
   void (async () => {
-    const home = dshHome()
-    const agentsHome = process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
-    for (const root of [join(home, 'skills'), join(agentsHome, 'skills')]) {
+    for (const root of WRITABLE_ROOTS.map((id) => rootPath(id))) {
       try {
         const c = await cleanupLeftoverImportDirs(root)
         if (c > 0) ctx.logger.info(`[dsh-skill-hub] startup cleaned ${c} leftover import temp dir(s) in ${root}`)
@@ -453,7 +450,7 @@ export function apply(ctx: Context, config?: Config): void {
     // 对账：磁盘上已有 .disabled、sidecar 却无记录（状态文件被恢复/手改、旧版本
     // 遗留）时补记录，否则这些技能在面板里既不算启用也不算禁用，来源组空壳。
     try {
-      const reconciled = await reconcileDisabledSkills(store, home)
+      const reconciled = await reconcileDisabledSkills(store, dshHome())
       if (reconciled.length > 0) {
         ctx.logger.info(`[dsh-skill-hub] startup reconciled ${reconciled.length} disabled skill record(s): ${reconciled.map((entry) => entry.name).join(', ')}`)
       }

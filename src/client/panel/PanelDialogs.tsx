@@ -11,7 +11,7 @@ import { tt } from '../helpers.ts'
 import { BranchChoiceDialog, ConfirmDialog, ConflictDialog, CreateSkillDialog, MarketSyncDialog, VersionChoiceDialog } from './dialogs.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 
-export interface PanelDialogsProps {
+interface PanelDialogsProps {
   /** 分组开关冲突（groupsState 未加载时传空数组）。 */
   conflictDialog: SkillHubState['conflictDialog']
   tags: readonly SkillTag[]

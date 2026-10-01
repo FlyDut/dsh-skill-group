@@ -7,7 +7,7 @@
 
 import type { HubKey } from './locales.ts'
 
-export interface MarketCatalogEntry {
+interface MarketCatalogEntry {
   repo: string
   /** locales.ts key for the one-line description. */
   descriptionKey: HubKey

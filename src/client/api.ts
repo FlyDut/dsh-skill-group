@@ -25,7 +25,6 @@ import {
   type RepoImportRequest,
   type RepoImportResponse,
   type PresetsResponse,
-  type ScopePreviewResponse,
   type ScopeSaveRequest,
   type ScopeSaveResponse,
   type SkillDetail,
@@ -61,7 +60,7 @@ import {
 } from '../protocol.ts'
 
 /** Error carrying the route's JSON error message. */
-export class SkillHubApiError extends Error {
+class SkillHubApiError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'SkillHubApiError'
@@ -298,11 +297,6 @@ export class SkillHubApi {
   /** 模式名单 + 每个模式的策略、可见/隐藏计数与接线状态。 */
   presets(): Promise<PresetsResponse> {
     return this.get<PresetsResponse>(SKILL_HUB_API.presets)
-  }
-
-  /** 某个模式的可见性展开明细（编辑器预览）。 */
-  scopePreview(presetId: string): Promise<ScopePreviewResponse> {
-    return this.get<ScopePreviewResponse>(SKILL_HUB_API.scopePreview, '?presetId=' + encodeURIComponent(presetId))
   }
 
   /** 写入某个模式的策略（部分更新；reset 删除策略）。 */

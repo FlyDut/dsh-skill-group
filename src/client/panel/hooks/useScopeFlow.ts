@@ -15,7 +15,7 @@ import { errorMessage } from '../../helpers.ts'
 import { runFlow, type FlowNotices } from './shared.ts'
 
 /** 编辑器底部需要用户拍板的两种情况。 */
-export type ScopeConfirm = 'empty' | 'reset'
+type ScopeConfirm = 'empty' | 'reset'
 
 export function useScopeFlow(
   api: SkillHubApi,
@@ -242,7 +242,7 @@ export function useScopeFlow(
 }
 
 /** 编辑器里的分组勾选项：键、显示名、成员数与所属类别。 */
-export interface ScopeGroupOption {
+interface ScopeGroupOption {
   key: string
   label: string
   kind: 'tag' | 'col' | 'src'

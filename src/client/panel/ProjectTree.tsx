@@ -11,7 +11,7 @@ import { GroupSummary } from './GroupSummary.tsx'
 import { ReorderButtons } from './ReorderButtons.tsx'
 import css from './panel.module.css'
 
-export interface ProjectTreeProps {
+interface ProjectTreeProps {
   /** 项目级技能（已按来源筛选）。 */
   skills: CatalogSkill[]
   /** 折叠的树键（'project' / 'project:<workspace>' / 'project:<workspace>:<source>'）。 */

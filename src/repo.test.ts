@@ -355,7 +355,7 @@ describe('downloadRepoSkill', () => {
 describe('downloadGitHubFile', () => {
   it('falls back to the api contents endpoint when raw is unreachable', async () => {
     const calls: string[] = []
-    const fetchImpl = async (url: string, init?: RequestInit) => {
+    const fetchImpl = async (url: string, _init?: RequestInit) => {
       calls.push(url)
       if (url.startsWith('https://raw.githubusercontent.com/')) throw new Error('raw blocked')
       if (url.includes('/contents/')) return new Response('---\nname: demo\ndescription: x\n---\n\nbody', { status: 200 })

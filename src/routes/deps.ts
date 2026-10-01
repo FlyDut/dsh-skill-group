@@ -9,7 +9,8 @@ import { resolveHubConfig, type HubConfig, type ScopePolicy, type WritableRoot }
 import type { ScopeVisibility } from '../domain/scope-policy.ts'
 import type { PresetRosterEntry } from '../enforcement/roster.ts'
 import { rootOfPath } from '../skillfs.ts'
-import { dshHome, type SkillHubStore } from '../store.ts'
+import { dshHome } from '../env.ts'
+import { type SkillHubStore } from '../store.ts'
 import { writeError } from './http.ts'
 
 /** Sources the hub may toggle (the user-level filesystem roots). */

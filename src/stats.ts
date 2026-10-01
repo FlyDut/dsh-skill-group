@@ -74,7 +74,7 @@ export type SkillStatsReader = (() => Promise<SkillStat[]>) & {
 }
 
 /** Optional wiring for {@link createSkillStatsReader}. */
-export interface SkillStatsReaderOptions {
+interface SkillStatsReaderOptions {
   /** Checkpoint restored from the sidecar; absent means "start from zero". */
   checkpoint?: SkillStatsCheckpoint
   /** Injectable clock (epoch ms); defaults to Date.now. Tests drive time with it. */

@@ -30,7 +30,7 @@ import {
   skillFileAt,
   skillManifest,
 } from '../repo.ts'
-import { clearTrash, restoreSkill, rootOfPath, rootPath, trashSkill } from '../skillfs.ts'
+import { clearTrash, restoreSkill, rootOfPath, rootPath, skillDir, trashSkill } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   buildCollections,
@@ -206,7 +206,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
             failed.push({ name, error: 'skill is not tracked by this source' })
             continue
           }
-          const sourcePath = join(rootPath('user-dsh', home), name)
+          const sourcePath = skillDir('user-dsh', name, home)
           if (rootOfPath(sourcePath, home) === undefined) {
             failed.push({ name, error: 'skill path is outside the hub writable roots' })
             continue
@@ -253,7 +253,7 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const entry = await deps.store.getTrash(name)
         if (entry === undefined) { writeError(res, 404, 'trash entry not found: ' + name); return }
         const home = homeOf(deps)
-        const target = entry.sourcePath ?? join(rootPath('user-dsh', home), name)
+        const target = entry.sourcePath ?? skillDir('user-dsh', name, home)
         if (await pathExists(target)) {
           writeError(res, 409, 'skill already exists: ' + name)
           return

@@ -1,5 +1,5 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { dshHome } from '../env.ts'
 import type { DisabledSkill, HubConfig, MarketSourceRecord, MarketStatsSnapshot, ScopePolicy, SkillStatsCheckpoint, SkillTag, SourceRecord, TrashEntry } from '../protocol.ts'
 
 /** 默认场景名（系统预置的兜底场景，新技能自动归入）。 */
@@ -32,11 +32,6 @@ export interface StoreFile {
    * 与 `disabled` 正交：那里是全局硬禁用（改文件名），这里只是某些模式看不到。
    */
   scopes?: ScopePolicy[]
-}
-
-/** Resolve the DSH home directory (the filesystem provider's user-dsh root base). */
-export function dshHome(): string {
-  return process.env.DSH_HOME ?? join(homedir(), '.dsh')
 }
 
 /** Resolve the sidecar state path (injectable in tests). */

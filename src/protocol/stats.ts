@@ -58,7 +58,7 @@ export interface SkillStatsCheckpoint {
 }
 
 /** One cold-path cache entry: what a session's log contained at a revision. */
-export interface ColdRevisionEntry {
+interface ColdRevisionEntry {
   /** The persistence seam's opaque revision token, stringified. */
   rev: string
   /** header.createdAt at read time (0 when the header carried none). */

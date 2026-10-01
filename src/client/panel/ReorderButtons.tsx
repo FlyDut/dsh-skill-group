@@ -8,7 +8,7 @@ import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
 /** Props one reorder pair needs: current position edges plus the move callback. */
-export interface ReorderButtonsProps {
+interface ReorderButtonsProps {
   /** False when the item is already first. */
   canMoveUp: boolean
   /** False when the item is already last. */

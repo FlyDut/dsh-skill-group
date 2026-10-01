@@ -33,7 +33,7 @@ export interface ScopeCatalogSnapshot {
 }
 
 /** 宿主注入的依赖：全部 IO 都在这里。 */
-export interface ScopeViewDeps {
+interface ScopeViewDeps {
   /** 读取目录快照。 */
   catalog: () => Promise<ScopeCatalogSnapshot>
   /**

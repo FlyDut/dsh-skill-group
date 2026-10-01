@@ -4,11 +4,11 @@ import { load } from 'js-yaml'
 import { parseFrontmatter, repairFrontmatterFileText } from './frontmatter.ts'
 import { rootPath } from './paths.ts'
 import { errorText } from '../error-text.ts'
-import { dshHome } from '../store.ts'
+import { dshHome } from '../env.ts'
 import type { DiagnosticEntry, WritableRoot } from '../protocol.ts'
 
 /** One discoverable skill file in a scanned root. */
-export interface SkillEntry {
+interface SkillEntry {
   /** Absolute path of the discovery file (SKILL.md or the flat .md). */
   path: string
   /** Directory serving as the resource base (bundle dir or the root itself). */
@@ -49,7 +49,7 @@ export async function scanRoot(base: string): Promise<SkillEntry[]> {
 }
 
 /** Scan one writable root. */
-export function listSkillEntries(root: WritableRoot, home = dshHome()): Promise<SkillEntry[]> {
+function listSkillEntries(root: WritableRoot, home = dshHome()): Promise<SkillEntry[]> {
   return scanRoot(rootPath(root, home))
 }
 

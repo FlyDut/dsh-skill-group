@@ -13,7 +13,7 @@ import type { CardShell } from './settings-form.ts'
 import css from './settings-card.module.css'
 
 /** Card-level chrome props. */
-export interface PluginSettingsCardProps {
+interface PluginSettingsCardProps {
   /** Locale translator for the owning plugin's namespace (its own key domain). */
   t: (key: HubKey) => string
   /** Locale key of the card title. */
@@ -90,7 +90,7 @@ export function PluginSettingsCard(props: PluginSettingsCardProps): ReactElement
 }
 
 /** Fields every staged control shares: copy, draft text, override state and actions. */
-export interface FieldBaseProps {
+interface FieldBaseProps {
   label: string
   hint: string
   overriddenLabel: string
@@ -104,7 +104,7 @@ export interface FieldBaseProps {
 }
 
 /** Props the shared field head needs: identity, override badge and reset. */
-export interface FieldShellProps {
+interface FieldShellProps {
   /** Control id for the label's htmlFor; omitted when the head labels no control. */
   id?: string
   label: string
@@ -119,7 +119,7 @@ export interface FieldShellProps {
  * The head row every staged field shares: the label (plain text when the
  * control has no id) plus the overridden badge and its reset button.
  */
-export function FieldShell(props: FieldShellProps): ReactElement {
+function FieldShell(props: FieldShellProps): ReactElement {
   return (
     <div className={css.head}>
       {props.id !== undefined
@@ -142,7 +142,7 @@ export function FieldShell(props: FieldShellProps): ReactElement {
  * An empty text value means the field inherits its default; the switch still
  * reflects the effective default and becomes an explicit override on click.
  */
-export type SwitchFieldProps = FieldBaseProps
+type SwitchFieldProps = FieldBaseProps
 
 export function SwitchField(props: SwitchFieldProps): ReactElement {
   const checked = props.text !== 'false'
@@ -170,7 +170,7 @@ export function SwitchField(props: SwitchFieldProps): ReactElement {
 }
 
 /** One staged color field: a native color picker plus the hex draft text. */
-export interface ColorFieldProps extends FieldBaseProps {
+interface ColorFieldProps extends FieldBaseProps {
   id: string
   inheritLabel: string
   /** The default color the picker shows while inheriting (per-field). */
@@ -209,7 +209,7 @@ export function ColorField(props: ColorFieldProps): ReactElement {
  * One staged secret field: a password input that never echoes the stored
  * value. Shows a "set" state via the overridden badge; Reset unsets it.
  */
-export interface SecretFieldProps extends FieldBaseProps {
+interface SecretFieldProps extends FieldBaseProps {
   id: string
   /** Placeholder shown while empty (never the stored token). */
   placeholder: string
@@ -238,7 +238,7 @@ export function SecretField(props: SecretFieldProps): ReactElement {
 }
 
 /** One staged numeric field: a numeric draft text input with inherit/reset semantics. */
-export interface NumberFieldProps extends FieldBaseProps {
+interface NumberFieldProps extends FieldBaseProps {
   id: string
   /** Placeholder shown while the field inherits its default. */
   inheritLabel: string

@@ -43,7 +43,7 @@ type FieldRow =
   | { kind: 'secret'; field: SkillHubField; id: string; label: HubKey; hint: HubKey; placeholder: HubKey }
 
 /** The business face the card's slot registration injects. */
-export interface SkillHubSettingsCardFace {
+interface SkillHubSettingsCardFace {
   hooks: {
     /** The card's snapshot store (projected form state). */
     skillHubSettingsCard: SnapshotStore<SkillHubSettingsState>
@@ -55,7 +55,7 @@ export interface SkillHubSettingsCardFace {
 }
 
 /** Props the slot renderer binds (locale copy + injected form actions). */
-export type SkillHubSettingsCardProps =
+type SkillHubSettingsCardProps =
   PropsRuntime<'plugins.bundle.config'> & PropsLocale<'dsh-skill-hub'> & InjectFace<SkillHubSettingsCardFace>
 
 /** Bridges the hub's config scope onto the card's staged form. */

@@ -9,7 +9,7 @@ import type { CatalogResponse, SkillTag } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
-export interface TagEditorViewProps {
+interface TagEditorViewProps {
   tag: SkillTag
   /** Current name draft (panel-owned). */
   editName: string

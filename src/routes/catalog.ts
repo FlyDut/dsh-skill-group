@@ -18,7 +18,7 @@ import {
   type ToggleResponse,
   type WritableRoot,
 } from '../protocol.ts'
-import { createSkill, disableSkill, enableSkill, parseFrontmatter, readSkillInterface, rootOfPath, rootPath, trashSkill } from '../skillfs.ts'
+import { createSkill, disableSkill, enableSkill, parseFrontmatter, readSkillInterface, rootOfPath, skillDir, trashSkill } from '../skillfs.ts'
 import { errorText } from '../error-text.ts'
 import {
   applyInterface,
@@ -283,7 +283,7 @@ export function catalogRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         // A directory may exist without producing a registry entry (invalid
         // frontmatter — exactly what the diagnostics section reports).
         // Refuse to overwrite it instead of silently truncating its SKILL.md.
-        const target = join(rootPath(root, homeOf(deps)), name)
+        const target = skillDir(root, name, homeOf(deps))
         if (await pathExists(target)) {
           writeError(res, 409, 'skill directory already exists on disk: ' + name + ' (check the discovery diagnostics)')
           return

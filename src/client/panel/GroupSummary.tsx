@@ -10,7 +10,7 @@ import { relativeTimeText } from './format.ts'
 import css from './panel.module.css'
 
 /** The narrowed hub surface one group summary consumes. */
-export interface GroupSummaryProps {
+interface GroupSummaryProps {
   /** The group's member skill names. */
   members: readonly string[]
   /** skillName → usage stats. */
