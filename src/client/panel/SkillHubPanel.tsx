@@ -145,7 +145,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   return (
     <div className={css.panel} aria-busy={batchBusy || tagBusy}>
       <div className={css.header}>
-        <h2 className={css.title}><IconSkillOutline16 size={16} className={css.titleIcon} /> {tt('panel.title')}{catalog !== null ? <span className={css.pluginVersion}>v{catalog.pluginVersion}</span> : null}</h2>
+        <h2 className={css.title}><IconSkillOutline16 size={16} className={css.titleIcon} /> {tt('panel.title')}</h2>
         {catalog !== null
           ? <span className={css.headerCount}>
               {tt('panel.count', { count: catalog.skills.length + catalog.disabled.length })}

@@ -119,7 +119,7 @@ const FIELD_ROWS: readonly FieldRow[] = [
 export function SkillHubSettingsCard(props: SkillHubSettingsCardProps): ReactElement {
   const { t } = props
   const state = props.useSkillHubSettingsCard((snapshot) => snapshot)
-  // 插件自身版本：挂载时从 config 路由取一次（与面板标题徽标同源），失败静默不显示。
+  // 插件自身版本：挂载时从 config 路由取一次；失败静默不显示。
   const [version, setVersion] = useState<string | undefined>(undefined)
   useEffect(() => {
     let cancelled = false
