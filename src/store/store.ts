@@ -177,38 +177,26 @@ export class SkillHubStore {
     if (tagOps.removeSkillFromTags(this.tagsById, name)) await this.persist()
   }
 
-  /** Reorder tag groups by orderedIds (编辑态的 ↑↓ 按钮). */
-  async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
-    await this.ensureLoaded()
-    this.tagsById = tagOps.reorderTags(this.tagsById, orderedIds)
-    await this.persist()
-    return [...this.tagsById.values()]
-  }
-
   /**
    * 来源集合（collection）的排序键。
    *
-   * 遗留字段：当前 UI 的拖拽顺序统一走 `sourceGroupOrder`（顶层键含
-   * `col:<name>`），因此这里**没有写入端**——方法保留只为读取旧数据文件里
-   * 已有的顺序（`buildCollections` 用它排 collection 分组）。
+   * 遗留字段：当前 UI 没有分组排序入口，因此这里**没有写入端**——方法保留
+   * 只为读取旧数据文件里已有的顺序（`buildCollections` 用它排 collection
+   * 分组）。
    */
   async getCollectionOrder(): Promise<string[]> {
     await this.ensureLoaded()
     return [...this.collectionOrder]
   }
 
-  /** Source top-level group order for 来源分组（project / col:xxx / personal） */
+  /**
+   * 来源顶层分组顺序（project / col:xxx / personal）。
+   *
+   * 遗留字段：UI 已经没有排序入口，这里**没有写入端**——方法保留只为读取
+   * 旧数据文件里已有的顺序（SourcesView 用它排顶层卡片）。
+   */
   async getSourceGroupOrder(): Promise<string[]> {
     await this.ensureLoaded()
-    return [...this.sourceGroupOrder]
-  }
-
-  /** Reorder source top-level groups by orderedKeys */
-  async reorderSourceGroups(orderedKeys: string[]): Promise<string[]> {
-    await this.ensureLoaded()
-    const uniq = [...new Set(orderedKeys.filter((k): k is string => typeof k === 'string' && k !== ''))]
-    this.sourceGroupOrder = uniq
-    await this.persist()
     return [...this.sourceGroupOrder]
   }
 

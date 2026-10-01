@@ -1,14 +1,12 @@
 /**
- * 分组域路由：groups / tag 新建重命名 / tag 删除 / tag 成员 / tag 重排 /
- * source-group 重排。从 routes.ts 原样搬出，handler 逻辑不变。
+ * 分组域路由：groups / tag 新建重命名 / tag 删除 / tag 成员。
+ * 从 routes.ts 原样搬出，handler 逻辑不变。
  */
 
 import {
   SKILL_HUB_API,
-  type SourceGroupReorderResponse,
   type TagDeleteResponse,
   type TagMembersResponse,
-  type TagReorderResponse,
   type TagSaveResponse,
 } from '../protocol.ts'
 import {
@@ -18,7 +16,6 @@ import {
   readStrings,
   writeError,
   writeJson,
-  writeRouteError,
   type RouteSpec,
   type SkillHubRouteDeps,
 } from './helpers.ts'
@@ -78,35 +75,6 @@ export function groupRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
         const saved = await deps.store.setTagMembers(id, names.filter((n) => known.has(n)))
         if (saved === undefined) { writeError(res, 404, 'tag not found: ' + id); return }
         writeJson(res, 200, { ok: true, tags: await deps.store.listTags() } satisfies TagMembersResponse)
-      },
-    },
-    // ---------------------------------------------------------- tag/reorder
-    // 拖拽重排场景分组顺序
-    {
-      path: SKILL_HUB_API.tagReorder,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const orderedIds = readStrings(body, 'orderedIds')
-        try {
-          const tags = await deps.store.reorderTags(orderedIds)
-          writeJson(res, 200, { ok: true, tags } satisfies TagReorderResponse)
-        } catch (error) {
-          // StoreError 的业务错误码由统一映射处理（validation→400 / not-found→404 / conflict→409）。
-          writeRouteError(res, error)
-        }
-      },
-    },
-    // ------------------------------------------------ source-group/reorder
-    // 拖拽重排来源顶层分组（project / collections / personal 统一顺序）
-    {
-      path: SKILL_HUB_API.sourceGroupReorder,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const orderedKeys = readStrings(body, 'orderedKeys')
-        const order = await deps.store.reorderSourceGroups(orderedKeys)
-        writeJson(res, 200, { ok: true, order } satisfies SourceGroupReorderResponse)
       },
     },
   ]

@@ -1,6 +1,6 @@
 /**
  * CollectionCard — 一个上游来源集合卡片：组头（来源链接 + 成员数 + 用量
- * 汇总）、检查/同步徽章、三态开关、编辑态排序，以及展开后的启用行与关闭行。
+ * 汇总）、检查/同步徽章、三态开关，以及展开后的启用行与关闭行。
  * 数据与动作均由 SourcesView 传入。上游删除只在徽章里报告，本插件不代删。
  */
 
@@ -13,7 +13,6 @@ import { SkillRow, type SkillRowProps } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { GroupSwitchButton } from './GroupSwitchButton.tsx'
-import { ReorderButtons } from './ReorderButtons.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
@@ -29,15 +28,8 @@ interface CollectionCardProps {
   check: SourceCheckResult | undefined
   /** 组内至少一个成员可开关（三态开关可点）。 */
   hasTogglable: boolean
-  /** 编辑模式（显示排序按钮）。 */
-  editMode: boolean
-  /** 顶层排序位置边界（编辑模式显示上移/下移按钮）。 */
-  canMoveUp: boolean
-  canMoveDown: boolean
   /** 把该集合当作可见性白名单的模式显示名（只含已启用隔离的模式）。 */
   scopeModes?: readonly string[]
-  /** 键盘排序：-1 上移，1 下移。 */
-  onMove: (direction: -1 | 1) => void
   /** 正在检查的来源名。 */
   checkingSource: string | null
   /** 正在同步的来源名。 */
@@ -54,8 +46,7 @@ interface CollectionCardProps {
 
 export function CollectionCard(props: CollectionCardProps): JSX.Element {
   const {
-    collection, rows, collapsed, view, check, hasTogglable, editMode,
-    canMoveUp, canMoveDown, onMove,
+    collection, rows, collapsed, view, check, hasTogglable,
     checkingSource, syncingSource, batchBusy, rowProps,
     toggleGroupCollapse, checkSources, requestSync, toggleGroup,
   } = props
@@ -76,7 +67,6 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           </span>
         </button>
         <span className={css.groupOps}>
-          {editMode ? <ReorderButtons canMoveUp={canMoveUp} canMoveDown={canMoveDown} onMove={onMove} /> : null}
           <SourceStatusBadge
             check={check}
             checking={checkingSource === collection.name}

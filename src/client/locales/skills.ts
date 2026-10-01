@@ -1,7 +1,7 @@
 /** 技能浏览：行徽章/分组/场景/过滤排序/相对时间。从 locales.ts 按前缀拆出。 */
 export const zhSkills = {
   'edit.start': '编辑',
-  'edit.hint': '开启后可排序、可删除技能',
+  'edit.hint': '开启后可删除技能',
   'edit.done': '完成',
   'edit.pending': '待删除 {count} 个技能：',
   'edit.undo': '撤销',
@@ -12,8 +12,6 @@ export const zhSkills = {
   'groups.new': '新建场景',
   'groups.collapseAll': '全部折叠',
   'groups.expandAll': '全部展开',
-  'reorder.up': '上移',
-  'reorder.down': '下移',
   'groups.namePlaceholder': '场景名',
   'groups.edit': '编辑',
   'groups.rename': '保存名称',
@@ -73,7 +71,7 @@ export const zhSkills = {
 
 export const enSkills: Record<keyof typeof zhSkills, string> = {
   'edit.start': 'Edit',
-  'edit.hint': 'Reorder and delete skills',
+  'edit.hint': 'Delete skills',
   'edit.done': 'Done',
   'edit.pending': '{count} skill(s) staged for deletion:',
   'edit.undo': 'Undo',
@@ -84,8 +82,6 @@ export const enSkills: Record<keyof typeof zhSkills, string> = {
   'groups.new': 'New scene',
   'groups.collapseAll': 'Collapse all',
   'groups.expandAll': 'Expand all',
-  'reorder.up': 'Move up',
-  'reorder.down': 'Move down',
   'groups.namePlaceholder': 'Scene name',
   'groups.edit': 'Edit',
   'groups.rename': 'Save name',

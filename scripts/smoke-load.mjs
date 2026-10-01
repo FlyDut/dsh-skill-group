@@ -114,10 +114,10 @@ await ctx.plugin({ name: mod.name, inject: mod.inject, apply: mod.apply }, plugi
 log('plugin loaded; routes registered:', routes.length)
 
 // 精确路由注册一次，另加一条覆盖整族的 prefix 兜底（未知路径回明确 404）。
-// 33 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
+// 31 条 = src/protocol/api.ts 的 SKILL_HUB_API 条目数；增删路由时同步这里。
 const exactRoutes = routes.filter((r) => r.kind === 'exact')
 const prefixRoutes = routes.filter((r) => r.kind === 'prefix')
-check('exact route family mounted exactly once', exactRoutes.length, 33)
+check('exact route family mounted exactly once', exactRoutes.length, 31)
 check('every exact route path is unique', new Set(exactRoutes.map((r) => r.path)).size, exactRoutes.length)
 check('one 404 catch-all covers the family', prefixRoutes.length, 1)
 check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')

@@ -1,13 +1,12 @@
 /**
- * useGroupFlow — 分组域：groups 加载、tag 新建/删除/成员/重排、集合重排、
- * 来源顶层重排、组开关与冲突解决。目录侧只消费 batchToggleNames +
+ * useGroupFlow — 分组域：groups 加载、tag 新建/删除/成员、
+ * 组开关与冲突解决。目录侧只消费 batchToggleNames +
  * actionNames（聚合根传入），不碰目录 state。
  */
 
 import { useCallback, useState, type FormEvent } from 'react'
 import type { GroupsResponse, SkillTag } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
-import { isMissingRoute } from '../../api.ts'
 import { errorMessage } from '../../helpers.ts'
 import { conflictsOnClose, type GroupSwitchState } from '../../grouping.ts'
 import { runFlow, type FlowNotices } from './shared.ts'
@@ -127,66 +126,10 @@ export function useGroupFlow(
     }, () => shared.setTagBusy(false))
   }, [api, applyTags, shared])
 
-  /** 拖拽重排场景分组 */
-  const reorderTags = useCallback(async (orderedIds: string[]): Promise<void> => {
-    shared.setTagBusy(true)
-    shared.clearFail()
-    try {
-      const tags = await api.reorderTags(orderedIds)
-      applyTags(tags)
-    } catch (error) {
-      const msg = errorMessage(error)
-      if (isMissingRoute(error)) {
-        // 旧宿主无此路由：本地重排
-        const byId = new Map(groupsState?.tags.map((t) => [t.id, t] as const) ?? [])
-        const reordered = orderedIds.map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => t !== undefined)
-        if (reordered.length === orderedIds.length) {
-          applyTags(reordered as typeof groupsState extends { tags: infer T } ? T : never)
-          shared.succeed('已临时调整顺序（本地生效，重启宿主后持久化）')
-        } else {
-          shared.fail(msg)
-        }
-      } else {
-        shared.fail(msg)
-      }
-    } finally {
-      shared.setTagBusy(false)
-    }
-  }, [api, applyTags, groupsState, shared])
-
-  /** 拖拽重排来源顶层分组（project / col:xxx / personal 全量可拖） */
-  const reorderSourceGroups = useCallback(async (orderedKeys: string[]): Promise<void> => {
-    shared.setTagBusy(true)
-    shared.clearFail()
-    try {
-      await api.reorderSourceGroups(orderedKeys)
-      await loadGroups()
-    } catch (error) {
-      const msg = errorMessage(error)
-      if (isMissingRoute(error)) {
-        // 旧宿主无此路由：本地重排顶层顺序，提示重启后持久化
-        setGroupsState((prev) => {
-          if (prev === null) return prev
-          // 本地重排 collections 以匹配 topOrderedKeys 中的 col:xxx 顺序
-          const colOrder = orderedKeys.filter((k) => k.startsWith('col:')).map((k) => k.slice(4))
-          const map = new Map(prev.collections.map((c) => [c.name, c] as const))
-          const reordered = colOrder.map((n) => map.get(n)).filter((c): c is NonNullable<typeof c> => c !== undefined)
-          for (const c of prev.collections) if (!reordered.some((r) => r.name === c.name)) reordered.push(c)
-          return { ...prev, collections: reordered, sourceGroupOrder: orderedKeys }
-        })
-        shared.succeed('已临时调整顺序（本地生效，重启宿主后持久化）')
-      } else {
-        shared.fail(msg)
-      }
-    } finally {
-      shared.setTagBusy(false)
-    }
-  }, [api, loadGroups, shared])
-
   return {
     groupsState, conflictDialog, editingTag, editName, membersDraft, newTagName, editSearch,
     setConflictDialog, setEditingTag, setEditName, setMembersDraft, setNewTagName, setEditSearch,
     loadGroups, applyTags, groupMap, toggleGroup, resolveConflict,
-    createTag, deleteTag, saveTag, reorderTags, reorderSourceGroups,
+    createTag, deleteTag, saveTag,
   }
 }

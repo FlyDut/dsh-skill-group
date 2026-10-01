@@ -12,7 +12,6 @@ import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
 import { GroupSwitchButton } from './GroupSwitchButton.tsx'
-import { ReorderButtons } from './ReorderButtons.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
 
@@ -26,16 +25,6 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
   const tagKeys = (groupsState?.tags ?? []).map((tag) => 'tag:' + tag.id)
   /** 所有场景是否已折叠（决定「全部折叠/展开」按钮的文案）。 */
   const allTagsCollapsed = tagKeys.length > 0 && tagKeys.every((key) => collapsedGroups.has(key))
-  /** 排序：与相邻场景交换后落盘。 */
-  const moveTag = (index: number, direction: -1 | 1): void => {
-    const ids = (groupsState?.tags ?? []).map((tag) => tag.id)
-    const to = index + direction
-    if (to < 0 || to >= ids.length) return
-    const next = [...ids]
-    const [moved] = next.splice(index, 1)
-    next.splice(to, 0, moved)
-    void hub.reorderTags(next)
-  }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, stageDelete: hub.editMode ? hub.stageDelete : undefined }
   /** 排序「按使用次数」时取调用统计（与目录域同一个 map）。 */
@@ -62,7 +51,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
           </button>
         </div>
       ) : null}
-      {groupsState?.tags.map((tag, index) => {
+      {groupsState?.tags.map((tag) => {
         const skills = sorted.filter((skill) => tag.skillNames.includes(skill.name))
         const disabledMembers = offSkills.filter((record) => tag.skillNames.includes(record.name) && (normalized.length === 0 || record.name.toLocaleLowerCase().includes(normalized) || record.description.toLocaleLowerCase().includes(normalized)))
         const collapsed = collapsedGroups.has('tag:' + tag.id)
@@ -91,13 +80,6 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
                   hasTogglable={hasTogglable}
                   onToggle={() => { toggleGroup('tag:' + tag.id, tag.name, view.state) }}
                 />
-                {hub.editMode ? (
-                  <ReorderButtons
-                    canMoveUp={index > 0}
-                    canMoveDown={index < (groupsState?.tags.length ?? 1) - 1}
-                    onMove={(direction) => { moveTag(index, direction) }}
-                  />
-                ) : null}
                 <button type='button' className={css.opBtn} onClick={() => { setEditingTag(tag); setEditName(tag.name); setMembersDraft(new Set(tag.skillNames)); setEditSearch('') }}>{tt('groups.edit')}</button>
               </span>
             </div>

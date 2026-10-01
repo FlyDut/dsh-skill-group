@@ -174,9 +174,6 @@
 .opDanger { color: var(--hub-danger); background: rgba(209,36,47,.1); }
 .opDanger:hover { background: rgba(209,36,47,.18); }
 
-/* Icon-only pill button (fixed size so rows never shift). */
-.iconBtn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border-radius: 999px; }
-
 /* Source card in the detail view. */
 .sourceCard { display: flex; flex-direction: column; gap: 4px; font-size: 12px; background: var(--hub-surface); border-radius: 12px; padding: 12px 14px; }
 .sourceCardTitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -259,7 +256,6 @@
 /* 点击区域：小控件补到 28px（原 22-24px 偏小）。 */
 .opBtn { padding: 4px 12px; }
 .segBtn { padding: 6px 13px; }
-.iconBtn { width: 28px; height: 28px; }
 .legendToggle { width: 28px; height: 28px; }
 
 

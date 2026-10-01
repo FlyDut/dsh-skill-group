@@ -63,10 +63,6 @@ export type {
   TagDeleteResponse,
   TagMembersRequest,
   TagMembersResponse,
-  TagReorderRequest,
-  TagReorderResponse,
-  SourceGroupReorderRequest,
-  SourceGroupReorderResponse,
 } from './protocol/groups.ts'
 export type {
   ScopePolicy,

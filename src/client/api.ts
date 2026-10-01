@@ -34,8 +34,6 @@ import {
   type SkillTag,
   type SourceCheckRequest,
   type SourceCheckResponse,
-  type SourceGroupReorderRequest,
-  type SourceGroupReorderResponse,
   type SourcesResponse,
   type SourceSyncRequest,
   type SourceSyncResponse,
@@ -44,8 +42,6 @@ import {
   type TagDeleteResponse,
   type TagMembersRequest,
   type TagMembersResponse,
-  type TagReorderRequest,
-  type TagReorderResponse,
   type TagSaveRequest,
   type TagSaveResponse,
   type ToggleBatchRequest,
@@ -72,8 +68,8 @@ export class SkillHubApiError extends Error {
 
 /**
  * True when the host has no such route at all (an older host). Callers use it
- * to degrade gracefully — reorder locally, skip an optional probe — instead of
- * sniffing "404"/"not found" out of the human-readable message.
+ * to degrade gracefully — skip an optional probe — instead of sniffing
+ * "404"/"not found" out of the human-readable message.
  */
 export function isMissingRoute(error: unknown): boolean {
   return error instanceof SkillHubApiError && error.status === 404
@@ -259,18 +255,6 @@ export class SkillHubApi {  /** One GET round trip (query already encoded by the
   async setTagMembers(id: string, skillNames: string[]): Promise<SkillTag[]> {
     const body = await this.post<TagMembersResponse>(SKILL_HUB_API.tagMembers, { id, skillNames } satisfies TagMembersRequest)
     return body.tags
-  }
-
-  /** 拖拽重排场景分组 */
-  async reorderTags(orderedIds: string[]): Promise<SkillTag[]> {
-    const body = await this.post<TagReorderResponse>(SKILL_HUB_API.tagReorder, { orderedIds } satisfies TagReorderRequest)
-    return body.tags
-  }
-
-  /** 拖拽重排来源顶层分组（project / collections / personal） */
-  async reorderSourceGroups(orderedKeys: string[]): Promise<string[]> {
-    const body = await this.post<SourceGroupReorderResponse>(SKILL_HUB_API.sourceGroupReorder, { orderedKeys } satisfies SourceGroupReorderRequest)
-    return body.order
   }
 
   /** 来源列表 + 派生 origin 映射 + 集合组。 */

@@ -71,18 +71,3 @@ export function removeSkillFromTags(tags: Map<string, SkillTag>, name: string): 
   }
   return changed
 }
-
-/** Reorder tag groups by orderedIds, which must be a permutation of the current ids. */
-export function reorderTags(tags: Map<string, SkillTag>, orderedIds: string[]): Map<string, SkillTag> {
-  if (orderedIds.length !== tags.size) throw new StoreError('validation', 'orderedIds length mismatch')
-  const seen = new Set<string>()
-  for (const id of orderedIds) {
-    if (typeof id !== 'string' || id === '') throw new StoreError('validation', 'invalid tag id')
-    if (seen.has(id)) throw new StoreError('validation', 'duplicate tag id: ' + id)
-    if (!tags.has(id)) throw new StoreError('not-found', 'tag not found: ' + id)
-    seen.add(id)
-  }
-  const next = new Map<string, SkillTag>()
-  for (const id of orderedIds) next.set(id, tags.get(id)!)
-  return next
-}

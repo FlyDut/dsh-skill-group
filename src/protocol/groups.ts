@@ -71,24 +71,3 @@ export interface TagMembersResponse {
   ok: true
   tags: SkillTag[]
 }
-
-/** POST /api/skill-hub/tag/reorder — 拖拽重排场景分组 */
-export interface TagReorderRequest {
-  /** 按新顺序排列的 tag id 列表（需包含全部 id） */
-  orderedIds: string[]
-}
-/** POST /api/skill-hub/tag/reorder */
-export interface TagReorderResponse {
-  ok: true
-  tags: SkillTag[]
-}
-
-/** POST /api/skill-hub/source-groups/reorder — 拖拽重排来源顶层分组（project / collections / personal） */
-export interface SourceGroupReorderRequest {
-  /** 按新顺序排列的顶层分组 key 列表（project / col:xxx / uncategorized-source） */
-  orderedKeys: string[]
-}
-export interface SourceGroupReorderResponse {
-  ok: true
-  order: string[]
-}

@@ -31,8 +31,6 @@ export const SKILL_HUB_API = {
   tag: '/api/skill-hub/tag',
   tagDelete: '/api/skill-hub/tag/delete',
   tagMembers: '/api/skill-hub/tag/members',
-  tagReorder: '/api/skill-hub/tag/reorder',
-  sourceGroupReorder: '/api/skill-hub/source-groups/reorder',
   sources: '/api/skill-hub/sources',
   sourceCheck: '/api/skill-hub/sources/check',
   sourceSync: '/api/skill-hub/sources/sync',

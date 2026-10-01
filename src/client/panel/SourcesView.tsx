@@ -10,7 +10,6 @@ import { filterBySource, filterDisabled, groupSwitchView, mergeGroupRows, PRIVAT
 import { SkillRow } from './SkillRow.tsx'
 import { DisabledRow } from './DisabledRow.tsx'
 import { GroupSummary } from './GroupSummary.tsx'
-import { ReorderButtons } from './ReorderButtons.tsx'
 import { CollectionCard } from './CollectionCard.tsx'
 import type { SkillHubState } from './useSkillHub.ts'
 import css from './panel.module.css'
@@ -23,7 +22,7 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   /** 已运行时关闭的行（暂存待删除的在目录域里已经剔除）。 */
   const offSkills = hub.offSkills
 
-  // ----- 顶层分组列表（col:xxx / personal，顺序由编辑态的 ↑↓ 按钮维护） -----
+  // ----- 顶层分组列表（col:xxx / personal，顺序取 sidecar 里记录的历史顺序） -----
   const sourceFiltered = filterBySource(sorted, sourceFilter, origins)
   // 无可见成员的来源组不渲染：来源记录指向的技能可能已被删除，或关闭状态
   // 丢失导致技能既非启用也非关闭，留下一个组头有数字、展开 0 行的空壳。
@@ -51,16 +50,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   })()
   /** 顶层分组是否已全部折叠（决定「全部折叠/展开」按钮的文案）。 */
   const allTopCollapsed = topOrderedKeys.length > 0 && topOrderedKeys.every((key) => collapsedGroups.has(key))
-  /** 排序：与相邻项交换后落盘。 */
-  const moveTop = (key: string, direction: -1 | 1): void => {
-    const from = topOrderedKeys.indexOf(key)
-    const to = from + direction
-    if (from === -1 || to < 0 || to >= topOrderedKeys.length) return
-    const next = [...topOrderedKeys]
-    const [moved] = next.splice(from, 1)
-    next.splice(to, 0, moved)
-    void hub.reorderSourceGroups(next)
-  }
   /** SkillRow 收窄后的 props：父组件统一传入它实际消费的字段。 */
   const rowProps = { uses: hub.uses, hubConfig: hub.hubConfig, busyNames, duplicateNames, toggle: hub.toggle, openDetail: hub.openDetail, stageDelete: hub.editMode ? hub.stageDelete : undefined }
   /** 排序「按使用次数」时取调用统计（与目录域同一个 map）。 */
@@ -146,10 +135,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
               view={view}
               check={check}
               hasTogglable={hasTogglable}
-              editMode={hub.editMode}
-              canMoveUp={topOrderedKeys.indexOf(topKey) > 0}
-              canMoveDown={topOrderedKeys.indexOf(topKey) < topOrderedKeys.length - 1}
-              onMove={(direction) => { moveTop(topKey, direction) }}
               checkingSource={checkingSource}
               syncingSource={syncingSource}
               batchBusy={batchBusy}
@@ -172,15 +157,6 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
                   <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
                   <span className={css.groupTitle}>{tt('groups.personal')} · {allPersonalNames.length}<GroupSummary members={allPersonalNames} uses={hub.uses} hubConfig={hub.hubConfig} /></span>
                 </button>
-                <span className={css.groupOps}>
-                  {hub.editMode ? (
-                    <ReorderButtons
-                      canMoveUp={topOrderedKeys.indexOf(topKey) > 0}
-                      canMoveDown={topOrderedKeys.indexOf(topKey) < topOrderedKeys.length - 1}
-                      onMove={(direction) => { moveTop(topKey, direction) }}
-                    />
-                  ) : null}
-                </span>
               </div>
               {!collapsed ? (
                 <>
