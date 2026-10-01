@@ -1,6 +1,7 @@
 /**
- * Standalone build config for dsh-skill-hub (adapted from dsh-web-ui's
- * shared/tsdown.client.ts preset, vendored for a single-package repo).
+ * Standalone build config for the skill-hub plugin (@flydut/dsh-skill-group),
+ * adapted from dsh-web-ui's shared/tsdown.client.ts preset and vendored for a
+ * single-package repo.
  *
  * Two artifacts:
  *  - the node half (lib/index.js, lib/invariant.js): plain ESM for the host
@@ -19,7 +20,12 @@ import { basename, dirname, resolve as resolvePath, sep } from 'node:path'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 
-/** Plugin id stamped into the __ModuleLoader__.load handoff and style tags. */
+/**
+ * Plugin id stamped into the __ModuleLoader__.load handoff and style tags.
+ * FROZEN: this is the browser-side module id the shell already registers the
+ * plugin under, so it keeps the pre-rename name even though the npm package is
+ * now @flydut/dsh-skill-group. Changing it would break the client half.
+ */
 const ID = 'dsh-skill-hub'
 
 /**
