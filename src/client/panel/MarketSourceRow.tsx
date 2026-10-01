@@ -13,10 +13,9 @@ import css from './panel.module.css'
 
 export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourceRecord }): JSX.Element {
   const { hub, record } = props
-  const { marketCheck, sourceCheck, sourcesState, scanningRepo, syncingMarket, checkingSource, tagBusy, checkSources, checkMarket, syncMarketSource, scanRepo, removeMarketSource } = hub
+  const { marketCheck, sourceCheck, scanningRepo, syncingMarket, checkingSource, tagBusy, checkSources, checkMarket, syncMarketSource, scanRepo, removeMarketSource } = hub
   const releaseCheck = marketCheck[record.repo]
   const skillCheck = sourceCheck[record.repo]
-  const installedCount = sourcesState?.sources.find((source) => source.repo === record.repo)?.skills.length ?? 0
   const scanning = scanningRepo === record.repo
   const syncing = syncingMarket === record.repo
   const checking = checkingSource === record.repo
@@ -63,7 +62,7 @@ export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourc
         {(() => {
           const stats = hub.marketStats[record.repo]
           const hasDeleted = skillCheck !== undefined && skillCheck.deleted.length > 0
-          if (stats === undefined && installedCount === 0 && !hasSkillUpdate && !hasDeleted && !hasReleaseUpdate) return null
+          if (stats === undefined && !hasSkillUpdate && !hasDeleted && !hasReleaseUpdate) return null
           return (
             <div className={css.hintLine} style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:3 }}>
               {hasSkillUpdate
@@ -75,7 +74,6 @@ export function MarketSourceRow(props: { hub: SkillHubState; record: MarketSourc
               {hasReleaseUpdate
                 ? <span className={css.badge + ' ' + css.statusUpdated}>{releaseCheck!.latestTag !== undefined ? tt('market.newRelease', { version: releaseCheck!.latestTag }) : tt('market.updated')}</span>
                 : null}
-              {installedCount > 0 ? <span className={css.badge + ' ' + css.badgeCount}>{tt('market.installed', { count: installedCount })}</span> : null}
               {stats !== undefined ? <span className={css.badge + ' ' + css.badgeCount} title={tt('market.starsHint', { count: stats.stars })}>★ {formatCount(stats.stars)}</span> : null}
               {stats !== undefined && stats.downloads > 0 ? <span className={css.badge + ' ' + css.badgeCount} title={tt('market.downloadsHint', { count: stats.downloads })}>⭳ {formatCount(stats.downloads)}</span> : null}
             </div>
