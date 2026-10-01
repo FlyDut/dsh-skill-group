@@ -16,6 +16,11 @@ export interface CollectionGroup {
   name: string
   /** 该集合下的技能名，按名称排序。 */
   skillNames: string[]
+  /**
+   * 组类型：缺省 = 市场来源组（有 sidecar 来源记录，可检查/同步上游）；
+   * 'provider' = 插件 provider 提供的技能集合（没有上游，只做分组与开关）。
+   */
+  kind?: 'provider'
 }
 
 /** GET /api/skill-hub/groups */

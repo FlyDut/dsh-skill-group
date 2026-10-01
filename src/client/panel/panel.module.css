@@ -156,6 +156,8 @@
 /* Source link inside group titles / rows. */
 .sourceLink { color: inherit; font-weight: 600; text-decoration: none; border-bottom: 1px dotted currentColor; opacity: .9; }
 .sourceLink:hover { opacity: 1; }
+/* 插件 provider 组名：不是链接，就没有下划线/悬停反馈，只跟来源组名同色。 */
+.providerLabel { opacity: .9; }
 
 /* Source status badges (check results). */
 .statusBadges { display: inline-flex; gap: 4px; align-items: center; flex: none; }

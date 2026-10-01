@@ -1,7 +1,10 @@
 /**
- * CollectionCard — 一个上游来源集合卡片：组头（来源链接 + 成员数 + 用量
- * 汇总）、检查/同步徽章、三态开关，以及展开后的启用行与关闭行。
- * 数据与动作均由 SourcesView 传入。上游删除只在徽章里报告，本插件不代删。
+ * CollectionCard — 一个来源集合卡片：组头（来源链接 + 成员数 + 用量汇总）、
+ * 检查/同步徽章、三态开关，以及展开后的启用行与关闭行。数据与动作均由
+ * SourcesView 传入。上游删除只在徽章里报告，本插件不代删。
+ *
+ * 插件 provider 提供的集合（kind = 'provider'）没有上游仓库：组名不带
+ * GitHub 链接、也不渲染检查/同步徽章，只剩分组与开关。
  */
 
 import type { JSX } from 'react'
@@ -51,6 +54,8 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
     toggleGroupCollapse, checkSources, requestSync, toggleGroup,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
+  /** 插件 provider 组：没有上游仓库，只做分组与开关。 */
+  const providerGroup = collection.kind === 'provider'
   // 卡片头显示**实际存在**的成员数：跟踪清单里的成员可能已经被手工删掉了，
   // 那个数字不属于「这个组有几条看得见的技能」。缺失的部分由 view.missing 提示。
   const memberCount = view.enabled.length + view.disabled.length
@@ -60,23 +65,30 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
         <button type='button' className={css.disclosure} aria-expanded={!collapsed} onClick={() => { toggleGroupCollapse('col:' + collection.name) }}>
           <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
           <span className={css.groupTitle}>
-            <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>
+            {providerGroup
+              ? <span className={css.providerLabel}>{collection.name}</span>
+              : <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>}
             {' · ' + memberCount}
             <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} scopeModes={props.scopeModes} />
+            {providerGroup ? <span className={css.groupNote}>{tt('groups.provider')}</span> : null}
             {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
           </span>
         </button>
         <span className={css.groupOps}>
-          <SourceStatusBadge
-            check={check}
-            checking={checkingSource === collection.name}
-            onCheck={() => { void checkSources(collection.name) }}
-          />
-          {check !== undefined && check.changed && check.updated.length > 0
-            ? <button type='button' className={css.opBtn} disabled={syncingSource !== null} onClick={(event) => { event.stopPropagation(); requestSync(collection.name, check.updated) }}>
-                {syncingSource === collection.name ? tt('source.syncing') : tt('source.sync')}
-              </button>
-            : null}
+          {providerGroup ? null : (
+            <>
+              <SourceStatusBadge
+                check={check}
+                checking={checkingSource === collection.name}
+                onCheck={() => { void checkSources(collection.name) }}
+              />
+              {check !== undefined && check.changed && check.updated.length > 0
+                ? <button type='button' className={css.opBtn} disabled={syncingSource !== null} onClick={(event) => { event.stopPropagation(); requestSync(collection.name, check.updated) }}>
+                    {syncingSource === collection.name ? tt('source.syncing') : tt('source.sync')}
+                  </button>
+                : null}
+            </>
+          )}
           <GroupSwitchButton
             state={view.state}
             label={collection.name}

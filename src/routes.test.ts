@@ -673,6 +673,30 @@ describe('skill-hub routes', () => {
     expect(body.origins).toEqual({ 'demo-skill': 'superpowers', pdf: 'anthropics/skills' })
   })
 
+  // 插件自带的技能集合没有来源记录，按 provider 成组（kind: 'provider'），
+  // 且不进「个人」卡；市场来源记录优先，本地用户技能仍留在个人卡。
+  it('groups provider-provided skills that no source record claims', async () => {
+    skills.snapshot = async () => ({
+      skills: [
+        summary({ name: 'alpha', provider: 'reverse-skill', source: 'bundled' }),
+        summary({ name: 'zeta', provider: 'reverse-skill', source: 'bundled' }),
+        summary({ name: 'tracked', provider: 'reverse-skill', source: 'bundled' }),
+        summary({ name: 'mine' }),
+      ],
+      complete: true,
+    })
+    await store.addSourceSkill('owner/repo', 'skills', 'sha', undefined, 'tracked')
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.groups).handler(fakeReq('GET', SKILL_HUB_API.groups), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').GroupsResponse
+    expect(body.collections).toEqual([
+      { name: 'owner/repo', skillNames: ['tracked'] },
+      { name: 'reverse-skill', skillNames: ['alpha', 'zeta'], kind: 'provider' },
+    ])
+    expect(body.origins).toEqual({ tracked: 'owner/repo', alpha: 'reverse-skill', zeta: 'reverse-skill' })
+  })
+
   // ---------------------------------------------------------- tag
   it('creates and renames a tag', async () => {
     const created = new FakeResponse()

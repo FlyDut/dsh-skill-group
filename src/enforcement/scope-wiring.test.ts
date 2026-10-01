@@ -14,7 +14,7 @@ import { createScope } from '@deepseek-ai/dsh-scope'
 import type { ScopeSkillMeta } from '../domain/scope-view.ts'
 import { PresetWiring, type PresetMountLike, type RuntimeBindings } from './scope-wiring.ts'
 
-const HIDDEN_META: ScopeSkillMeta = { description: 'Alpha probe skill.', source: 'user-dsh' }
+const HIDDEN_META: ScopeSkillMeta = { description: 'Alpha probe skill.', source: 'user-dsh', provider: 'skill-hub' }
 
 /** 一个真实的最小 dsh 运行时 + 一个声明了 inject 的"hub ctx"。 */
 async function setup(): Promise<{ root: Context; hubCtx: Context }> {
@@ -344,7 +344,7 @@ describe('PresetWiring', () => {
       .toEqual(['beta-skill'])
 
     // 改策略：现在换 beta-skill 被隐藏。
-    state.hidden.set('coding', new Map([['beta-skill', { description: 'Beta probe skill.', source: 'user-dsh' }]]))
+    state.hidden.set('coding', new Map([['beta-skill', { description: 'Beta probe skill.', source: 'user-dsh', provider: 'skill-hub' }]]))
     state.wiring.invalidate('coding')
 
     // 缓存必须失效，否则用户改了设置却看不到任何变化。

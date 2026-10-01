@@ -45,7 +45,7 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
     // 它们的行才能把开关打开，gate 也要它们的元数据来做遮蔽候选。
     catalog: async (): Promise<ScopeCatalogSnapshot> => {
       const meta = new Map<string, ScopeSkillMeta>()
-      let snapshot: { skills: Array<{ name: string; description: string; whenToUse?: string; source: string }> }
+      let snapshot: { skills: Array<{ name: string; description: string; whenToUse?: string; source: string; provider: string }> }
       try {
         snapshot = await ctx.skills.snapshot()
       } catch {
@@ -57,6 +57,7 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
           description: skill.description,
           ...(skill.whenToUse !== undefined ? { whenToUse: skill.whenToUse } : {}),
           source: skill.source,
+          provider: skill.provider,
         })
       }
       return { names: [...meta.keys()].sort((a, b) => a.localeCompare(b)), meta }
@@ -65,7 +66,13 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
     groups: async (snapshot) => {
       const members = new Map<string, readonly string[]>()
       for (const tag of await store.listTags()) members.set(tagKey(tag.id), tag.skillNames)
-      const collections = buildCollections(await store.listOrigins(), await store.getCollectionOrder())
+      // 插件技能集合（kind: 'provider'）和来源集合共用 'col:名' 键，面板上的
+      // 模式隔离勾选项才能落到同一份成员表上。
+      const skills = snapshot.names.map((name) => {
+        const meta = snapshot.meta.get(name)
+        return { name, provider: meta?.provider ?? '', source: meta?.source ?? '' }
+      })
+      const { collections } = buildCollections(await store.listOrigins(), await store.getCollectionOrder(), skills)
       for (const collection of collections) members.set(collectionKey(collection.name), collection.skillNames)
       const bySource = new Map<string, string[]>()
       for (const name of snapshot.names) {

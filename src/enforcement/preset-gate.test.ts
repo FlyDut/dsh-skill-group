@@ -9,7 +9,7 @@ import { GATE_PROVIDER_NAME, GATE_RANK, PresetGateProvider } from './preset-gate
 import type { ScopeSkillMeta } from '../domain/scope-view.ts'
 
 function meta(patch: Partial<ScopeSkillMeta> = {}): ScopeSkillMeta {
-  return { description: 'Original description.', source: 'user-dsh', ...patch }
+  return { description: 'Original description.', source: 'user-dsh', provider: 'skill-hub', ...patch }
 }
 
 function gate(hidden: ReadonlyMap<string, ScopeSkillMeta>): PresetGateProvider {

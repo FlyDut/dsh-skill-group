@@ -22,6 +22,8 @@ export interface ScopeSkillMeta {
   whenToUse?: string
   /** 原技能的 source 桶（面板与 UI 徽标据此显示来源）。 */
   source: string
+  /** 原技能的 provider（插件技能集合按键聚合时用它）。 */
+  provider: string
 }
 
 /** 目录快照：当前真实可用的技能及其元数据（含被运行时关闭的技能）。 */

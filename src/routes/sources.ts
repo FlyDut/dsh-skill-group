@@ -50,8 +50,9 @@ export function sourceRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
       path: SKILL_HUB_API.sources,
       methods: ['GET'],
       handler: async ({ res }) => {
-        const [sources, origins, collectionOrder] = await Promise.all([deps.store.listSources(), deps.store.listOrigins(), deps.store.getCollectionOrder()])
-        writeJson(res, 200, { ok: true, sources, origins, collections: buildCollections(origins, collectionOrder) } satisfies SourcesResponse)
+        const [sources, origins, collectionOrder, snapshot] = await Promise.all([deps.store.listSources(), deps.store.listOrigins(), deps.store.getCollectionOrder(), deps.skills.snapshot()])
+        const { collections, memberships } = buildCollections(origins, collectionOrder, snapshot.skills)
+        writeJson(res, 200, { ok: true, sources, origins: memberships, collections } satisfies SourcesResponse)
       },
     },
     // -------------------------------------------------------- sources/check

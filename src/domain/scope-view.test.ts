@@ -8,9 +8,9 @@ import { collectionKey, tagKey, type ScopePolicy } from '../protocol/scopes.ts'
 import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './scope-view.ts'
 
 const META: Record<string, ScopeSkillMeta> = {
-  'alpha-skill': { description: 'Alpha.', source: 'user-dsh' },
-  'beta-skill': { description: 'Beta.', source: 'user-dsh' },
-  'gamma-skill': { description: 'Gamma.', source: 'user-agents' },
+  'alpha-skill': { description: 'Alpha.', source: 'user-dsh', provider: 'skill-hub' },
+  'beta-skill': { description: 'Beta.', source: 'user-dsh', provider: 'skill-hub' },
+  'gamma-skill': { description: 'Gamma.', source: 'user-agents', provider: 'skill-hub' },
 }
 
 interface Counter {
@@ -77,7 +77,7 @@ describe('ScopeView', () => {
     const { view } = harness({ policy: { presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] } })
     const hidden = await view.hiddenOf('coding')
     expect([...hidden.keys()]).toEqual(['gamma-skill'])
-    expect(hidden.get('gamma-skill')).toEqual({ description: 'Gamma.', source: 'user-agents' })
+    expect(hidden.get('gamma-skill')).toEqual({ description: 'Gamma.', source: 'user-agents', provider: 'skill-hub' })
   })
 
   it('未启用隔离时 hiddenOf 为空——闸门完全不干预', async () => {
@@ -114,7 +114,7 @@ describe('ScopeView', () => {
         reads += 1
         // 第二次读取时多出一个技能：它必须进入判定，否则会在该隔离它的模式下漏网。
         const names = reads === 1 ? ['alpha-skill'] : ['alpha-skill', 'delta-skill']
-        return { names, meta: new Map(names.map((n) => [n, { description: n, source: 'user-dsh' }])) }
+        return { names, meta: new Map(names.map((n) => [n, { description: n, source: 'user-dsh', provider: 'skill-hub' }])) }
       },
       groups: async () => new Map([[tagKey('t1'), ['alpha-skill']]]),
       policyOf: async () => ({ presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] }),
