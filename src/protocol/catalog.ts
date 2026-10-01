@@ -45,6 +45,10 @@ export interface DisabledSkill {
   path: string
   root: WritableRoot
   disabledAt: number
+  /** Renamed file creation time (epoch ms); keeps "added" sorting stable. Absent when unknown. */
+  addedAt?: number
+  /** Renamed file last-modified time (epoch ms). Absent when unknown. */
+  updatedAt?: number
 }
 
 /** One discovery diagnostic: a file the filesystem provider skips, with the reason. */

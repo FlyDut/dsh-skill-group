@@ -307,6 +307,23 @@ describe('skill-hub routes', () => {
     await expect(access(path)).resolves.toBeUndefined()
   })
 
+  it('carries the renamed file times on disabled records so row order stays stable', async () => {
+    const path = join(home, 'skills', 'timed-skill', 'SKILL.md')
+    await mkdir(join(home, 'skills', 'timed-skill'), { recursive: true })
+    await writeFile(path, '---\nname: timed-skill\ndescription: timed\n---', 'utf8')
+    skills.get = async () => definition({ name: 'timed-skill', path })
+    const off = new FakeResponse()
+    await routeFor(SKILL_HUB_API.toggle).handler(fakeReq('POST', SKILL_HUB_API.toggle, { name: 'timed-skill', enabled: false }), off as never)
+    expect(off.status).toBe(200)
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.catalog).handler(fakeReq('GET', SKILL_HUB_API.catalog), res as never)
+    expect(res.status).toBe(200)
+    const body = res.json() as import('./protocol.ts').CatalogResponse
+    const record = (body.disabled ?? []).find((item) => item.name === 'timed-skill')
+    expect(record?.addedAt).toBeTypeOf('number')
+    expect(record?.updatedAt).toBeTypeOf('number')
+  })
+
   it('refuses to toggle read-only sources', async () => {
     skills.get = async () => definition({ source: 'bundled', provider: 'bundled' })
     const res = new FakeResponse()

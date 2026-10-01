@@ -151,7 +151,7 @@ export type SortKey = 'name' | 'added' | 'uses'
  * descending (newest first, unknown addedAt last), or uses descending
  * (most-called first). Unknown values always trail.
  */
-export function sortSkills(skills: readonly CatalogSkill[], key: SortKey, getUses?: (name: string) => number | undefined): CatalogSkill[] {
+export function sortSkills<T extends { name: string; addedAt?: number }>(skills: readonly T[], key: SortKey, getUses?: (name: string) => number | undefined): T[] {
   const list = [...skills]
   if (key === 'name') {
     list.sort((a, b) => a.name.localeCompare(b.name))
@@ -161,6 +161,32 @@ export function sortSkills(skills: readonly CatalogSkill[], key: SortKey, getUse
     list.sort((a, b) => (getUses?.(b.name) ?? 0) - (getUses?.(a.name) ?? 0))
   }
   return list
+}
+
+/** 组内一行：启用中的技能，或已被 hub 禁用的记录。 */
+export type GroupRow =
+  | { kind: 'skill'; skill: CatalogSkill }
+  | { kind: 'disabled'; record: DisabledSkill }
+
+/**
+ * 把一个来源/场景组里的启用技能与禁用记录合并成一条按当前排序键排好的
+ * 列表。开关只是把一行换个样式，行不该跳到组尾：所以两类条目一起排序，
+ * 禁用记录带着被改名 SKILL.md 的文件时间（addedAt），「按添加时间」也不会乱。
+ */
+export function mergeGroupRows(
+  skills: readonly CatalogSkill[],
+  records: readonly DisabledSkill[],
+  key: SortKey,
+  getUses?: (name: string) => number | undefined,
+): GroupRow[] {
+  const entries: Array<{ name: string; addedAt?: number; row: GroupRow }> = []
+  for (const skill of skills) {
+    entries.push({ name: skill.name, ...(skill.addedAt !== undefined ? { addedAt: skill.addedAt } : {}), row: { kind: 'skill', skill } })
+  }
+  for (const record of records) {
+    entries.push({ name: record.name, ...(record.addedAt !== undefined ? { addedAt: record.addedAt } : {}), row: { kind: 'disabled', record } })
+  }
+  return sortSkills(entries, key, getUses).map((entry) => entry.row)
 }
 
 /** Localized relative-time tuple; the caller resolves it via tt(). */

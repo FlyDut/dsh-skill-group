@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CatalogSkill, CollectionGroup, DisabledSkill, SkillTag } from '../protocol.ts'
-import { conflictsOnClose, filterBySource, filterDisabled, formatRelativeTime, groupNamesOf, groupSwitchView, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
+import { conflictsOnClose, filterBySource, filterDisabled, formatRelativeTime, groupNamesOf, groupSwitchView, mergeGroupRows, PRIVATE_SOURCE, sortSkills, visibleCollections } from './grouping.ts'
 
 function skill(name: string, writable = true): CatalogSkill {
   return {
@@ -155,6 +155,49 @@ describe('sortSkills', () => {
     const sorted = sortSkills(skills, 'name')
     expect(sorted.map((s) => s.name)).toEqual(['a', 'b'])
     expect(skills.map((s) => s.name)).toEqual(['b', 'a'])
+  })
+})
+
+describe('mergeGroupRows', () => {
+  const disabled = (name: string, addedAt?: number): DisabledSkill => ({
+    name,
+    description: 'Paused skill',
+    path: '/x/' + name + '/SKILL.md.disabled',
+    root: 'user-dsh',
+    disabledAt: 1,
+    ...(addedAt !== undefined ? { addedAt } : {}),
+  })
+  const nameOf = (row: { kind: 'skill'; skill: CatalogSkill } | { kind: 'disabled'; record: DisabledSkill }): string =>
+    row.kind === 'skill' ? row.skill.name : row.record.name
+
+  it('sorts enabled and disabled rows together by name', () => {
+    const rows = mergeGroupRows([skill('alpha'), skill('gamma')], [disabled('beta')], 'name')
+    expect(rows.map(nameOf)).toEqual(['alpha', 'beta', 'gamma'])
+  })
+
+  it('keeps a disabled row in place instead of trailing under added ordering', () => {
+    const rows = mergeGroupRows(
+      [{ ...skill('older'), addedAt: 100 }, { ...skill('newest'), addedAt: 300 }],
+      [disabled('middle', 200)],
+      'added',
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['skill', 'disabled', 'skill'])
+    expect(rows.map(nameOf)).toEqual(['newest', 'middle', 'older'])
+  })
+
+  it('orders both kinds by invocation count, unknown counts last', () => {
+    const counts: Record<string, number | undefined> = { hot: 5, warm: 2 }
+    const rows = mergeGroupRows([skill('hot'), skill('cold')], [disabled('warm')], 'uses', (name) => counts[name])
+    expect(rows.map(nameOf)).toEqual(['hot', 'warm', 'cold'])
+  })
+
+  it('carries the original objects through unchanged', () => {
+    const enabled = skill('one')
+    const record = disabled('two')
+    expect(mergeGroupRows([enabled], [record], 'name')).toEqual([
+      { kind: 'skill', skill: enabled },
+      { kind: 'disabled', record },
+    ])
   })
 })
 

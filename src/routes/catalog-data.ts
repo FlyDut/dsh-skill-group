@@ -192,13 +192,25 @@ export async function buildCatalog(deps: SkillHubRouteDeps, cwd?: string): Promi
     ...(await scanDiagnostics('user-dsh', home)),
     ...(await scanDiagnostics('user-agents', home)),
   ]
+  // 禁用记录也带上被改名文件的创建/修改时间：面板把启用行与禁用行合并排序
+  // 后再渲染，缺少时间的记录会在「按添加时间」下掉到组尾 —— 开关一关行就
+  // 跳位置。与上面启用技能一样并发 stat，读不到就省略字段。
+  const disabledWithTimes = await Promise.all(disabled.map(async (record) => {
+    try {
+      const times = await stat(record.path)
+      return { ...record, addedAt: times.birthtimeMs, updatedAt: times.mtimeMs }
+    } catch {
+      // 文件不可读时省略时间字段。
+      return record
+    }
+  }))
 
   return {
     ok: true,
     pluginVersion: CURRENT_VERSION,
     complete,
     skills,
-    disabled,
+    disabled: disabledWithTimes,
     diagnostics,
     ...(duplicateNames.length > 0 ? { duplicateNames } : {}),
   }
