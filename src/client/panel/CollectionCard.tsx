@@ -60,6 +60,9 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
     toggleGroupCollapse, checkSources, requestSync, toggleGroup,
   } = props
   const { busyNames, duplicateNames, uses, hubConfig } = rowProps
+  // 卡片头显示**实际存在**的成员数：跟踪清单里的成员可能已经被手工删掉了，
+  // 那个数字不属于「这个组有几条看得见的技能」。缺失的部分由 view.missing 提示。
+  const memberCount = view.enabled.length + view.disabled.length
   return (
     <section className={css.section}>
       <div className={css.groupHead}>
@@ -67,7 +70,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
           <span className={css.groupTitle}>
             <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>
-            {' · ' + collection.skillNames.length}
+            {' · ' + memberCount}
             <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} scopeModes={props.scopeModes} />
             {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
           </span>
@@ -87,7 +90,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
           <GroupSwitchButton
             state={view.state}
             label={collection.name}
-            memberCount={view.enabled.length + view.disabled.length}
+            memberCount={memberCount}
             missingCount={view.missing.length}
             batchBusy={batchBusy}
             hasTogglable={hasTogglable}

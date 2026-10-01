@@ -68,13 +68,15 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
         const collapsed = collapsedGroups.has('tag:' + tag.id)
         const view = groupSwitchView(tag.skillNames, viewNames, actionNames)
         const hasTogglable = tag.skillNames.some((name) => actionNames.has(name))
+        // 场景头显示实际存在的成员数；已在目录里消失的成员由 view.missing 提示。
+        const memberCount = view.enabled.length + view.disabled.length
         return (
           <section key={'tag:' + tag.id} className={css.section}>
             <div className={css.groupHead}>
               <button type='button' className={css.disclosure} aria-expanded={!collapsed} onClick={() => { toggleGroupCollapse('tag:' + tag.id) }}>
                 <span className={css.chevron + (collapsed ? ' ' + css.chevronCollapsed : '')} />
                 <span className={css.groupTitle}>
-                  {tag.name} · {tag.skillNames.length}
+                  {tag.name} · {memberCount}
                   <GroupSummary members={tag.skillNames} uses={hub.uses} hubConfig={hub.hubConfig} scopeModes={hub.scopeFlow.scopeModesByKey.get('tag:' + tag.id)} />
                   {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
                 </span>
@@ -83,7 +85,7 @@ export function ScenesView(props: { hub: SkillHubState }): JSX.Element {
                 <GroupSwitchButton
                   state={view.state}
                   label={tag.name}
-                  memberCount={view.enabled.length + view.disabled.length}
+                  memberCount={memberCount}
                   missingCount={view.missing.length}
                   batchBusy={batchBusy}
                   hasTogglable={hasTogglable}
