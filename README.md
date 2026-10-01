@@ -1,36 +1,46 @@
 # dsh-skill-group
 
-[中文版](README.zh.md) | [English](README.md)
-
 <p align="center">
-  <a href="https://www.npmjs.com/package/@flydut/dsh-skill-group"><img alt="npm version" src="https://img.shields.io/npm/v/@flydut/dsh-skill-group?color=2f81f7&label=npm"></a>
-  <img alt="downloads" src="https://img.shields.io/npm/dm/@flydut/dsh-skill-group">
-  <img alt="license" src="https://img.shields.io/npm/l/@flydut/dsh-skill-group">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-2f81f7">
   <img alt="node" src="https://img.shields.io/badge/node-%3E%3D22.19-339933">
 </p>
 
-<p align="center">
-  <img src="promo/real-skill-hub.png" alt="dsh-skill-group panel" width="640">
-</p>
+An in-GUI skill manager for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): browse the whole `ctx.skills` catalog, toggle skills on and off, inspect their bodies, repair discovery problems, install from the market, and scaffold new ones.
 
-In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — browse the full `ctx.skills` catalog, toggle skills, inspect bodies, fix discovery issues, install from the market, and scaffold new ones.
+> The host runs inside the dsh process on official SDKs only; the browser renders through official slots. No dsh source changes.
 
-> Host runs in the dsh process via official SDKs only; browser renders through official slots. No dsh source changes.
+## This is a fork
+
+This project is a fork of **[cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub)**, renamed to `@flydut/dsh-skill-group` and versioned independently from `0.0.1`. It does not track upstream releases — the fork exists to change the plugin itself rather than to carry patches for it.
+
+**Why we forked:**
+
+1. **Grouping should be a first-class concept.** A group has to belong to the plugin's own model and drive what the plugin does, instead of living only in the panel's rendering layer.
+2. **KISS.** Fewer concepts, fewer moving parts, a smaller surface. Anything new has to earn its place against "can this be simpler?".
+
+What you get today is the upstream feature set after a first pass at that work:
+
+- the UI and every user-facing string are named **Skill Groups**;
+- dead code, unused dependencies and an unreachable HTTP endpoint are gone;
+- the client no longer drifts from the host protocol, and workspace selection (`cwd`) now reaches every skill action;
+- the client's async flows (polling, busy state, error surfacing) no longer race each other or fail silently.
 
 ## Quick start
 
 ```bash
 dsh plugin --profile web add @flydut/dsh-skill-group
-# restart dsh web → Settings → 技能分组 → Market → scan → import
+# restart dsh web → Settings → Skill Groups → Market → scan → import
 ```
 
-Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`.
+> **Not on npm yet.** No release has been published from this fork, so the command above only works once one exists. To run it from a clone: `pnpm install && pnpm build`. The `lib/` output is git-ignored, and the client bundle's id must equal the package name (`@flydut/dsh-skill-group`) — a stale id makes boot fail with *loaded without registering*.
 
-Two surfaces — the hub panel lives at **Settings → 技能分组**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
+Requires `Node ^22.19 || >=24` and dsh web `>=0.1.7-rc.1 <0.3` (this fork is developed against `0.2.0-rc.2`).
+
+Two surfaces — the hub panel lives at **Settings → Skill Groups**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → Plugins → @flydut/dsh-skill-group). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → Plugins list; this plugin registers into the new location only.
 
 ## Features
 
-**Settings → 技能分组** — 4 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update), **Modes** (per-preset skill isolation).
+**Settings → Skill Groups** — 4 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update), **Modes** (per-preset skill isolation).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
@@ -41,7 +51,7 @@ Two surfaces — the hub panel lives at **Settings → 技能分组**, and the p
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (top-level dot entries such as `.github/` count as repo tooling, not skill content). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
-- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
+- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → Plugins → @flydut/dsh-skill-group): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
 
 ## Mode-level skill isolation
 
@@ -115,10 +125,28 @@ GitHub repo ──scan/import──▶ ~/.dsh/skills
      └─check/sync/delete── ctx.skills ◀─ provider
                                 │ snapshot/get
                                 ▼
-                    /api/skill-hub/* ──▶ Panel (Settings → 技能分组)
+                    /api/skill-hub/* ──▶ Panel (Settings → Skill Groups)
 ```
 
 Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`, plus `livePresetMounts` / `createScope` for mode isolation (both official exports, loaded via dynamic `import()` and degrading on failure). Loopback-only routes (`127.0.0.1`/`localhost`), JSON.
+
+### Module layout
+
+Source is organised as four responsibility chains, and data only flows downward:
+
+| Layer | Duty | Modules |
+| --- | --- | --- |
+| **Discovery** | what skills exist (read-only) | `src/skillfs/`, `src/provider.ts` |
+| **Curation** | what the user wants the skill world to look like (pure data + pure functions) | `src/store/`, `src/domain/`, `src/protocol/` |
+| **Enforcement** | turning curation into runtime effect (all side effects) | `src/enforcement/`, plus the toggle rename in `src/routes/catalog.ts` |
+| **Surface** | letting the user express and see it | `src/routes/`, `src/client/` |
+
+Two curation/enforcement concepts are deliberately kept apart — do not merge them:
+
+- **Disabled** (hard) renames the discovery file, so the skill is gone in *every* mode.
+- **Scope** (soft) shadows the skill inside one agent preset's standing scope layer, leaving the file untouched and every other mode unaffected.
+
+Anything with a side effect belongs in `src/enforcement/`; `src/domain/` must stay free of IO so its judgments can be exhaustively unit-tested.
 
 ## HTTP API
 
@@ -152,7 +180,7 @@ Unknown paths under `/api/skill-hub/*` answer a 404 naming the path (a `prefix` 
 
 ```bash
 pnpm typecheck     # tsc --noEmit
-pnpm test          # 336 tests, 19 suites
+pnpm test          # 339 tests, 19 suites
 pnpm build         # tsc declarations + tsdown → lib/index.js + lib/client.js
 ```
 
@@ -160,15 +188,17 @@ pnpm build         # tsc declarations + tsdown → lib/index.js + lib/client.js
 
 ## Troubleshooting
 
-- `duplicate loader entry id: skill-hub` — remove the duplicate install (keep one `dsh plugin add` method).
+- `duplicate loader entry id: @flydut/dsh-skill-group` — remove the duplicate install (keep one `dsh plugin add` method).
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description).
 - Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk; source groups with no visible member are no longer rendered.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
-- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → @flydut/dsh-skill-group), not under Settings. dsh older than `0.1.7-rc.1` is not supported at all (0.1.7 replaced the settings model this plugin is built on).
+- Settings card missing — it lives in the Plugins manager (sidebar → Plugins → @flydut/dsh-skill-group), not under Settings. dsh older than `0.1.7-rc.1` is not supported at all (0.1.7 replaced the settings model this plugin is built on).
 
 ## Community
 
-[Issues](https://github.com/FlyDut/dsh-skill-group/issues) · [Discussions](https://github.com/FlyDut/dsh-skill-group/discussions) · [Showcase](https://github.com/deepseek-ai/deepseek-harness/discussions/3161) · [Market PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1746) · [Discord](https://discord.gg/Ycq5dCaS4)
+This fork: [Issues](https://github.com/FlyDut/dsh-skill-group/issues) · [Discussions](https://github.com/FlyDut/dsh-skill-group/discussions).
+
+Upstream project and its own threads: [cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub).
 
 ## License
 
