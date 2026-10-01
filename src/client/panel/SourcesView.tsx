@@ -56,30 +56,32 @@ export function SourcesView(props: { hub: SkillHubState }): JSX.Element {
   const getUses = (name: string): number | undefined => hub.uses.get(name)?.count
 
   /**
-   * 来源 tab 的工具行：左边「全部折叠/展开」（分组视图才有意义），右边
-   * 「新建」与「编辑/完成」——这两件事就是在直接管理技能文件，所以放在
-   * 技能真正落地的那一 tab 里，而不是面板标题栏。
+   * 来源 tab 的工具行：左边「新建」与「编辑/完成」（这两件事就是在直接管理
+   * 技能文件，所以放在技能真正落地的那一 tab 里，而不是面板标题栏），右边
+   * 「全部折叠/展开」（只有分组视图、且顶层分组多于一个时才有意义）。
    */
   const listTools = (
     <div className={css.listTools}>
+      <span className={css.toolStart}>
+        <button type='button' className={css.button + ' ' + css.primary} onClick={() => { hub.setFormMessage(null); hub.setShowForm(true) }}>{tt('panel.new')}</button>
+        <button
+          type='button'
+          className={css.button + (hub.editMode ? ' ' + css.primary : '')}
+          aria-pressed={hub.editMode}
+          title={tt('edit.hint')}
+          onClick={() => {
+            // 退出编辑态前先把暂存的删除过一遍确认：取消就留在编辑态，
+            // 暂存内容原样保留（一行都还没落盘）。
+            if (hub.editMode && hub.pendingDeletes.length > 0) { hub.setDeleteDialog(true); return }
+            hub.setEditMode((value) => !value)
+          }}
+        >{tt(hub.editMode ? 'edit.done' : 'edit.start')}</button>
+      </span>
       {skillView === 'groups' && topOrderedKeys.length > 1 ? (
         <button type='button' className={css.opBtn} onClick={() => { setAllGroupsCollapsed(allTopCollapsed ? null : topOrderedKeys) }}>
           {allTopCollapsed ? tt('groups.expandAll') : tt('groups.collapseAll')}
         </button>
       ) : null}
-      <button type='button' className={css.button + ' ' + css.primary} onClick={() => { hub.setFormMessage(null); hub.setShowForm(true) }}>{tt('panel.new')}</button>
-      <button
-        type='button'
-        className={css.button + (hub.editMode ? ' ' + css.primary : '')}
-        aria-pressed={hub.editMode}
-        title={tt('edit.hint')}
-        onClick={() => {
-          // 退出编辑态前先把暂存的删除过一遍确认：取消就留在编辑态，
-          // 暂存内容原样保留（一行都还没落盘）。
-          if (hub.editMode && hub.pendingDeletes.length > 0) { hub.setDeleteDialog(true); return }
-          hub.setEditMode((value) => !value)
-        }}
-      >{tt(hub.editMode ? 'edit.done' : 'edit.start')}</button>
     </div>
   )
 

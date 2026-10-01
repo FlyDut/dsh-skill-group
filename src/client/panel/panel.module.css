@@ -244,6 +244,8 @@
 
 /* 列表工具行（全部折叠 / 全部展开）。 */
 .listTools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 2px; }
+/* 工具行左半边：新建 / 编辑，靠 margin-right:auto 与右侧的折叠按钮分开。 */
+.toolStart { display: flex; align-items: center; gap: 8px; margin-right: auto; }
 
 /* 键盘焦点环：只在 focus-visible（键盘操作）时出现，鼠标点击不打扰。 */
 .opBtn:focus-visible, .button:focus-visible, .segBtn:focus-visible, .disclosure:focus-visible,
