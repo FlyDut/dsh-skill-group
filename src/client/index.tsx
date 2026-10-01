@@ -3,7 +3,7 @@
  * web GUI.
  *
  * Registers the skill-hub locale dictionaries and mounts:
- *  - a top-level Settings section (Settings → 技能) hosting the skill hub
+ *  - a top-level Settings section (Settings → 技能分组) hosting the skill hub
  *    panel: catalog, search, enable/disable, diagnostics, new-skill form;
  *  - the chat "/" menu skill dots, colored from the same config the panel reads.
  *

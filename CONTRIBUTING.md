@@ -110,7 +110,7 @@ registered twice, a teardown that leaves residue. Prefer it before publishing.
 # after a change:
 pnpm build
 # restart the dsh web process, then verify both surfaces:
-#   Settings → 技能                        — the skill hub panel
+#   Settings → 技能分组                    — the skill panel
 #   sidebar 插件 → @flydut/dsh-skill-group  — the plugin's settings card
 ```
 

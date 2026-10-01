@@ -21,21 +21,21 @@ In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-
 
 ```bash
 dsh plugin --profile web add @flydut/dsh-skill-group
-# restart dsh web → Settings → 技能 → Market → scan → import
+# restart dsh web → Settings → 技能分组 → Market → scan → import
 ```
 
 Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`.
 
-Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
+Two surfaces — the hub panel lives at **Settings → 技能分组**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
 
 ## Features
 
-**Settings → 技能** — 4 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update), **Modes** (per-preset skill isolation).
+**Settings → 技能分组** — 4 tabs: **Sources** (skills, flat/grouped + project tree), **Scenes** (custom tag groups), **Market** (install + update), **Modes** (per-preset skill isolation).
 
 - **Browse** — every root of the `ctx.skills` registry: project / user / bundled + third-party providers. Search across name, description, `displayName`; filter by source and invocation (model / user); sort by name, added time, or usage. Same-name skills from different sources get a duplicate badge instead of silently hiding.
 - **Toggle** — per-skill switches and per-group tri-state switches with a conflict dialog (close all / keep on). Disabling renames the discovery file (never deletes); disabled skills stay inspectable and re-enableable from their detail page. Only `~/.dsh/skills` & `~/.agents/skills` are writable; everything else is read-only.
 - **Organize** — scenes (tags) plus auto-aggregated source collections, reordered with the ↑ / ↓ buttons in edit mode and persisted in `~/.dsh/dsh-skill-hub.json`. Edit mode reveals delete/reorder without cluttering the read view.
-- **Mode isolation** — bind scenes, source collections, or individual skills to an **agent preset** (Settings → Skills → Modes). Once a mode enables isolation, only the checked skills stay visible to its sessions: both the model catalog and explicit loads stop working, and **every other mode is untouched**. No preset file is edited and no skill file is moved; turning it off restores access on the next turn.
+- **Mode isolation** — bind scenes, source collections, or individual skills to an **agent preset** (Settings → Skill Groups → Modes). Once a mode enables isolation, only the checked skills stay visible to its sessions: both the model catalog and explicit loads stop working, and **every other mode is untouched**. No preset file is edited and no skill file is moved; turning it off restores access on the next turn.
 - **Diagnose & fix** — files the provider skips (missing frontmatter, bad YAML, name mismatch, short description) show up with reasons; auto-fixable ones (e.g. unquoted `:` in descriptions) get a one-click Fix button.
 - **Scaffold** — new-skill dialog (name, description, markdown body, target root) writing to `~/.dsh/skills` or `~/.agents/skills`; the frontmatter is generated from name + description, and a blank body falls back to the placeholder paragraph (`SKILL.md` template below).
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (top-level dot entries such as `.github/` count as repo tooling, not skill content). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
@@ -55,7 +55,7 @@ isolation** answers "which modes see which skills". It is orthogonal to the glob
 | Group (scene / source collection) | panel only | pure view, never changes availability |
 | Mode isolation | one preset | soft shadow: files untouched, invisible only to that mode's sessions |
 
-Usage: Settings → Skills → Modes → pick a mode → check groups/skills → Save. The editor shows a
+Usage: Settings → Skill Groups → Modes → pick a mode → check groups/skills → Save. The editor shows a
 live preview of how many skills stay visible in that mode.
 
 How it works (no dsh source changes, and your preset files are never written):
@@ -115,7 +115,7 @@ GitHub repo ──scan/import──▶ ~/.dsh/skills
      └─check/sync/delete── ctx.skills ◀─ provider
                                 │ snapshot/get
                                 ▼
-                    /api/skill-hub/* ──▶ Panel (Settings → 技能)
+                    /api/skill-hub/* ──▶ Panel (Settings → 技能分组)
 ```
 
 Host uses only `ctx.skills.snapshot/get`, `ctx.webServer.register`, `ctx.systemPrompt.section`, plus `livePresetMounts` / `createScope` for mode isolation (both official exports, loaded via dynamic `import()` and degrading on failure). Loopback-only routes (`127.0.0.1`/`localhost`), JSON.

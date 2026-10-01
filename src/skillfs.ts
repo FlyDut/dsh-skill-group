@@ -41,7 +41,7 @@ export async function createSkill(root: WritableRoot, name: string, description:
   const dir = skillDir(root, name, home)
   const file = join(dir, 'SKILL.md')
   await mkdir(dir, { recursive: true })
-  const safeDescription = description.trim() === '' ? 'New dsh skill created from the skill hub.' : description.trim()
+  const safeDescription = description.trim() === '' ? 'New dsh skill created from the Skill Groups panel.' : description.trim()
   // 正文由调用方提供时原样写入（只 trim 首尾空白）；留空才落到脚手架占位段。
   const safeContent = content.trim()
   const body = [

@@ -1,12 +1,12 @@
 /** 面板框架与通用：入口/视图切换/面板/图例/报错/更新检查/新建表单/诊断修复。从 locales.ts 按前缀拆出，键集合不变。 */
 export const zhCommon = {
-  'entry.label': '技能',
+  'entry.label': '技能分组',
   'view.sources': '来源',
   'view.scenes': '场景',
   'view.market': '市场',
   'view.flat': '平铺',
   'view.grouped': '分组',
-  'panel.title': 'Skill管理',
+  'panel.title': '技能分组',
   'panel.count': '共 {count} 个技能',
   'panel.disabledCount': '已禁用 {count}',
   'panel.new': '新建',
@@ -43,13 +43,13 @@ export const zhCommon = {
 } as const
 
 export const enCommon: Record<keyof typeof zhCommon, string> = {
-  'entry.label': 'Skills',
+  'entry.label': 'Skill Groups',
   'view.sources': 'Sources',
   'view.scenes': 'Scenes',
   'view.market': 'Market',
   'view.flat': 'Flat',
   'view.grouped': 'Grouped',
-  'panel.title': 'Skill Hub',
+  'panel.title': 'Skill Groups',
   'panel.count': '{count} skills total',
   'panel.disabledCount': '{count} disabled',
   'panel.new': 'New',
