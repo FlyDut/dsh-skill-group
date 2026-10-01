@@ -25,7 +25,7 @@ import type { SkillHubStore } from './store.ts'
 export const SCOPE_WIRING_TICK_MS = 5000
 
 /** 隔离装配的产物：判定视图、运行时接线器、路由依赖。 */
-export interface ScopeAssembly {
+interface ScopeAssembly {
   /** 纯计算的可见性判定 + 目录快照缓存。 */
   view: ScopeView
   /** 往每个 preset 的 standing 作用域注入/回收闸门。 */

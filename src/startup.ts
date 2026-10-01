@@ -16,7 +16,7 @@ import { cleanupLeftoverImportDirs } from './repo.ts'
 import { WRITABLE_ROOTS, rootPath } from './skillfs/paths.ts'
 import type { SkillHubStore } from './store.ts'
 
-export interface StartupOptions {
+interface StartupOptions {
   ctx: Context
   store: SkillHubStore
   /** Settings 服务（部署挂了才有）；缺席表示没有用户层可迁移。 */

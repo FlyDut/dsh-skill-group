@@ -25,7 +25,7 @@ import { HUB_CONFIG_DEFAULTS, type HubConfig } from './protocol.ts'
 import { createSkillStatsReader, asPersistenceSeam, type SessionPersistenceLike, type SessionQueryLike, type SkillStatsReader } from './stats.ts'
 import type { SkillHubStore } from './store.ts'
 
-export interface InvocationStatsOptions {
+interface InvocationStatsOptions {
   ctx: Context
   store: SkillHubStore
   /** 实时配置：扫描间隔与滚动窗口都从这里读，卡片里改完即生效。 */
