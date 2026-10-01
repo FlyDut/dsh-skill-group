@@ -1,5 +1,5 @@
 /**
- * Standalone build config for the skill-hub plugin (@flydut/dsh-skill-group),
+ * Standalone build config for the skill-hub plugin (dsh-skill-group),
  * adapted from dsh-web-ui's shared/tsdown.client.ts preset and vendored for a
  * single-package repo.
  *
@@ -27,7 +27,7 @@ import { transform } from 'lightningcss'
  * browser artifact registers a lazy factory whose id equals the package
  * name"). A stale id makes boot fail with "loaded without registering".
  */
-const ID = '@flydut/dsh-skill-group'
+const ID = 'dsh-skill-group'
 
 /**
  * The shell's shared module table (vendored from dsh-web-ui's
