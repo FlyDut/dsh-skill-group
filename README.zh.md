@@ -1,16 +1,16 @@
-# dsh-skill-hub
+# dsh-skill-group
 
 [English](README.md) | [中文版](README.zh.md)
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-skill-hub"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-skill-hub?color=2f81f7&label=npm"></a>
-  <img alt="downloads" src="https://img.shields.io/npm/dm/dsh-skill-hub">
-  <img alt="license" src="https://img.shields.io/npm/l/dsh-skill-hub">
+  <a href="https://www.npmjs.com/package/@flydut/dsh-skill-group"><img alt="npm version" src="https://img.shields.io/npm/v/@flydut/dsh-skill-group?color=2f81f7&label=npm"></a>
+  <img alt="downloads" src="https://img.shields.io/npm/dm/@flydut/dsh-skill-group">
+  <img alt="license" src="https://img.shields.io/npm/l/@flydut/dsh-skill-group">
   <img alt="node" src="https://img.shields.io/badge/node-%3E%3D22.19-339933">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/cheshireez/dsh-skill-hub/main/promo/real-skill-hub.png" alt="dsh-skill-hub 面板" width="640">
+  <img src="promo/real-skill-hub.png" alt="dsh-skill-group 面板" width="640">
 </p>
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的图形化技能管理 — 在 Web GUI 里浏览 `ctx.skills` 全量目录，开关技能、查看正文、修复发现问题、从市场安装、一键新建。
@@ -20,13 +20,13 @@
 ## 快速开始
 
 ```bash
-dsh plugin --profile web add dsh-skill-hub
+dsh plugin --profile web add @flydut/dsh-skill-group
 # 重启 dsh web → 设置 → 技能 → 市场 → 扫描 → 导入
 ```
 
 要求 `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`。
 
-两个界面 —— 管理面板在 **设置 → 技能**；本插件的设置卡片在 **插件管理页** 的插件自有页面上（侧边栏「插件」→ dsh-skill-hub）。该卡片于 dsh `0.1.6-alpha.2` 迁到此处 —— 插件管理页取代了旧的「设置 → 插件」列表，本插件只注册到新位置。
+两个界面 —— 管理面板在 **设置 → 技能**；本插件的设置卡片在 **插件管理页** 的插件自有页面上（侧边栏「插件」→ @flydut/dsh-skill-group）。该卡片于 dsh `0.1.6-alpha.2` 迁到此处 —— 插件管理页取代了旧的「设置 → 插件」列表，本插件只注册到新位置。
 
 ## 功能
 
@@ -41,7 +41,7 @@ dsh plugin --profile web add dsh-skill-hub
 - **市场** — 内置精选仓库 + 自定义 `owner/repo`。任何含 `SKILL.md` 的顶层目录都可扫描（无白名单）；`SKILL.md` 直接位于仓库根时，整仓算作一个技能、以仓库名命名（顶层点号目录如 `.github/` 属仓库基建，不算技能内容）。异步导入，字节级进度+取消。每个源钉一个版本 —— 点 ref 徽标可在发布版/分支/手输之间切换。
 - **跟踪更新** — 导入的技能记录 repo+commit 快照。检查全部/一键全更；每源徽章（已装/可更新/上游已删/新版本）。同步覆盖本地修改（先确认）；上游删除跟进移入回收站，恢复保留来源与场景归属。
 - **统计** — 会话日志的调用次数+最近使用，分组头汇总；窗口与扫描间隔在设置卡片实时可调。
-- **设置卡片** — 位于 **插件管理页** 的插件自有页面（侧边栏「插件」→ dsh-skill-hub）：总开关、向 Agent 公告、调用圆点颜色、用量显示开关、统计窗口/间隔。
+- **设置卡片** — 位于 **插件管理页** 的插件自有页面（侧边栏「插件」→ @flydut/dsh-skill-group）：总开关、向 Agent 公告、调用圆点颜色、用量显示开关、统计窗口/间隔。
 
 ## 模式级技能隔离
 
@@ -83,7 +83,7 @@ DSH 的 agent preset（模式）决定一个会话装载哪些插件，技能目
 
 [dsh-skill-manager](https://www.npmjs.com/package/dsh-skill-manager) 只读浏览，[dsh-skill-importer](https://github.com/saitamahang/dsh-skill-importer) / [dsh-find-skill](https://github.com/Moximxxx/dsh-find-skill) 只做导入。**本插件负责管理。**
 
-| 能力 | 只读浏览器 | **dsh-skill-hub** |
+| 能力 | 只读浏览器 | **dsh-skill-group** |
 | --- | --- | --- |
 | 目录 | 自扫盘、仅用户根 | `ctx.skills` 全量+第三方 |
 | 开关 | ❌ | ✅ 单技能+整组，从不删除 |
@@ -149,9 +149,9 @@ GitHub 仓库 ──扫描/导入──▶ ~/.dsh/skills
 ## 开发
 
 ```bash
-npm run typecheck  # tsc --noEmit
-npm test           # 337 tests, 19 suites
-npm run build      # tsc + tsdown → lib/index.js + lib/client.js
+pnpm typecheck     # tsc --noEmit
+pnpm test          # 336 tests, 19 suites
+pnpm build         # tsc 声明 + tsdown → lib/index.js + lib/client.js
 ```
 
 > 同一 `$DSH_HOME` + cwd 下勿开两个 `dsh web` — 无会话日志锁，会 `seq gap` 损坏。换 `DSH_HOME` 或先关旧实例。
@@ -162,11 +162,11 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - 技能不出现 — 看诊断区（缺 frontmatter / 名称不一致 / 描述过短）。
 - 来源组空壳 — 组内技能已被删除、或禁用记录丢失（状态文件被恢复/手改）。启动时自动对账磁盘上的 `.disabled` 文件补记录；无可见成员的来源组不再渲染。
 - `/` 菜单圆点消失 — dsh 内部触发源变更，目录功能不受影响。
-- 找不到设置卡片 — 它在插件管理页（侧边栏「插件」→ dsh-skill-hub），不在「设置」里；低于 `0.1.7-rc.1` 的 dsh 完全不受支持（0.1.7 换掉了本插件所依赖的 settings 模型）。
+- 找不到设置卡片 — 它在插件管理页（侧边栏「插件」→ @flydut/dsh-skill-group），不在「设置」里；低于 `0.1.7-rc.1` 的 dsh 完全不受支持（0.1.7 换掉了本插件所依赖的 settings 模型）。
 
 ## 社区
 
-[Issues](https://github.com/cheshireez/dsh-skill-hub/issues) · [讨论区](https://github.com/cheshireez/dsh-skill-hub/discussions) · [官方展示](https://github.com/deepseek-ai/deepseek-harness/discussions/3161) · [市场收录 PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1746) · [Discord](https://discord.gg/Ycq5dCaS4)
+[Issues](https://github.com/FlyDut/dsh-skill-group/issues) · [讨论区](https://github.com/FlyDut/dsh-skill-group/discussions) · [官方展示](https://github.com/deepseek-ai/deepseek-harness/discussions/3161) · [市场收录 PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1746) · [Discord](https://discord.gg/Ycq5dCaS4)
 
 ## License
 

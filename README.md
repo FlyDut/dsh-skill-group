@@ -1,16 +1,16 @@
-# dsh-skill-hub
+# dsh-skill-group
 
 [中文版](README.zh.md) | [English](README.md)
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/dsh-skill-hub"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-skill-hub?color=2f81f7&label=npm"></a>
-  <img alt="downloads" src="https://img.shields.io/npm/dm/dsh-skill-hub">
-  <img alt="license" src="https://img.shields.io/npm/l/dsh-skill-hub">
+  <a href="https://www.npmjs.com/package/@flydut/dsh-skill-group"><img alt="npm version" src="https://img.shields.io/npm/v/@flydut/dsh-skill-group?color=2f81f7&label=npm"></a>
+  <img alt="downloads" src="https://img.shields.io/npm/dm/@flydut/dsh-skill-group">
+  <img alt="license" src="https://img.shields.io/npm/l/@flydut/dsh-skill-group">
   <img alt="node" src="https://img.shields.io/badge/node-%3E%3D22.19-339933">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/cheshireez/dsh-skill-hub/main/promo/real-skill-hub.png" alt="dsh-skill-hub panel" width="640">
+  <img src="promo/real-skill-hub.png" alt="dsh-skill-group panel" width="640">
 </p>
 
 In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — browse the full `ctx.skills` catalog, toggle skills, inspect bodies, fix discovery issues, install from the market, and scaffold new ones.
@@ -20,13 +20,13 @@ In-GUI skill hub for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-
 ## Quick start
 
 ```bash
-dsh plugin --profile web add dsh-skill-hub
+dsh plugin --profile web add @flydut/dsh-skill-group
 # restart dsh web → Settings → 技能 → Market → scan → import
 ```
 
 Requires `Node ^22.19 || >=24` + dsh web `>=0.1.7-rc.1 <0.2`.
 
-Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
+Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin's settings card lives on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group). The card moved there in dsh `0.1.6-alpha.2`, when the Plugins manager replaced the old Settings → 插件 list; this plugin registers into the new location only.
 
 ## Features
 
@@ -41,7 +41,7 @@ Two surfaces — the hub panel lives at **Settings → 技能**, and the plugin'
 - **Market** — built-in curated repos plus custom `owner/repo` sources. Any top-level directory containing `SKILL.md` scans as a root (no allowlist), and a `SKILL.md` at the repo root itself scans as a single skill named after the repo (top-level dot entries such as `.github/` count as repo tooling, not skill content). Async import with byte-level progress and cancel. Each source pins a version — click the ref badge to switch between releases, branches, or a custom ref.
 - **Track updates** — imported skills record a repo + commit snapshot. Check all / update-all, per-source badges (installed / updatable / deleted upstream / new release). Sync overwrites local edits (with confirm); upstream deletions move into a restorable trash that keeps source and scene membership.
 - **Stats** — per-skill call counts + last-used times from session logs (incremental cache), group summaries; window and scan interval live-configurable from the settings card.
-- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → dsh-skill-hub): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
+- **Settings card** — on the plugin's own page in the **Plugins manager** (sidebar → 插件 → @flydut/dsh-skill-group): master switch, announce-to-agent, invocation dot colors, usage display toggles, stats window/interval.
 
 ## Mode-level skill isolation
 
@@ -87,7 +87,7 @@ Known limits:
 
 [dsh-skill-manager](https://www.npmjs.com/package/dsh-skill-manager) browses, [dsh-skill-importer](https://github.com/saitamahang/dsh-skill-importer) / [dsh-find-skill](https://github.com/Moximxxx/dsh-find-skill) import. **This plugin manages.**
 
-| Capability | read-only browser | **dsh-skill-hub** |
+| Capability | read-only browser | **dsh-skill-group** |
 | --- | --- | --- |
 | Catalog | user roots, self-scanned | `ctx.skills` registry, all roots + third-party |
 | Toggle | ❌ | ✅ per-skill + per-group, never deletes |
@@ -151,9 +151,9 @@ Unknown paths under `/api/skill-hub/*` answer a 404 naming the path (a `prefix` 
 ## Development
 
 ```bash
-npm run typecheck  # tsc --noEmit
-npm test           # 337 tests, 19 suites
-npm run build      # tsc + tsdown → lib/index.js + lib/client.js
+pnpm typecheck     # tsc --noEmit
+pnpm test          # 336 tests, 19 suites
+pnpm build         # tsc declarations + tsdown → lib/index.js + lib/client.js
 ```
 
 > Don't run two `dsh web` on the same `$DSH_HOME` + cwd — no session-log lock (`seq gap` corruption). Use separate `DSH_HOME`.
@@ -164,11 +164,11 @@ npm run build      # tsc + tsdown → lib/index.js + lib/client.js
 - Skill missing — check the diagnostics section (frontmatter / name mismatch / short description).
 - Empty source group — its skills were deleted, or their disabled records were lost (sidecar restored/hand-edited). Startup reconciles `.disabled` files on disk; source groups with no visible member are no longer rendered.
 - Dots missing in `/` menu — dsh internals changed; catalog still works.
-- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → dsh-skill-hub), not under Settings. dsh older than `0.1.7-rc.1` is not supported at all (0.1.7 replaced the settings model this plugin is built on).
+- Settings card missing — it lives in the Plugins manager (sidebar → 插件 → @flydut/dsh-skill-group), not under Settings. dsh older than `0.1.7-rc.1` is not supported at all (0.1.7 replaced the settings model this plugin is built on).
 
 ## Community
 
-[Issues](https://github.com/cheshireez/dsh-skill-hub/issues) · [Discussions](https://github.com/cheshireez/dsh-skill-hub/discussions) · [Showcase](https://github.com/deepseek-ai/deepseek-harness/discussions/3161) · [Market PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1746) · [Discord](https://discord.gg/Ycq5dCaS4)
+[Issues](https://github.com/FlyDut/dsh-skill-group/issues) · [Discussions](https://github.com/FlyDut/dsh-skill-group/discussions) · [Showcase](https://github.com/deepseek-ai/deepseek-harness/discussions/3161) · [Market PR](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/1746) · [Discord](https://discord.gg/Ycq5dCaS4)
 
 ## License
 

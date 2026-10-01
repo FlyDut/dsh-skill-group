@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution to **dsh-skill-hub**. This project is a
+Thanks for considering a contribution to **dsh-skill-group**. This project is a
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) plugin with two halves:
 
 - the **host half** (`src/index.ts` + `src/routes.ts`) runs in the dsh process and speaks only official
@@ -33,7 +33,13 @@ its judgments can be exhaustively unit-tested (see `domain/scope-policy.test.ts`
 ## Layout
 
 ```
-src/index.ts            cordis plugin entry (config schema, settings namespace, stats wiring)
+src/index.ts            cordis plugin entry — assembly only (config reads, surface sync, service wiring)
+src/config.ts           volatile config schema + settings-namespace contract (Config / ENTRY_ID / …)
+src/scope-assembly.ts   mode-isolation assembly (ScopeView + PresetWiring + scopes-route deps)
+src/stats-wiring.ts     optional session-query / session-persistence statistics wiring
+src/startup.ts          startup cleanup: leftover import dirs, disabled reconciliation, sidecar migration
+src/env.ts              environment paths (DSH_HOME / DSH_AGENTS_HOME) — the only OS-env reader
+src/repo/paths.ts       repo-root + skill-path contract (sits below store so curation may use it)
 src/routes.ts           route-family aggregator (wraps every domain handler in the shared fences)
 src/routes/             one file per domain + shared layers:
                         http.ts (fences/JSON/error mapping), deps.ts (route deps + writable-skill
@@ -41,6 +47,8 @@ src/routes/             one file per domain + shared layers:
                         (origin collections), route-state.ts (throttles + import-job table),
                         helpers.ts (barrel)
 src/store.ts            sidecar store barrel (paths / migrate / store)
+src/store/store.ts      the sidecar state machine: state fields, load/migrate/default-tag, atomic persist
+src/store/domains/      pure per-domain state rules (tags / sources / market / scopes), zero IO
 src/skillfs.ts          writable-root file ops + barrel (skillfs/paths.ts, frontmatter.ts, scan.ts)
 src/repo.ts             GitHub repo helpers barrel (repo/types.ts, discovery.ts, api.ts, install.ts,
                         github-client.ts = shared request layer)
@@ -64,27 +72,27 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ## Development setup
 
 ```bash
-npm install
-npm run typecheck   # tsc --noEmit
-npm test            # vitest (334 tests across 19 suites)
-npm run build       # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
-npm run smoke       # load the built bundle in a real cordis runtime (run after build)
+pnpm install
+pnpm typecheck      # tsc --noEmit
+pnpm test           # vitest (336 tests across 19 suites)
+pnpm build          # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
+pnpm smoke          # load the built bundle in a real cordis runtime (run after build)
 ```
 
-`npm run smoke` boots `lib/index.js` inside a minimal cordis host with stand-ins for
+`pnpm smoke` boots `lib/index.js` inside a minimal cordis host with stand-ins for
 `webServer` / `skills` / `systemPrompt` / `settings` / `agentPresets`, then drives the real
 route handlers. It catches what unit tests cannot: a bundle that fails to load, a route
 registered twice, a teardown that leaves residue. Prefer it before publishing.
 
 ## Before opening a pull request
 
-1. **Typecheck** — `npm run typecheck` must pass.
-2. **Tests** — `npm test` must pass; add/adjust tests for any behavior change. Suites sit next to the
+1. **Typecheck** — `pnpm typecheck` must pass.
+2. **Tests** — `pnpm test` must pass; add/adjust tests for any behavior change. Suites sit next to the
    code they cover (`src/*.test.ts`, `src/routes/*.test.ts`) and mirror the real
    route/store/filesystem/provider behavior. The browser half has no component-test harness
    (vitest runs in the node environment); keep browser changes mechanical and verify them in the
    live GUI.
-3. **Build** — `npm run build` must produce `lib/index.js` and `lib/client.js`.
+3. **Build** — `pnpm build` must produce `lib/index.js` and `lib/client.js`.
 4. **Keep the diff focused** — one logical change per PR, with a clear title and description.
 5. **Documentation** — update `README.md` **and** `README.zh.md` (both ship with the package and are
    kept in sync) when behavior or the API surface changes.
@@ -100,33 +108,22 @@ registered twice, a teardown that leaves residue. Prefer it before publishing.
 
 ```bash
 # after a change:
-npm run build
+pnpm build
 # restart the dsh web process, then verify both surfaces:
-#   Settings → 技能              — the skill hub panel
-#   sidebar 插件 → dsh-skill-hub  — the plugin's settings card
+#   Settings → 技能                        — the skill hub panel
+#   sidebar 插件 → @flydut/dsh-skill-group  — the plugin's settings card
 ```
 
-When the web profile installs this repo as a link (`"dsh-skill-hub": "link:/path/to/repo"`, the
-usual local-dev setup), `lib/` is picked up on the next `dsh web` restart — no copy step needed.
+When the web profile installs this repo as a link (`"@flydut/dsh-skill-group": "link:/path/to/repo"`,
+the usual local-dev setup), `lib/` is picked up on the next `dsh web` restart — no copy step needed.
 
-## Keeping up with upstream
+## Origin
 
-This repository is a fork of
-[cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub) that carries features
-upstream does not have (mode-level skill isolation) and therefore tracks upstream **selectively**.
-Never merge or cherry-pick upstream wholesale: upstream dropped the pnpm toolchain files in favour
-of npm, reordered `package-lock.json`, and reworked the settings model for dsh 0.1.7 — this fork has
-since adopted that 0.1.7 settings model (0.4.0) while keeping its own layout and trim.
-
-Read [`UPSTREAM-SYNC.md`](UPSTREAM-SYNC.md) before touching upstream code. It records the reviewed
-upstream watermark, the per-commit disposition of every upstream change (adopted / partial /
-rejected, with reasons), the local-only files that must survive an upstream review, and the
-tag/`git notes` convention used to mark each sync. Start a new sync with:
-
-```bash
-git fetch upstream --tags
-git log --oneline upstream-baseline/v0.3.15..upstream/main
-```
+This project started as a fork of
+[cheshireez/dsh-skill-hub](https://github.com/cheshireez/dsh-skill-hub) and has since been developed
+independently: it keeps its own layout, its own release cadence, and the mode-level skill isolation
+upstream does not have. There is no upstream tracking, no sync watermark, and no merge obligation —
+treat this repository as the source of truth, and feel free to restructure freely.
 
 ## Issues
 

@@ -1,6 +1,7 @@
 {
-  "name": "dsh-skill-hub",
-  "version": "0.4.0",
+  "name": "@flydut/dsh-skill-group",
+  "version": "0.0.1",
+  "packageManager": "pnpm@12.6.0",
   "description": "In-GUI skill hub for DeepSeek Harness (dsh): browse the full local skill catalog from the official ctx.skills registry (every root + third-party providers), toggle skills on/off, inspect bodies, surface frontmatter diagnostics, and scaffold new skills — plus a codex-style skill market (built-in catalog, upstream update checks, one-click update-all) with tracked source sync. The full manager beyond the read-only dsh-skill-manager browser.",
   "type": "module",
   "engines": {
@@ -167,7 +168,7 @@
     "skills",
     "skill-manager",
     "agent-skills",
-    "skill-hub"
+    "skill-group"
   ],
   "license": "MIT",
   "scripts": {
@@ -182,10 +183,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cheshireez/dsh-skill-hub.git"
+    "url": "git+https://github.com/FlyDut/dsh-skill-group.git"
   },
   "bugs": {
-    "url": "https://github.com/cheshireez/dsh-skill-hub/issues"
+    "url": "https://github.com/FlyDut/dsh-skill-group/issues"
   },
-  "homepage": "https://github.com/cheshireez/dsh-skill-hub"
+  "homepage": "https://github.com/FlyDut/dsh-skill-group"
 }
