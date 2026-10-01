@@ -37,7 +37,7 @@ export class SkillHubStore {
       const parsed: unknown = JSON.parse(raw)
       const migrated = migrateStore(parsed)
       if (migrated === null) {
-        console.warn('[dsh-skill-hub] sidecar state uses a newer schema than this plugin supports; starting empty')
+        console.warn('[skill-hub] sidecar state uses a newer schema than this plugin supports; starting empty')
       } else {
         const state = hydrateMigratedState(migrated)
         this.entries = state.entries
@@ -56,7 +56,7 @@ export class SkillHubStore {
       // Missing or unreadable state starts empty; never crash the plugin.
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT') {
-        console.warn('[dsh-skill-hub] sidecar state unreadable, starting empty:', error instanceof Error ? error.message : error)
+        console.warn('[skill-hub] sidecar state unreadable, starting empty:', error instanceof Error ? error.message : error)
       }
     }
     await this.ensureDefaultTag()

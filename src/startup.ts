@@ -33,9 +33,9 @@ export function runStartupTasks(options: StartupOptions): void {
     for (const root of WRITABLE_ROOTS.map((id) => rootPath(id))) {
       try {
         const c = await cleanupLeftoverImportDirs(root)
-        if (c > 0) ctx.logger.info(`[dsh-skill-hub] startup cleaned ${c} leftover import temp dir(s) in ${root}`)
+        if (c > 0) ctx.logger.info(`[skill-hub] startup cleaned ${c} leftover import temp dir(s) in ${root}`)
       } catch (error) {
-        ctx.logger.warn('[dsh-skill-hub] startup cleanup failed', error)
+        ctx.logger.warn('[skill-hub] startup cleanup failed', error)
       }
     }
     // 对账：磁盘上已有 .disabled、sidecar 却无记录（状态文件被恢复/手改、旧版本
@@ -43,10 +43,10 @@ export function runStartupTasks(options: StartupOptions): void {
     try {
       const reconciled = await reconcileDisabledSkills(store, dshHome())
       if (reconciled.length > 0) {
-        ctx.logger.info(`[dsh-skill-hub] startup reconciled ${reconciled.length} disabled skill record(s): ${reconciled.map((entry) => entry.name).join(', ')}`)
+        ctx.logger.info(`[skill-hub] startup reconciled ${reconciled.length} disabled skill record(s): ${reconciled.map((entry) => entry.name).join(', ')}`)
       }
     } catch (error) {
-      ctx.logger.warn('[dsh-skill-hub] startup disabled-skill reconcile failed', error)
+      ctx.logger.warn('[skill-hub] startup disabled-skill reconcile failed', error)
     }
   })()
 
@@ -62,7 +62,7 @@ export function runStartupTasks(options: StartupOptions): void {
         await settings.update(ENTRY_ID, legacy as Record<string, unknown>)
       }
     } catch (error) {
-      ctx.logger.warn('[dsh-skill-hub] sidecar config migration into the settings namespace failed', error)
+      ctx.logger.warn('[skill-hub] sidecar config migration into the settings namespace failed', error)
     }
   })()
 }

@@ -1,5 +1,5 @@
 /**
- * dsh-skill-hub — host half，也是整个插件的组装点。
+ * skill-hub — host half，也是整个插件的组装点。
  *
  * 插件要完成的任务只有一句：**策展本地技能在 DSH 里的呈现与可用性**。
  * 代码按四条职责链分层，数据只向下流：
@@ -157,7 +157,7 @@ export function apply(ctx: Context, config?: Config): void {
     setGithubToken(value.githubToken)
     if (value.announceToAgent) {
       disposeSection = ctx.systemPrompt.section({
-        name: 'plugin:dsh-skill-hub',
+        name: 'plugin:skill-hub',
         order: SECTION_ORDER,
         text: SKILL_HUB_GUIDANCE,
       })
@@ -171,7 +171,7 @@ export function apply(ctx: Context, config?: Config): void {
           providerControl = control
           return new SkillHubProvider(control)
         }),
-        'dsh-skill-hub: provider',
+        'skill-hub: provider',
       )
     }
     if (disposeRoutes !== undefined) {
@@ -200,7 +200,7 @@ export function apply(ctx: Context, config?: Config): void {
           for (const dispose of disposers) dispose()
         }
       },
-      'dsh-skill-hub: routes',
+      'skill-hub: routes',
     )
     // 接线器只在主开关打开时干活：关掉插件就不该继续往 preset 作用域里注入。
     if (value.enabled) void scopes.wiring.sync()
@@ -224,7 +224,7 @@ export function apply(ctx: Context, config?: Config): void {
       clearInterval(wiringTick)
       void scopes.wiring.dispose()
     },
-    'dsh-skill-hub: scope wiring',
+    'skill-hub: scope wiring',
   )
 
   // `ctx.agentPresets` 是可选依赖：缺席的部署只是没有"模式"可配，插件的其余

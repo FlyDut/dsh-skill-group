@@ -13,7 +13,7 @@ describe('reconcileDisabledSkills', () => {
   let store: SkillHubStore
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-reconcile-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-reconcile-'))
     home = join(dir, 'home')
     agentsHome = join(dir, 'agents')
     await mkdir(join(home, 'skills'), { recursive: true })

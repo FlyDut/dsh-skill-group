@@ -82,7 +82,7 @@ describe('skill-hub routes', () => {
   let deps: SkillHubRouteDeps
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-routes-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-routes-'))
     home = join(dir, 'home')
     await mkdir(join(home, 'skills'), { recursive: true })
     store = new SkillHubStore(statePath(home))
@@ -1074,7 +1074,7 @@ describe('skill-hub mode scope routes', () => {
   }
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-scope-routes-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-scope-routes-'))
     store = new SkillHubStore(statePath(dir))
     sessions = {
       entries: [
@@ -1280,7 +1280,7 @@ describe('skill-hub API surface', () => {
   let deps: SkillHubRouteDeps
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-api-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-api-'))
     home = join(dir, 'home')
     await mkdir(join(home, 'skills'), { recursive: true })
     store = new SkillHubStore(statePath(home))

@@ -23,7 +23,7 @@ describe('SkillHubProvider', () => {
   const originalAgentsHome = process.env.DSH_AGENTS_HOME
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-provider-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-provider-'))
     home = join(dir, 'home')
     agentsHome = join(dir, 'agents-home')
     process.env.DSH_AGENTS_HOME = agentsHome

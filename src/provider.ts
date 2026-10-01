@@ -93,7 +93,7 @@ export class SkillHubProvider implements SkillProvider {
         const text = errorText(error)
         if (text === this.lastWatchError) return
         this.lastWatchError = text
-        console.warn('[dsh-skill-hub] skill root watch failed:', text)
+        console.warn('[skill-hub] skill root watch failed:', text)
       },
     )
   }

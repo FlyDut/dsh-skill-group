@@ -264,8 +264,8 @@ export class PresetWiring {
       this.deps.log(level, message)
       return
     }
-    if (level === 'warn') console.warn('[dsh-skill-hub] ' + message)
-    else console.info('[dsh-skill-hub] ' + message)
+    if (level === 'warn') console.warn('[skill-hub] ' + message)
+    else console.info('[skill-hub] ' + message)
   }
 }
 

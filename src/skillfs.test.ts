@@ -98,7 +98,7 @@ describe('createSkill / disableSkill / enableSkill', () => {
   let home: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-fs-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-fs-'))
     home = join(dir, 'home')
     await mkdir(join(home, 'skills'), { recursive: true })
   })
@@ -172,7 +172,7 @@ describe('trashSkill / restoreSkill', () => {
   let home: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-trash-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-trash-'))
     home = join(dir, 'home')
     await mkdir(join(home, 'skills'), { recursive: true })
   })
@@ -235,7 +235,7 @@ describe('scanDiagnostics', () => {
   let skills: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-diag-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-diag-'))
     home = join(dir, 'home')
     skills = join(home, 'skills')
     await mkdir(skills, { recursive: true })
@@ -288,7 +288,7 @@ describe('scanDiagnostics', () => {
 
 describe('rootOfPath', () => {
   it('recognizes the writable roots', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-root-'))
+    const dir = await mkdtemp(join(tmpdir(), 'skill-hub-root-'))
     try {
       expect(rootOfPath(join(dir, 'skills', 'a', 'SKILL.md'), dir)).toBe('user-dsh')
       expect(rootOfPath(join(dir, 'other', 'b.md'), dir)).toBeUndefined()

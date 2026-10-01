@@ -1,15 +1,15 @@
 /**
- * Browser-half entry for the dsh-skill-hub plugin — runs inside the dsh
+ * Browser-half entry for the skill-hub plugin — runs inside the dsh
  * web GUI.
  *
- * Registers the dsh-skill-hub locale dictionaries and mounts:
+ * Registers the skill-hub locale dictionaries and mounts:
  *  - a top-level Settings section (Settings → 技能) hosting the skill hub
  *    panel: catalog, search, enable/disable, diagnostics, new-skill form;
  *  - the chat "/" menu skill dots, colored from the same config the panel reads.
  *
  *  - a configuration card in the `plugins.bundle.config` slot, keyed by the
  *    BUNDLE PACKAGE NAME, rendered on the plugin's own page in the Plugins
- *    manager (sidebar → 插件 → dsh-skill-hub). dsh 0.1.7 has no auto-generated
+ *    manager (sidebar → 插件 → skill-hub). dsh 0.1.7 has no auto-generated
  *    config page: the manager only renders that section for bundles that
  *    register this slot, and the card writes through the shared config form
  *    (`ctx.configForms.get(skill-hub)`), the same form the host routes read.
@@ -53,12 +53,12 @@ import { SkillHubSettingsCard, SkillHubSettingsCardController } from './SkillHub
 import { SkillHubPanel } from './panel/SkillHubPanel.tsx'
 
 /** Locale namespace this plugin owns. */
-const NS = 'dsh-skill-hub'
+const NS = 'skill-hub'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** dsh-skill-hub surface copy. */
-    'dsh-skill-hub': HubKey
+    /** skill-hub surface copy. */
+    'skill-hub': HubKey
   }
 }
 
@@ -81,7 +81,7 @@ export type { HubKey } from './locales.ts'
  * @param ctx - client root context (slots, locale).
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-skill-hub: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'skill-hub: dictionaries')
   const t = ctx.locale.bind(NS)
   const api = new SkillHubApi()
 
@@ -93,7 +93,7 @@ export function apply(ctx: ClientContext): void {
 
   // Chat `/` 菜单技能圆点：为每个候选行加可调用性圆点（蓝=模型可调，绿=仅用户），颜色与面板图例同步；仅装饰，不自动预填 "/"
   // inject 含 inputTriggers 保证 fiber 就绪后再 wrap，slash-dots 内的 undefined 防御仅用于单元测试 mock
-  ctx.effect(() => setupSkillSlashDots(ctx, api, scope), 'dsh-skill-hub: slash dots')
+  ctx.effect(() => setupSkillSlashDots(ctx, api, scope), 'skill-hub: slash dots')
 
   // The plugin's own configuration page. It must be registered here: the
   // Plugins manager only renders the config section for bundles that appear in
@@ -103,11 +103,11 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
       name: 'plugins.bundle.config',
-      key: 'dsh-skill-hub',
+      key: '@flydut/dsh-skill-group',
       locale: NS,
       inject: () => settingsCard.inject(),
     }, SkillHubSettingsCard)),
-    'dsh-skill-hub: plugin config',
+    'skill-hub: plugin config',
   )
 
   // Top-level Settings section: the skill management page.
@@ -120,9 +120,9 @@ export function apply(ctx: ClientContext): void {
       locale: NS,
       inject: () => ({}),
     }, () => <SkillHubPanel api={api} />)),
-    'dsh-skill-hub: settings section',
+    'skill-hub: settings section',
   )
 
   // Host shell has no section-icon registration; keep the nav gear swapped for the skill icon.
-  ctx.effect(() => applySettingsNavIcon(), 'dsh-skill-hub: settings nav icon')
+  ctx.effect(() => applySettingsNavIcon(), 'skill-hub: settings nav icon')
 }

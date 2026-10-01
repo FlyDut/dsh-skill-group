@@ -24,7 +24,7 @@ function check(label, actual, expected) {
 }
 
 // 隔离的 DSH_HOME，避免碰到真实 sidecar
-const home = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-smoke-'))
+const home = await mkdtemp(join(tmpdir(), 'skill-hub-smoke-'))
 process.env.DSH_HOME = home
 await mkdir(join(home, 'skills'), { recursive: true })
 

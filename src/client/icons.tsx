@@ -1,5 +1,5 @@
 /**
- * Vendored UI icons for dsh-skill-hub.
+ * Vendored UI icons for skill-hub.
  *
  * These were originally imported from `@deepseek-ai/dsh-client-ui-primitives`.
  * That package is not exposed as a standalone plugin module by the dsh web

@@ -84,7 +84,7 @@ export function wireInvocationStats(options: InvocationStatsOptions): void {
         }),
         onCheckpoint: (next) => {
           void store.saveSkillStatsState(next).catch((error) => {
-            ctx.logger.warn('[dsh-skill-hub] persisting skill-stats checkpoint failed', error)
+            ctx.logger.warn('[skill-hub] persisting skill-stats checkpoint failed', error)
           })
         },
       })
@@ -95,7 +95,7 @@ export function wireInvocationStats(options: InvocationStatsOptions): void {
       // INACTIVE_EFFECT, which the host surfaces as a fatal, process-wide load
       // failure — so drop this stale wiring instead of re-syncing.
       if (ctx.fiber.uid === null) return
-      ctx.logger.info(`[dsh-skill-hub] stats seam: ${cold === undefined ? 'session-query (fallback)' : 'session-persistence (cold)'}`)
+      ctx.logger.info(`[skill-hub] stats seam: ${cold === undefined ? 'session-query (fallback)' : 'session-persistence (cold)'}`)
       install(reader)
     })()
   }
@@ -110,13 +110,13 @@ export function wireInvocationStats(options: InvocationStatsOptions): void {
         const raw = (pctx as unknown as { sessionPersistence?: unknown }).sessionPersistence
         const seam = asPersistenceSeam(raw)
         if (seam === undefined) {
-          ctx.logger.warn('[dsh-skill-hub] sessionPersistence shape mismatch, staying on query fallback')
+          ctx.logger.warn('[skill-hub] sessionPersistence shape mismatch, staying on query fallback')
           return
         }
         try {
           await seam.list() // probe: headers only, must succeed before trusting the cold path
         } catch (error) {
-          ctx.logger.warn('[dsh-skill-hub] persistence seam probe failed, staying on query fallback', error)
+          ctx.logger.warn('[skill-hub] persistence seam probe failed, staying on query fallback', error)
           return
         }
         statsPersistence = seam

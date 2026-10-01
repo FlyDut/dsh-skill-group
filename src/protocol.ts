@@ -1,5 +1,5 @@
 /**
- * Shared API contract for dsh-skill-hub: the route paths and payload shapes
+ * Shared API contract for skill-hub: the route paths and payload shapes
  * both the host half and the browser half import. The browser half must never
  * depend on host SDK packages, so registry types are re-spelled here as
  * plain JSON-safe interfaces.

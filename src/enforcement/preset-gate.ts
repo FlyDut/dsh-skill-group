@@ -29,7 +29,7 @@ export const GATE_RANK = 0
 export const GATE_PROVIDER_NAME = 'skill-hub-gate'
 
 /** 元数据缺失时的兜底描述（`validateCandidate` 要求非空字符串）。 */
-const FALLBACK_DESCRIPTION = 'hidden in this agent preset by dsh-skill-hub'
+const FALLBACK_DESCRIPTION = 'hidden in this agent preset by skill-hub'
 
 /**
  * 一个 preset 作用域里的闸门。实例由 {@link PresetGateProvider} 的构造方

@@ -86,7 +86,7 @@ export async function replaceSkillDir(targetDir: string, download: () => Promise
   } catch (error) {
     await rename(backup, targetDir).catch((rollbackError) => {
       // 回滚失败会让技能只剩点前缀的备份目录（发现扫描会跳过它）：必须留痕。
-      console.warn('[dsh-skill-hub] restoring ' + targetDir + ' from ' + backup + ' failed:', errorText(rollbackError))
+      console.warn('[skill-hub] restoring ' + targetDir + ' from ' + backup + ' failed:', errorText(rollbackError))
     })
     throw error
   }

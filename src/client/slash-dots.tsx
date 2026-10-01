@@ -85,7 +85,7 @@ async function modelInvocableMap(api: SkillHubApi): Promise<Map<string, boolean>
     modelCache = { at: now, map }
     return map
   } catch (error) {
-    console.error('[dsh-skill-hub] slash dot color lookup failed:', error)
+    console.error('[skill-hub] slash dot color lookup failed:', error)
     modelCache = { at: now, failed: true }
     return new Map()
   }

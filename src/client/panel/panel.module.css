@@ -1,4 +1,4 @@
-/* dsh-skill-hub panel — Apple-style: generous whitespace, inset grouped
+/* skill-hub panel — Apple-style: generous whitespace, inset grouped
    cards, hairline separators, restrained accents.
    Colours come from the host theme tokens (dsh-client-ui-theme defines them
    on :root, with dark overrides on body[data-ds-dark-theme]). Every var()

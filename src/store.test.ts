@@ -10,7 +10,7 @@ describe('SkillHubStore', () => {
   let store: SkillHubStore
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-skill-hub-store-'))
+    dir = await mkdtemp(join(tmpdir(), 'skill-hub-store-'))
     file = statePath(dir)
     store = new SkillHubStore(file)
   })

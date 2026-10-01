@@ -93,8 +93,8 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
     isEnforced: async (presetId) => (await store.getScope(presetId))?.enabled === true,
     hiddenOf: (presetId) => view.hiddenOf(presetId),
     log: (level, message) => {
-      if (level === 'warn') ctx.logger.warn('[dsh-skill-hub] ' + message)
-      else ctx.logger.info('[dsh-skill-hub] ' + message)
+      if (level === 'warn') ctx.logger.warn('[skill-hub] ' + message)
+      else ctx.logger.info('[skill-hub] ' + message)
     },
   })
 
