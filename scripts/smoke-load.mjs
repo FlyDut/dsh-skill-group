@@ -212,7 +212,7 @@ check('/skill/delete reports per-name failures without failing the batch',
 
 // ── 落盘与重载 ──────────────────────────────────────────────────────────
 const { readFile } = await import('node:fs/promises')
-const persisted = JSON.parse(await readFile(join(home, 'dsh-skill-hub.json'), 'utf8'))
+const persisted = JSON.parse(await readFile(join(home, 'dsh-skill-group.json'), 'utf8'))
 check('sidecar schema bumped to v6', persisted.version, 6)
 check('policy persisted', persisted.scopes, [{ presetId: 'smoke-preset', enabled: true, groups: ['tag:t1'], skills: ['alpha-skill'] }])
 

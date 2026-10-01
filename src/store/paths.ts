@@ -34,7 +34,7 @@ export interface StoreFile {
 
 /** Resolve the sidecar state path (injectable in tests). */
 export function statePath(home = dshHome()): string {
-  return join(home, 'dsh-skill-hub.json')
+  return join(home, 'dsh-skill-group.json')
 }
 
 /** Current sidecar schema version. Bump on breaking shape changes and add a migration below. */
