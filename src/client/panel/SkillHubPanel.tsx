@@ -10,8 +10,10 @@
  * SourcesView / ScenesView / MarketView, the dialog family lives in
  * dialogs.tsx, and their wiring lives in PanelDialogs.tsx. This component
  * owns only the shared chrome (header, banners, filter bar, shared sections)
- * and the view routing — and holds no hooks, so the detail / tag-editor
- * early returns are safe.
+ * and the view routing. It keeps only two pieces of local state (the workspace
+ * draft and the filter-panel toggle); every flow hook runs unconditionally at
+ * the top of useSkillHub, so the detail / tag-editor / scope-editor early
+ * returns below stay inside the rules of hooks.
  */
 
 import { useState } from 'react'
@@ -57,6 +59,27 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   } = hub
   const { shortenedCount, fixingPaths, clearListFilters } = hub
 
+  // 三个整页子视图（详情 / 场景编辑 / 模式编辑）会在这个组件里提前返回，它们
+  // 不经过主视图的骨架——而失败恰恰常发生在子页面里（详情页启用失败、场景改名
+  // 失败、模式保存 409 二次确认被拒）。横幅因此抽成片段，随子视图一起传下去，
+  // 由子视图渲染在自己 `css.panel` 的顶部；主视图原处渲染同一片段。
+  const notices = (
+    <>
+      {loadError !== null ? (
+        <div className={css.errorBanner} role='alert'>
+          <span>{loadError}</span>
+          <button type='button' className={css.button} aria-label={tt('err.dismiss')} onClick={() => { setLoadError(null) }}>{tt('err.dismiss')}</button>
+        </div>
+      ) : null}
+      {successBanner !== null ? (
+        <div className={css.successBanner} role='status'>
+          <span>{successBanner}</span>
+          <button type='button' className={css.button} aria-label={tt('err.dismiss')} onClick={() => { setSuccessBanner(null) }}>{tt('err.dismiss')}</button>
+        </div>
+      ) : null}
+    </>
+  )
+
   // -------------------------------------------------------------- detail
 
   if (detail !== null) {
@@ -64,6 +87,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     return (
       <SkillDetailView
         detail={detail}
+        notices={notices}
         hubConfig={hubConfig}
         uses={uses}
         groupsState={groupsState}
@@ -85,6 +109,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
     return (
       <TagEditorView
         tag={editingTag}
+        notices={notices}
         editName={editName}
         membersDraft={membersDraft}
         editSearch={editSearch}
@@ -111,7 +136,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
   // 模式编辑器与 detail / 场景编辑器同类：整页替换，因此在这里提前返回。
   // 它只有从「模式」tab 点「配置」才会进入，此时不会有 tab 可切。
   if (hub.scopeFlow.editingPreset !== null) {
-    return <ScopesView hub={hub} />
+    return <ScopesView hub={hub} notices={notices} />
   }
 
   /** 生效中的筛选条件数（来源 + 调用方式），显示在「筛选」按钮上。 */
@@ -163,19 +188,7 @@ export function SkillHubPanel(props: SkillHubPanelProps): React.JSX.Element {
         <button type='button' className={css.legendToggle + (showLegend ? ' ' + css.legendToggleActive : '')} onClick={() => { setShowLegend((value) => !value) }} title={tt('legend.hint')}>?</button>
       </div>
 
-      {loadError !== null ? (
-        <div className={css.errorBanner} role='alert'>
-          <span>{loadError}</span>
-          <button type='button' className={css.button} aria-label={tt('err.dismiss')} onClick={() => { setLoadError(null) }}>{tt('err.dismiss')}</button>
-        </div>
-      ) : null}
-
-      {successBanner !== null ? (
-        <div className={css.successBanner} role='status'>
-          <span>{successBanner}</span>
-          <button type='button' className={css.button} aria-label={tt('err.dismiss')} onClick={() => { setSuccessBanner(null) }}>{tt('err.dismiss')}</button>
-        </div>
-      ) : null}
+      {notices}
 
       {showLegend ? (
         <div className={css.legend}>

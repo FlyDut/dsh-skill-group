@@ -28,15 +28,28 @@ export function useSkillHub(api: SkillHubApi) {
   const [loadError, setLoadError] = useState<string | null>(null)
   /** Green success banner (create finished); shown outside the closing form. */
   const [successBanner, setSuccessBanner] = useState<string | null>(null)
-  const [batchBusy, setBatchBusy] = useState(false)
-  const [tagBusy, setTagBusy] = useState(false)
+  /**
+   * 忙碌标志用计数器而非布尔：`setTagBusy` 被分组、市场、来源三个域共用（批量
+   * 开关同理），两个操作重叠时先结束的那个会把布尔置回 false，让仍在跑的
+   * 操作瞬间失去禁用态。
+   */
+  const [batchBusyCount, setBatchBusyCount] = useState(0)
+  const [tagBusyCount, setTagBusyCount] = useState(0)
+  const bumpTagBusy = useCallback((busy: boolean): void => {
+    setTagBusyCount((count) => Math.max(0, count + (busy ? 1 : -1)))
+  }, [])
+  const bumpBatchBusy = useCallback((busy: boolean): void => {
+    setBatchBusyCount((count) => Math.max(0, count + (busy ? 1 : -1)))
+  }, [])
   const shared = useMemo<FlowNotices>(() => ({
     fail: (message: string) => setLoadError(message),
     clearFail: () => setLoadError(null),
     succeed: (message: string | null) => setSuccessBanner(message),
-    setTagBusy,
-    setBatchBusy,
-  }), [])
+    setTagBusy: bumpTagBusy,
+    setBatchBusy: bumpBatchBusy,
+  }), [bumpTagBusy, bumpBatchBusy])
+  const batchBusy = batchBusyCount > 0
+  const tagBusy = tagBusyCount > 0
 
   // ------------------------------------------------------------ view state
   // 纯视图状态：不触发数据加载，只影响渲染。
@@ -92,7 +105,7 @@ export function useSkillHub(api: SkillHubApi) {
   const groupFlow = useGroupFlow(api, shared, catalogFlow.batchToggleNames, catalogFlow.actionNames)
 
   // ----------------------------------------------------------------- sources
-  const sourceFlow = useSourceFlow(api, shared, catalogFlow.load, groupFlow.loadGroups)
+  const sourceFlow = useSourceFlow(api, shared, catalogFlow.workspace, catalogFlow.load, groupFlow.loadGroups)
 
   // ------------------------------------------------------------------ market
   const marketFlow = useMarketFlow(

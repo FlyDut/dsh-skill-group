@@ -46,10 +46,20 @@ export function useCatalogFlow(
   const [sortKey, setSortKey] = useState<SortKey>('name')
 
   const autoCollapsedPersonal = useRef(false)
+  /**
+   * 目录请求序号：轮询与工作区切换都会发起 `load()`，慢的旧响应回来时
+   * 若直接 setCatalog，就会把新工作区的数据覆盖回旧的（切工作区后一闪
+   * 回到全局视图）。只接受最后一次发起的请求的响应。
+   */
+  const loadSeq = useRef(0)
+  /** 详情请求序号，同 loadSeq：快速连点不同技能时只认最后一次。 */
+  const detailSeq = useRef(0)
 
   const load = useCallback(async (): Promise<void> => {
+    const seq = ++loadSeq.current
     try {
       const next = await api.catalog(workspace !== '' ? { cwd: workspace } : undefined)
+      if (seq !== loadSeq.current) return
       setCatalog(next)
       if (!autoCollapsedPersonal.current && next.skills.length + next.disabled.length > 80) {
         autoCollapsedPersonal.current = true
@@ -57,23 +67,31 @@ export function useCatalogFlow(
       }
       shared.clearFail()
     } catch (error) {
+      if (seq !== loadSeq.current) return
       shared.fail(errorMessage(error))
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [api, workspace, shared, collapsePersonal])
 
   const openDetail = useCallback(async (name: string): Promise<void> => {
+    const seq = ++detailSeq.current
     setDetailLoading(true)
     await runFlow(shared, async () => {
-      setDetail(await api.skill(name, workspace !== '' ? { cwd: workspace } : undefined))
-    }, () => setDetailLoading(false))
+      const next = await api.skill(name, workspace !== '' ? { cwd: workspace } : undefined)
+      if (seq !== detailSeq.current) return
+      setDetail(next)
+    }, () => {
+      if (seq === detailSeq.current) setDetailLoading(false)
+    })
   }, [api, workspace, shared])
 
   const toggle = useCallback(async (skill: CatalogSkill, enabled: boolean): Promise<void> => {
     setBusyNames((previous) => new Set(previous).add(skill.name))
     await runFlow(shared, async () => {
-      const next = await api.toggle(skill.name, enabled)
+      // 带上当前工作区：路由据此重建同一作用域的目录，否则返回值是全局
+      // 目录，setCatalog 会把工作区视图静默重置。
+      const next = await api.toggle(skill.name, enabled, workspace !== '' ? { cwd: workspace } : undefined)
       setCatalog(next)
     }, () => {
       setBusyNames((previous) => {
@@ -82,12 +100,12 @@ export function useCatalogFlow(
         return next
       })
     })
-  }, [api, shared])
+  }, [api, workspace, shared])
 
   const enableDisabled = useCallback(async (record: DisabledSkill): Promise<void> => {
     setBusyNames((previous) => new Set(previous).add(record.name))
     await runFlow(shared, async () => {
-      const next = await api.toggle(record.name, true)
+      const next = await api.toggle(record.name, true, workspace !== '' ? { cwd: workspace } : undefined)
       setCatalog(next)
     }, () => {
       setBusyNames((previous) => {
@@ -96,20 +114,20 @@ export function useCatalogFlow(
         return next
       })
     })
-  }, [api, shared])
+  }, [api, workspace, shared])
 
   /** Toggle an explicit name set in one write (enables disabled members too). */
   const batchToggleNames = useCallback(async (names: string[], enabled: boolean): Promise<void> => {
     if (names.length === 0) return
     shared.setBatchBusy(true)
     await runFlow(shared, async () => {
-      const next = await api.toggleBatch(names, enabled)
+      const next = await api.toggleBatch(names, enabled, workspace !== '' ? { cwd: workspace } : undefined)
       setCatalog(next.catalog)
       if (next.failures.length > 0) {
         shared.fail('toggle-batch: ' + next.failures.map((failure) => failure.name + ': ' + failure.error).join('; '))
       }
     }, () => shared.setBatchBusy(false))
-  }, [api, shared])
+  }, [api, workspace, shared])
 
   const fixDiagnostic = useCallback(async (path: string): Promise<void> => {
     setFixingPaths((previous) => new Set(previous).add(path))

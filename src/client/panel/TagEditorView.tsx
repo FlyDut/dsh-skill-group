@@ -4,13 +4,15 @@
  * presentation — the draft state lives in the panel and arrives as props.
  */
 
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { CatalogResponse, SkillTag } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import css from './panel.module.css'
 
 interface TagEditorViewProps {
   tag: SkillTag
+  /** 面板的错误/成功横幅（整页替换，由面板传入，渲染在顶部）。 */
+  notices?: ReactNode
   /** Current name draft (panel-owned). */
   editName: string
   /** Current member-checkbox draft (panel-owned). */
@@ -32,12 +34,13 @@ interface TagEditorViewProps {
 }
 
 export function TagEditorView(props: TagEditorViewProps): JSX.Element {
-  const { tag, editName, membersDraft, editSearch, catalog, tagBusy, onBack, onEditName, onEditSearch, onToggleMember, onRename, onDelete, onSaveMembers } = props
+  const { tag, notices, editName, membersDraft, editSearch, catalog, tagBusy, onBack, onEditName, onEditSearch, onToggleMember, onRename, onDelete, onSaveMembers } = props
   const editQuery = editSearch.trim().toLocaleLowerCase()
   const editSkills = (catalog?.skills ?? []).filter((skill) => editQuery.length === 0 || skill.name.toLocaleLowerCase().includes(editQuery) || skill.description.toLocaleLowerCase().includes(editQuery))
   const editDisabled = (catalog?.disabled ?? []).filter((record) => editQuery.length === 0 || record.name.toLocaleLowerCase().includes(editQuery) || record.description.toLocaleLowerCase().includes(editQuery))
   return (
     <div className={css.panel}>
+      {notices}
       <div className={css.detailHead}>
         <button type='button' className={css.back} onClick={onBack}>{tt('detail.back')}</button>
         <input

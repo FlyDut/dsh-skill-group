@@ -17,6 +17,11 @@ import type { ConfirmDialogState } from '../dialogs.tsx'
 export function useSourceFlow(
   api: SkillHubApi,
   shared: FlowNotices,
+  /**
+   * 当前工作区（空串 = 全部）。删除技能必须带上它：路由按同一个 cwd 解析
+   * 可写技能，删完刷新回来的目录才不会把工作区视图切回全局。
+   */
+  workspace: string,
   /** 目录重载（技能增删后刷新列表，目录域提供）。 */
   reloadCatalog: () => Promise<void>,
   /** 分组重载（来源/成员变化后刷新，分组域提供）。 */
@@ -40,16 +45,24 @@ export function useSourceFlow(
     }
   }, [api, shared])
 
-  /** 检查全部来源的上游更新（服务端 5 分钟节流）。 */
+  /**
+   * 检查全部来源（或单个 repo）的上游更新（服务端 5 分钟节流）。
+   *
+   * 结果用函数式更新合并：并发检查（例如同时点两个来源的「检查」）若各自
+   * 基于进来时的快照合并，后写的那次会抹掉前一次的结果；同时也去掉了对
+   * `sourceCheck` 的依赖，让回调引用保持稳定。
+   */
   const checkSources = useCallback(async (repo?: string): Promise<void> => {
     setCheckingSource(repo ?? 'all')
     await runFlow(shared, async () => {
       const result = await api.checkSources(repo)
-      const next: Record<string, SourceCheckResult> = { ...sourceCheck }
-      for (const item of result.results) next[item.repo] = item
-      setSourceCheck(next)
+      setSourceCheck((previous) => {
+        const next: Record<string, SourceCheckResult> = { ...previous }
+        for (const item of result.results) next[item.repo] = item
+        return next
+      })
     }, () => setCheckingSource(null))
-  }, [api, sourceCheck, shared])
+  }, [api, shared])
 
   /** 请求同步某个来源的所选技能（弹确认，因为会覆盖本地修改）。 */
   const requestSync = useCallback((repo: string, skills: string[]): void => {
@@ -120,10 +133,10 @@ export function useSourceFlow(
     setDeleteSkillDialog(null)
     shared.setTagBusy(true)
     await runFlow(shared, async () => {
-      await api.deleteSkill(name)
+      await api.deleteSkill(name, workspace !== '' ? { cwd: workspace } : undefined)
       await Promise.all([reloadCatalog(), reloadGroups(), loadSources()])
     }, () => shared.setTagBusy(false))
-  }, [api, deleteSkillDialog, reloadCatalog, reloadGroups, loadSources, shared])
+  }, [api, workspace, deleteSkillDialog, reloadCatalog, reloadGroups, loadSources, shared])
 
   /** 打开整组删除确认（来源分组一键删除）。 */
   const requestDeleteGroup = useCallback((name: string, skillNames: string[]): void => {
@@ -141,7 +154,7 @@ export function useSourceFlow(
     let done = 0
     for (const name of dialog.skillNames) {
       try {
-        await api.deleteSkill(name)
+        await api.deleteSkill(name, workspace !== '' ? { cwd: workspace } : undefined)
         done += 1
       } catch (error) {
         // 只读/不存在的跳过并记录
@@ -155,7 +168,7 @@ export function useSourceFlow(
     } else if (done > 0) {
       shared.succeed(`已删除整组 "${dialog.name}"：${done} 个技能已移入回收站`)
     }
-  }, [api, deleteGroupDialog, reloadCatalog, reloadGroups, loadSources, shared])
+  }, [api, workspace, deleteGroupDialog, reloadCatalog, reloadGroups, loadSources, shared])
 
   return {
     sourcesState, sourceCheck, checkingSource, syncingSource, confirmDialog,

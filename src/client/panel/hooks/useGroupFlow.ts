@@ -7,6 +7,7 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import type { GroupsResponse, SkillTag } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
+import { isMissingRoute } from '../../api.ts'
 import { errorMessage } from '../../helpers.ts'
 import { conflictsOnClose, type GroupSwitchState } from '../../grouping.ts'
 import { runFlow, type FlowNotices } from './shared.ts'
@@ -132,7 +133,7 @@ export function useGroupFlow(
       applyTags(tags)
     } catch (error) {
       const msg = errorMessage(error)
-      if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
+      if (isMissingRoute(error)) {
         // 旧宿主无此路由：本地重排
         const byId = new Map(groupsState?.tags.map((t) => [t.id, t] as const) ?? [])
         const reordered = orderedIds.map((id) => byId.get(id)).filter((t): t is NonNullable<typeof t> => t !== undefined)
@@ -159,7 +160,7 @@ export function useGroupFlow(
       await loadGroups()
     } catch (error) {
       const msg = errorMessage(error)
-      if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
+      if (isMissingRoute(error)) {
         // 旧宿主无此路由：本地重排顶层顺序，提示重启后持久化
         setGroupsState((prev) => {
           if (prev === null) return prev

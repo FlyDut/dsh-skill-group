@@ -119,6 +119,12 @@ export interface ScopeSaveRequest {
   skills?: string[]
   /** 为真时删除该模式的策略（回到"不隔离"），其余字段忽略。 */
   reset?: boolean
+  /**
+   * 为真时确认"空白名单"这一强隔离：`enabled` 为真且两组皆空时，路由会先
+   * 409 要求二次确认（避免误操作让某个模式看不到任何技能），面板把用户点过
+   * 确认框的结果原样回送。其余情况下该字段无意义。
+   */
+  confirmEmpty?: boolean
 }
 
 /** POST /api/skill-hub/scope */

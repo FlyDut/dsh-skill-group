@@ -65,7 +65,6 @@ export type {
   TagMembersResponse,
   TagReorderRequest,
   TagReorderResponse,
-  CollectionReorderResponse,
   SourceGroupReorderRequest,
   SourceGroupReorderResponse,
 } from './protocol/groups.ts'

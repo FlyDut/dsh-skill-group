@@ -187,18 +187,15 @@ export class SkillHubStore {
     return [...this.tagsById.values()]
   }
 
-  /** Collection order for 来源分组拖拽 */
+  /**
+   * 来源集合（collection）的排序键。
+   *
+   * 遗留字段：当前 UI 的拖拽顺序统一走 `sourceGroupOrder`（顶层键含
+   * `col:<name>`），因此这里**没有写入端**——方法保留只为读取旧数据文件里
+   * 已有的顺序（`buildCollections` 用它排 collection 分组）。
+   */
   async getCollectionOrder(): Promise<string[]> {
     await this.ensureLoaded()
-    return [...this.collectionOrder]
-  }
-
-  /** Reorder collections by orderedNames (编辑态的 ↑↓ 按钮). */
-  async reorderCollections(orderedNames: string[]): Promise<string[]> {
-    await this.ensureLoaded()
-    const uniq = [...new Set(orderedNames.filter((n): n is string => typeof n === 'string' && n !== ''))]
-    this.collectionOrder = uniq
-    await this.persist()
     return [...this.collectionOrder]
   }
 

@@ -1,11 +1,10 @@
 /**
  * 分组域路由：groups / tag 新建重命名 / tag 删除 / tag 成员 / tag 重排 /
- * collection 重排 / source-group 重排。从 routes.ts 原样搬出，handler 逻辑不变。
+ * source-group 重排。从 routes.ts 原样搬出，handler 逻辑不变。
  */
 
 import {
   SKILL_HUB_API,
-  type CollectionReorderResponse,
   type SourceGroupReorderResponse,
   type TagDeleteResponse,
   type TagMembersResponse,
@@ -96,19 +95,6 @@ export function groupRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           // StoreError 的业务错误码由统一映射处理（validation→400 / not-found→404 / conflict→409）。
           writeRouteError(res, error)
         }
-      },
-    },
-    // ------------------------------------------------- collection/reorder
-    // 拖拽重排来源集合顺序
-    {
-      path: SKILL_HUB_API.collectionReorder,
-      methods: ['POST'],
-      jsonBody: true,
-      handler: async ({ res, body }) => {
-        const orderedNames = readStrings(body, 'orderedNames')
-        const order = await deps.store.reorderCollections(orderedNames)
-        const groups = await buildGroups(deps)
-        writeJson(res, 200, { ok: true, collections: groups.collections, order } satisfies CollectionReorderResponse)
       },
     },
     // ------------------------------------------------ source-group/reorder

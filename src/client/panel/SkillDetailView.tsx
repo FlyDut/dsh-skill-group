@@ -5,7 +5,7 @@
  * panel stays the single owner of state.
  */
 
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react'
 import type { GroupsResponse, HubConfig, SkillDetail, SourceCheckResult, SourcesResponse } from '../../protocol.ts'
 import { copyTextToClipboard, isDisplayNameDistinct, tt } from '../helpers.ts'
 import css from './panel.module.css'
@@ -14,6 +14,11 @@ import { SourceStatusBadge } from './SourceStatusBadge.tsx'
 
 interface SkillDetailViewProps {
   detail: SkillDetail
+  /**
+   * 面板的错误/成功横幅。这个视图是整页替换，主视图的横幅位置它拿不到，
+   * 但"启用失败""同步失败"恰好发生在这里，所以由面板把片段传进来渲染在顶部。
+   */
+  notices?: ReactNode
   hubConfig: HubConfig | null
   /** skillName → usage stat (count + last used). */
   uses: ReadonlyMap<string, { count: number; lastUsed?: number }>
@@ -36,7 +41,7 @@ interface SkillDetailViewProps {
 }
 
 export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
-  const { detail, hubConfig, uses, groupsState, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
+  const { detail, notices, hubConfig, uses, groupsState, sourcesState, sourceCheck, checkingSource, syncingSource, disabled, onEnable, onBack, onCheck, onSync, onFollowDelete } = props
   const detailSource = sourcesState?.sources.find((source) => source.skills.includes(detail.name))
   const detailCheck = detailSource !== undefined ? sourceCheck[detailSource.repo] : undefined
   const [copied, setCopied] = useState<string | null>(null)
@@ -52,6 +57,7 @@ export function SkillDetailView(props: SkillDetailViewProps): JSX.Element {
   }
   return (
     <div className={css.panel}>
+      {notices}
       <div className={css.detailHead}>
         <button type='button' className={css.back} onClick={onBack}>{tt('detail.back')}</button>
         <span className={css.detailName} style={{ display:'inline-flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>

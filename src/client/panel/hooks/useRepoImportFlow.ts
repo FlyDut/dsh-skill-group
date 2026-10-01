@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RepoImportProgressResponse } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
+import { isMissingRoute } from '../../api.ts'
 import { errorMessage } from '../../helpers.ts'
 import { runFlow, type FlowNotices, type RepoDiscoverState } from './shared.ts'
 import type { BranchChoiceState } from '../dialogs.tsx'
@@ -90,6 +91,8 @@ export function useRepoImportFlow(
     setImportJobId(null)
     shared.clearFail()
     let finalProgress: RepoImportProgressResponse | null = null
+    /** 轮询连续失败到上限；标记在 finally 里收尾成显式报错。 */
+    let pollTimedOut = false
     try {
       const created = await api.repoImport(repoDiscoverState.data.repo, [...repoSelected], repoDiscoverState.data.ref ?? undefined)
       setImportJobId(created.jobId)
@@ -114,11 +117,12 @@ export function useRepoImportFlow(
           }
           attempt = 0
         } catch (pollError) {
-          // 轮询失败退避重试
-          const msg = errorMessage(pollError)
-          if (msg.includes('not found')) break
+          // 作业已被宿主丢弃（重启/清理）：停止轮询，交由 finally 收尾。
+          if (isMissingRoute(pollError)) break
+          // 其余错误退避重试；连续失败到上限必须显式报错，否则进度卡片会
+          // 永远停在 running，用户以为导入还在跑。
           attempt += 1
-          if (attempt > 8) break
+          if (attempt > 8) { pollTimedOut = true; break }
         }
       }
       await Promise.all([reloadCatalog(), loadMarket(), reloadGroups(), reloadSources()])
@@ -146,6 +150,10 @@ export function useRepoImportFlow(
             },
           }
         })
+      }
+      if (pollTimedOut) {
+        shared.fail('导入仍在后台进行，但进度轮询已超时；稍后可在市场页刷新查看结果。')
+        setRepoResult((prev) => (prev === null ? prev : { ...prev, status: 'error' }))
       }
       setRepoImporting(false)
     }

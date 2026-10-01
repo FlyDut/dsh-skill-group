@@ -83,13 +83,6 @@ export interface TagReorderResponse {
   tags: SkillTag[]
 }
 
-/** POST /api/skill-hub/collections/reorder */
-export interface CollectionReorderResponse {
-  ok: true
-  collections: CollectionGroup[]
-  order: string[]
-}
-
 /** POST /api/skill-hub/source-groups/reorder — 拖拽重排来源顶层分组（project / collections / personal） */
 export interface SourceGroupReorderRequest {
   /** 按新顺序排列的顶层分组 key 列表（project / col:xxx / uncategorized-source） */

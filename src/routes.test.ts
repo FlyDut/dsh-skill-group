@@ -307,6 +307,73 @@ describe('skill-hub routes', () => {
     await expect(access(path)).resolves.toBeUndefined()
   })
 
+  it('keeps the toggle response inside the caller workspace when cwd is sent', async () => {
+    const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
+    await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
+    await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
+    const getCalls: Array<string | undefined> = []
+    const snapshotCalls: Array<string | undefined> = []
+    skills.get = async (_name: string, options?: { cwd?: string }) => {
+      getCalls.push(options?.cwd)
+      return definition({ path })
+    }
+    // 目录里放一个项目级技能：这样回包必须带上 workspace（用户级技能不带）。
+    skills.snapshot = async (options?: { cwd?: string }) => {
+      snapshotCalls.push(options?.cwd)
+      return { skills: [summary({ name: 'ws-only', source: 'project-dsh' })], complete: true }
+    }
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.toggle).handler(
+      fakeReq('POST', SKILL_HUB_API.toggle, { name: 'demo-skill', enabled: false, cwd: '/ws/a' }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(getCalls.length).toBeGreaterThan(0)
+    expect(getCalls.every((cwd) => cwd === '/ws/a')).toBe(true)
+    // 回包目录也必须留在同一工作区，否则面板视图会被静默重置为“全部工作区”。
+    expect(snapshotCalls[snapshotCalls.length - 1]).toBe('/ws/a')
+    const body = res.json() as import('./protocol.ts').ToggleResponse
+    expect(body.catalog.skills[0]?.workspace).toBe('/ws/a')
+  })
+
+  it('forwards cwd on batch toggle requests', async () => {
+    const path = join(home, 'skills', 'batch-a', 'SKILL.md')
+    await mkdir(join(home, 'skills', 'batch-a'), { recursive: true })
+    await writeFile(path, '---\nname: batch-a\ndescription: batch\n---\n\nbody', 'utf8')
+    const calls: Array<string | undefined> = []
+    skills.get = async (_name: string, options?: { cwd?: string }) => {
+      calls.push(options?.cwd)
+      return definition({ name: 'batch-a', path, source: 'user-dsh' })
+    }
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.toggleBatch).handler(
+      fakeReq('POST', SKILL_HUB_API.toggleBatch, { names: ['batch-a'], enabled: false, cwd: '/ws/c' }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.every((cwd) => cwd === '/ws/c')).toBe(true)
+  })
+
+  it('forwards cwd on skill delete requests', async () => {
+    const path = join(home, 'skills', 'demo-skill', 'SKILL.md')
+    await mkdir(join(home, 'skills', 'demo-skill'), { recursive: true })
+    await writeFile(path, '---\nname: demo-skill\ndescription: demo\n---\n\nbody', 'utf8')
+    const calls: Array<string | undefined> = []
+    skills.get = async (_name: string, options?: { cwd?: string }) => {
+      calls.push(options?.cwd)
+      return definition({ path })
+    }
+    const res = new FakeResponse()
+    await routeFor(SKILL_HUB_API.skillDelete).handler(
+      fakeReq('POST', SKILL_HUB_API.skillDelete, { name: 'demo-skill', cwd: '/ws/b' }),
+      res as never,
+    )
+    expect(res.status).toBe(200)
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.every((cwd) => cwd === '/ws/b')).toBe(true)
+  })
+
   it('carries the renamed file times on disabled records so row order stays stable', async () => {
     const path = join(home, 'skills', 'timed-skill', 'SKILL.md')
     await mkdir(join(home, 'skills', 'timed-skill'), { recursive: true })

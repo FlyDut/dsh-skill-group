@@ -59,12 +59,38 @@ import {
   type ToggleResponse,
 } from '../protocol.ts'
 
-/** Error carrying the route's JSON error message. */
-class SkillHubApiError extends Error {
-  constructor(message: string) {
+/**
+ * Error carrying the route's JSON error message and its HTTP status. The
+ * status is part of the contract so callers can branch on "this host is too
+ * old to know that route" (404) without string-sniffing the message text.
+ */
+export class SkillHubApiError extends Error {
+  /** HTTP status of the failed response (0 when the request never completed). */
+  readonly status: number
+
+  constructor(message: string, status = 0) {
     super(message)
     this.name = 'SkillHubApiError'
+    this.status = status
   }
+}
+
+/**
+ * True when the host has no such route at all (an older host). Callers use it
+ * to degrade gracefully — reorder locally, skip an optional probe — instead of
+ * sniffing "404"/"not found" out of the human-readable message.
+ */
+export function isMissingRoute(error: unknown): boolean {
+  return error instanceof SkillHubApiError && error.status === 404
+}
+
+/**
+ * Workspace scope for a write request: the panel's "no workspace picked"
+ * state is the empty string, which must not travel as `cwd: ''` — the routes
+ * treat an absent/empty cwd as "user level + every known workspace".
+ */
+function scopeOf(options?: { cwd?: string }): { cwd?: string } {
+  return options?.cwd !== undefined && options.cwd !== '' ? { cwd: options.cwd } : {}
 }
 
 /** Parse a JSON response or throw a SkillHubApiError. */
@@ -73,13 +99,13 @@ async function readJson<T>(response: Response): Promise<T> {
   try {
     body = await response.json()
   } catch {
-    throw new SkillHubApiError('HTTP ' + response.status + ': invalid JSON response')
+    throw new SkillHubApiError('HTTP ' + response.status + ': invalid JSON response', response.status)
   }
   if (!response.ok) {
     const message = typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string'
       ? (body as { error: string }).error
       : 'HTTP ' + response.status
-    throw new SkillHubApiError(message)
+    throw new SkillHubApiError(message, response.status)
   }
   return body as T
 }
@@ -100,8 +126,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ms
 }
 
 /** The browser half's only data entry point. */
-export class SkillHubApi {
-  /** One GET round trip (query already encoded by the caller). */
+export class SkillHubApi {  /** One GET round trip (query already encoded by the caller). */
   private async get<T>(path: string, query = '', ms?: number): Promise<T> {
     const response = await fetchWithTimeout(path + query, undefined, ms)
     return readJson<T>(response)
@@ -129,13 +154,19 @@ export class SkillHubApi {
   }
 
   /** Move one writable skill into the restorable trash. */
-  deleteSkill(name: string): Promise<SkillDeleteResponse> {
-    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, { name } satisfies SkillDeleteRequest)
+  deleteSkill(name: string, options?: { cwd?: string }): Promise<SkillDeleteResponse> {
+    return this.post<SkillDeleteResponse>(SKILL_HUB_API.skillDelete, { name, ...scopeOf(options) } satisfies SkillDeleteRequest)
   }
 
-  /** Toggle one skill; resolves with the fresh catalog from the route. */
-  async toggle(name: string, enabled: boolean): Promise<CatalogResponse> {
-    const body = await this.post<ToggleResponse>(SKILL_HUB_API.toggle, { name, enabled } satisfies ToggleRequest)
+  /**
+   * Toggle one skill; resolves with the fresh catalog from the route.
+   * `cwd` MUST be the workspace the panel is currently showing: the route
+   * rebuilds the catalog under the same scope, and the caller stores that
+   * catalog verbatim — omitting it silently snaps a workspace view back to
+   * the all-workspaces default.
+   */
+  async toggle(name: string, enabled: boolean, options?: { cwd?: string }): Promise<CatalogResponse> {
+    const body = await this.post<ToggleResponse>(SKILL_HUB_API.toggle, { name, enabled, ...scopeOf(options) } satisfies ToggleRequest)
     return body.catalog
   }
 
@@ -148,8 +179,8 @@ export class SkillHubApi {
   }
 
   /** Toggle a whole group in one write; resolves with the fresh catalog + failures. */
-  toggleBatch(names: string[], enabled: boolean): Promise<ToggleBatchResponse> {
-    const payload: ToggleBatchRequest = { names, enabled }
+  toggleBatch(names: string[], enabled: boolean, options?: { cwd?: string }): Promise<ToggleBatchResponse> {
+    const payload: ToggleBatchRequest = { names, enabled, ...scopeOf(options) }
     return this.post<ToggleBatchResponse>(SKILL_HUB_API.toggleBatch, payload)
   }
 

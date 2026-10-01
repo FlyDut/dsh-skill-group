@@ -114,8 +114,17 @@ export interface SkillDetailResponse {
   skill: SkillDetail
 }
 
+/**
+ * 工作区（项目）技能的作用域限定：目录/详情/写操作都按同一个 cwd 解析，
+ * 否则路由的默认视图（全工作区扫描）会与面板当前工作区视图不一致。
+ */
+export interface WorkspaceScope {
+  /** 工作区根路径；省略或空串 = 用户级 + 全部已知工作区。 */
+  cwd?: string
+}
+
 /** POST /api/skill-hub/skill/delete — 把单个技能移入回收站（可恢复）。 */
-export interface SkillDeleteRequest {
+export interface SkillDeleteRequest extends WorkspaceScope {
   name: string
 }
 
@@ -128,7 +137,7 @@ export interface SkillDeleteResponse {
 }
 
 /** POST /api/skill-hub/toggle */
-export interface ToggleRequest {
+export interface ToggleRequest extends WorkspaceScope {
   /** Kebab-case skill name. */
   name: string
   /** true re-enables a hub-disabled skill; false disables an enabled one. */
@@ -142,7 +151,7 @@ export interface ToggleResponse {
 }
 
 /** POST /api/skill-hub/toggle-batch — one group of skills, one write. */
-export interface ToggleBatchRequest {
+export interface ToggleBatchRequest extends WorkspaceScope {
   names: string[]
   enabled: boolean
 }

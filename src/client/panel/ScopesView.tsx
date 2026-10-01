@@ -22,7 +22,7 @@
  * 能力不可用（部署缺 agent-presets / dsh-scope）时降级为只读提示。
  */
 
-import { useMemo, useState, type JSX } from 'react'
+import { useMemo, useState, type JSX, type ReactNode } from 'react'
 import type { CatalogResponse, PresetScopeRow } from '../../protocol.ts'
 import { tt } from '../helpers.ts'
 import { scopeGroupOptions } from './hooks/useScopeFlow.ts'
@@ -36,8 +36,8 @@ const KIND_LABEL: Record<'tag' | 'col' | 'src', string> = {
   src: tt('scope.kindSrc'),
 }
 
-export function ScopesView(props: { hub: SkillHubState }): JSX.Element {
-  const { hub } = props
+export function ScopesView(props: { hub: SkillHubState; notices?: ReactNode }): JSX.Element {
+  const { hub, notices } = props
   const flow = hub.scopeFlow
   const [scopeFilter, setScopeFilter] = useState('')
 
@@ -98,6 +98,7 @@ export function ScopesView(props: { hub: SkillHubState }): JSX.Element {
 
   return (
     <div className={css.panel}>
+      {notices}
       <div className={css.detailHead}>
         <button type='button' className={css.back} onClick={flow.cancelScopeEdit}>‹ {tt('scope.back')}</button>
         <span className={css.groupTitle}>{row.name ?? row.id}</span>

@@ -140,17 +140,23 @@ export function useMarketFlow(
     }, () => setVersionBusy(false))
   }, [api, versionDialog, loadMarket, scanRepo, shared])
 
-  /** 检查所有市场源的上游更新（服务端节流）。 */
-  const checkMarket = useCallback(async (): Promise<void> => {
+  /**
+   * 检查所有市场源的上游更新（服务端节流）。
+   *
+   * @param silent - 内部跟进调用（如批量更新收尾）传 true：此时失败不该覆盖
+   *   主流程自己的结果提示；用户点「检查」时保持默认，失败必须显式报错，
+   *   否则按钮看起来像没反应。
+   */
+  const checkMarket = useCallback(async (silent = false): Promise<void> => {
     try {
       const result = await api.marketCheck()
       const next: Record<string, MarketCheckResult> = {}
       for (const item of result.results) next[item.repo] = item
       setMarketCheck(next)
-    } catch {
-      // 检查失败不打扰市场列表本身。
+    } catch (error) {
+      if (!silent) shared.fail(errorMessage(error))
     }
-  }, [api])
+  }, [api, shared])
 
   /** 市场源星星/下载数（SWR：先即时缓存渲染，后台刷新后合并，失败静默）。 */
   const loadMarketStats = useCallback(async (): Promise<void> => {
@@ -224,7 +230,7 @@ export function useMarketFlow(
       }
       await Promise.all([reloadCatalog(), reloadGroups(), reloadSources()])
       await checkSources()
-      void checkMarket()
+      void checkMarket(true)
       if (failures.length > 0) shared.fail(failures.join('\n'))
       else if (done > 0) shared.succeed(tt('market.updateAllDone', { count: done }))
     } finally {
