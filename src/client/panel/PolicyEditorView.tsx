@@ -3,8 +3,12 @@
  *
  * 输入是一份由 `usePolicyDraft` 管理的草稿加三个主题相关的显示值：
  * 主体名（模式名 / 工作区标题）、主体类别称呼（填进 `policy.*` 的 `{subject}`）、
- * 生效时机那一行。除此之外的一切——分组勾选、单技能勾选、实时预览、
- * 保存/重置/确认框——都与主体无关，所以只写一遍。
+ * 生效时机那一行。除此之外的一切——分组勾选、单技能勾选、保存/重置/确认框——
+ * 都与主体无关，所以只写一遍。
+ *
+ * 刻意**不做**「实时预览」窗口：预览整块列出来会把页面撑得很长，而每个主体的
+ * 可见/隐藏计数在列表行里已经如实给出。保存与「重置为不限制」贴在顶部开关左边，
+ * 编辑到哪儿都不用再滚回底部。
  *
  * 这是**整页替换**的子视图（与 `TagEditorView` / `SkillDetailView` 同类）：
  * 根是 `.panel`，由 `SkillHubPanel` 在编辑态时提前返回，因此它不会嵌在主面板里。
@@ -49,8 +53,6 @@ export function PolicyEditorView(props: {
     col: tt('policy.kindCol'),
     src: tt('policy.kindSrc'),
   }
-  const visibleCount = draft.preview?.visible.length ?? 0
-  const hiddenNames = draft.enabled ? draft.hiddenNames : []
   const needle = filter.trim().toLowerCase()
   const skillNames = draft.allNames.filter((name) => needle === '' || name.toLowerCase().includes(needle))
   const groupKeys = options.map((option) => option.key)
@@ -61,14 +63,22 @@ export function PolicyEditorView(props: {
       <div className={css.detailHead}>
         <button type='button' className={css.back} onClick={draft.cancelEdit}>‹ {tt('policy.back', { subject: subjectKind })}</button>
         <span className={css.groupTitle}>{subjectName}</span>
-        <button
-          type='button'
-          role='switch'
-          aria-checked={draft.enabled}
-          aria-label={tt('policy.enable', { subject: subjectKind })}
-          className={css.switch + (draft.enabled ? ' ' + css.switchOn : '')}
-          onClick={() => { draft.setEnabled(!draft.enabled) }}
-        ><span className={css.switchThumb} /></button>
+        {/* 主操作贴在顶部开关左边：整页很长，落到底部才按保存太难受。 */}
+        <div className={css.groupOps}>
+          <button type='button' className={css.button + ' ' + css.primary} disabled={draft.busy} onClick={() => { draft.requestSave() }}>
+            {draft.busy ? tt('policy.saving') : tt('policy.save')}
+          </button>
+          <button type='button' className={css.button} disabled={draft.busy} onClick={draft.requestReset}>{tt('policy.reset')}</button>
+          {draft.saved ? <span className={css.badge}>{tt('policy.saved')}</span> : null}
+          <button
+            type='button'
+            role='switch'
+            aria-checked={draft.enabled}
+            aria-label={tt('policy.enable', { subject: subjectKind })}
+            className={css.switch + (draft.enabled ? ' ' + css.switchOn : '')}
+            onClick={() => { draft.setEnabled(!draft.enabled) }}
+          ><span className={css.switchThumb} /></button>
+        </div>
       </div>
       <p className={css.hintLine}>
         {draft.enabled ? tt('policy.enabled') : tt('policy.disabled')} · {tt('policy.enableHint', { subject: subjectKind })}
@@ -136,40 +146,6 @@ export function PolicyEditorView(props: {
                 </div>
               </label>
             ))}
-      </div>
-
-      {/* 预览：未启用时如实说明"看不到任何变化"，启用时逐行列出会被隐藏的技能。 */}
-      <div className={css.section}>
-        <div className={css.groupHead}>
-          <span className={css.groupTitle}>{tt('policy.previewTitle')}</span>
-          <div className={css.groupOps}>
-            {draft.enabled
-              ? <span className={css.badge}>{tt('policy.visibleCount', { visible: visibleCount })}</span>
-              : <span className={css.badge + ' ' + css.badgeReadonly}>{tt('policy.disabled')}</span>}
-          </div>
-        </div>
-        {!draft.enabled
-          ? <p className={css.hintLine + ' ' + css.hintPadded}>{tt('policy.previewOffHint', { subject: subjectKind })}</p>
-          : visibleCount === 0
-            ? <p className={css.hintLine + ' ' + css.hintPadded}>{tt('policy.previewAllHidden', { subject: subjectKind })}</p>
-            : hiddenNames.map((name) => (
-                <div key={name} className={css.row + ' ' + css.rowStatic}>
-                  <div className={css.rowMain}>
-                    <div className={css.rowName}><span className={css.rowNameText}>{name}</span></div>
-                    <div className={css.rowDesc}>{tt('policy.hiddenWhenOn', { subject: subjectKind })}</div>
-                  </div>
-                </div>
-              ))}
-      </div>
-
-      <div className={css.buttons}>
-        <button type='button' className={css.button + ' ' + css.primary} disabled={draft.busy} onClick={() => { draft.requestSave() }}>
-          {draft.busy ? tt('policy.saving') : tt('policy.save')}
-        </button>
-        <button type='button' className={css.button} disabled={draft.busy} onClick={draft.requestReset}>
-          {tt('policy.reset')}
-        </button>
-        {draft.saved ? <span className={css.badge}>{tt('policy.saved')}</span> : null}
       </div>
 
       {draft.confirm !== null

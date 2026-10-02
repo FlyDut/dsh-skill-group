@@ -50,12 +50,10 @@ export interface PolicyDraftApi {
   skills: ReadonlySet<string>
   confirm: PolicyConfirm | null
   saved: boolean
-  /** 草稿展开后的可见性（编辑器预览的唯一数据源）。 */
+  /** 草稿展开后的可见性（分组选项与悬空键提示的数据源）。 */
   preview: ExpandedScope | null
   /** 目录中的全部技能名（升序）。 */
   allNames: string[]
-  /** 草稿开启隔离后会隐藏的技能名。 */
-  hiddenNames: string[]
   beginEdit(row: PolicySubjectRow): void
   cancelEdit(): void
   toggleGroup(key: string, checked: boolean): void
@@ -180,14 +178,8 @@ export function usePolicyDraft<Row extends PolicySubjectRow>(
     return expandScopePolicy({ enabled, groups: [...groups], skills: [...skills] }, groupIndex)
   }, [editing, enabled, groups, skills, groupIndex])
 
-  /** 目录中的全部技能名（升序），用于算隐藏集合。 */
+  /** 目录中的全部技能名（升序），供单技能勾选列表使用。 */
   const allNames = useMemo(() => [...groupIndex.known].sort((a, b) => a.localeCompare(b)), [groupIndex])
-
-  /** 草稿开启隔离后会隐藏的技能名。 */
-  const hiddenNames = useMemo(() => {
-    if (preview === null || !enabled) return []
-    return allNames.filter((name) => !preview.visibleSet.has(name))
-  }, [preview, enabled, allNames])
 
   const toggleGroup = useCallback((key: string, checked: boolean): void => {
     setSaved(false)
@@ -280,7 +272,6 @@ export function usePolicyDraft<Row extends PolicySubjectRow>(
     saved,
     preview,
     allNames,
-    hiddenNames,
     beginEdit,
     cancelEdit,
     toggleGroup,

@@ -4,6 +4,8 @@
  * 这里只放与主体无关的文案；凡是提到主体种类的地方一律用 `{subject}` 占位，
  * 由调用方传入「模式」/「工作区」的称呼（见 `policy.subject`）。与具体主体绑定的
  * 文案（列表状态、生效时机等）留在各自的域里 —— `scope.*` 与 `workspace.*`。
+ *
+ * 编辑器不做「实时预览」窗口，所以这里没有 preview.* 词条。
  */
 export const zhPolicy = {
   'policy.subjectMode': '模式',
@@ -24,11 +26,7 @@ export const zhPolicy = {
   'policy.enable': '在此{subject}启用技能隔离',
   'policy.enableHint': '开启后，只有下面勾选的技能对该{subject}的会话可见；模型目录与显式调用同时失效。',
   'policy.enabled': '隔离已启用',
-  'policy.disabled': '隔离已关闭（只看预览）',
-  'policy.previewTitle': '预览',
-  'policy.previewOffHint': '隔离未启用，该{subject}的会话仍然能看到全部技能；打开上方开关后才按勾选生效。',
-  'policy.previewAllHidden': '白名单为空：启用后该{subject}将看不到任何技能。',
-  'policy.hiddenWhenOn': '启用隔离后对该{subject}不可见',
+  'policy.disabled': '隔离已关闭',
   'policy.visibleCount': '可见 {visible}',
   'policy.hiddenCount': '隐藏 {hidden}',
   'policy.unrestricted': '不限制',
@@ -63,11 +61,7 @@ export const enPolicy: Record<keyof typeof zhPolicy, string> = {
   'policy.enable': 'Isolate skills in this {subject}',
   'policy.enableHint': 'Once on, only the checked skills stay visible to sessions on this {subject}; both the model catalog and explicit loads stop working for the rest.',
   'policy.enabled': 'Isolation is on',
-  'policy.disabled': 'Isolation is off (preview only)',
-  'policy.previewTitle': 'Preview',
-  'policy.previewOffHint': 'Isolation is off, so sessions on this {subject} still see every skill. Turn the switch on to apply the checks.',
-  'policy.previewAllHidden': 'The whitelist is empty: once enabled, this {subject} will see no skills at all.',
-  'policy.hiddenWhenOn': 'Hidden from this {subject} once isolation is on',
+  'policy.disabled': 'Isolation is off',
   'policy.visibleCount': '{visible} visible',
   'policy.hiddenCount': '{hidden} hidden',
   'policy.unrestricted': 'unrestricted',
