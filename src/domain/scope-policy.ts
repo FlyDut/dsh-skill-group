@@ -1,7 +1,7 @@
 /**
  * 策展层 · 可见性策略的纯语义：把一个**白名单策略**（分组键 + 技能名）展开成
  * "该主体可见 / 隐藏哪些技能"。模式策略与工作区策略共用这一份判定，会话上的
- * 实际效果是两者合并（并集）后的策略，见 {@link mergePolicyEntries}。
+ * 实际效果是**工作区覆盖模式**，见 {@link overridePolicyEntries}。
  *
  * 本模块**零 IO、零副作用**：输入是策略、分组索引与目录全集，输出是名字集合。
  * 一切副作用（读写 sidecar、扫描目录、注入 provider）都在调用方。这样
@@ -146,24 +146,21 @@ export function scopeCacheKey(policy: PolicyEntries, all: readonly string[]): st
 }
 
 /**
- * 合并若干策略为一个"并集"策略：任一边启用即启用，清单直接相加。
+ * 取一个会话"谁说了算"的生效策略：**工作区覆盖模式**。
  *
- * 这正是会话上的真实语义——**模式关联 ∪ 工作区关联**：某个维度没启用时不约束
- * 任何技能（对并集没有贡献），启用时只贡献自己的白名单。因为
- * {@link expandScopePolicy} 对重复成员天然去重（场景与单技能各勾一次也只算一个），
- * 所以"工作区与场景之间的去重"是自动成立的，不需要额外处理。
- * @param policies - 参与合并的策略（含 undefined 表示该维度未配置）。
- * @returns 合并后的策略；全部为空或全未启用时仍返回 enabled: false 的空清单。
+ * 工作区一旦启用隔离，它的白名单就是该工作区目录下所有会话的全部约束，模式策略
+ * 不再参与；工作区没启用（没有这条策略，或开关关着）时才回落到模式策略。
+ * 两边都没启用时不约束任何技能（`enabled: false`），与
+ * {@link resolveScopeVisibility} 对未启用的定义一致。
+ *
+ * 覆盖的是**整份策略**而不是逐键取舍：工作区没勾的键不会被模式补上——这正是
+ * "工作区说了算"的含义，也让判定保持可穷举。
+ * @param base - 落回用的策略（模式）。
+ * @param override - 优先的策略（工作区）；只有 `enabled` 为真时才接管。
+ * @returns 生效策略：`override` 启用时就是它，否则就是 `base`（可能未配置）。
  */
-export function mergePolicyEntries(policies: readonly (PolicyEntries | undefined)[]): PolicyEntries {
-  const groups: string[] = []
-  const skills: string[] = []
-  let enabled = false
-  for (const policy of policies) {
-    if (policy === undefined) continue
-    if (policy.enabled) enabled = true
-    groups.push(...policy.groups)
-    skills.push(...policy.skills)
-  }
-  return { enabled, groups, skills }
+export function overridePolicyEntries(base: PolicyEntries | undefined, override: PolicyEntries | undefined): PolicyEntries {
+  const winner = override?.enabled === true ? override : base
+  if (winner === undefined) return { enabled: false, groups: [], skills: [] }
+  return { enabled: winner.enabled === true, groups: [...winner.groups], skills: [...winner.skills] }
 }

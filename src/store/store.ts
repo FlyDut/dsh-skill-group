@@ -21,7 +21,7 @@ export class SkillHubStore {
   private sourceGroupOrder: string[] = []
   /** v5: 模式（preset）→ 技能可见性策略；缺席的 preset 不做隔离。 */
   private scopesByPreset = new Map<string, ScopePolicy>()
-  /** v7: 工作区 id → 技能可见性策略；与模式策略取并集后生效。 */
+  /** v7: 工作区 id → 技能可见性策略；启用后覆盖同一会话的模式策略。 */
   private workspacesById = new Map<string, WorkspacePolicy>()
   private loaded = false
   /** Serializes persist runs: concurrent mutators must not let an earlier

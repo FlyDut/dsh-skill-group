@@ -109,7 +109,7 @@ export function useSkillHub(api: SkillHubApi) {
 
   // --------------------------------------------------- modes + workspaces
   // 两个可见性域消费同一份分组（勾选项）与目录（技能清单），所以排在它们之后。
-  // 它们各自编辑一份策略；会话实际看到的是两边取并集（宿主侧合成），面板只展示。
+  // 它们各自编辑一份策略；工作区启用隔离时由它覆盖模式（宿主侧合成），面板只展示。
   const scopeFlow = useScopeFlow(api, shared, groupFlow.groupsState, catalogFlow.catalog)
   const workspaceFlow = useWorkspaceFlow(api, shared, groupFlow.groupsState, catalogFlow.catalog)
 

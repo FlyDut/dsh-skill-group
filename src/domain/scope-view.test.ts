@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { collectionKey, tagKey, type ScopePolicy } from '../protocol/scopes.ts'
-import { mergePolicyEntries } from './scope-policy.ts'
+import { overridePolicyEntries } from './scope-policy.ts'
 import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './scope-view.ts'
 
 const META: Record<string, ScopeSkillMeta> = {
@@ -74,20 +74,20 @@ describe('ScopeView', () => {
     expect(result.hidden).toEqual(['gamma-skill'])
   })
 
-  it('visibilityFor 直接吃"主体无关"的策略：模式与工作区合并后的并集', async () => {
+  it('visibilityFor 直接吃"主体无关"的策略：工作区覆盖后的生效策略', async () => {
     const { view } = harness()
-    // 两个主体：一个按 tag:t1，一个按集合 acme/skills；合并后是并集。
+    // 工作区启用时它独占：模式的白名单（tag:t1）不再参与，只剩集合 acme/skills。
     const mode: ScopePolicy = { presetId: 'coding', enabled: true, groups: [tagKey('t1')], skills: [] }
-    const workspace: ScopePolicy = { presetId: 'w1', enabled: false, groups: [collectionKey('acme/skills')], skills: [] }
-    const merged = mergePolicyEntries([mode, workspace])
-    const result = await view.visibilityFor(merged)
+    const workspace: ScopePolicy = { presetId: 'w1', enabled: true, groups: [collectionKey('acme/skills')], skills: [] }
+    const effective = overridePolicyEntries(mode, workspace)
+    const result = await view.visibilityFor(effective)
     expect(result.enabled).toBe(true)
-    expect(result.visible).toEqual(['alpha-skill', 'beta-skill', 'gamma-skill'])
-    expect(result.hidden).toEqual([])
-    // 任一主体启用即启用：只留工作区策略时隐藏另两个。
-    const onlyWorkspace = await view.visibilityFor(mergePolicyEntries([undefined, { ...workspace, enabled: true }]))
-    expect(onlyWorkspace.hidden).toEqual(['alpha-skill', 'beta-skill'])
-    expect((await view.hiddenFor(merged)).size).toBe(0)
+    expect(result.visible).toEqual(['gamma-skill'])
+    expect(result.hidden).toEqual(['alpha-skill', 'beta-skill'])
+    // 工作区开关关着时回落到模式：又只剩 tag:t1 的两个技能。
+    const fallback = await view.visibilityFor(overridePolicyEntries(mode, { ...workspace, enabled: false }))
+    expect(fallback.visible).toEqual(['alpha-skill', 'beta-skill'])
+    expect((await view.hiddenFor(effective)).size).toBe(2)
   })
 
   it('hiddenOf 只返回被隐藏技能，并带上真实元数据', async () => {

@@ -129,9 +129,9 @@ export class ScopeView {
   }
 
   /**
-   * 任意一份策略的可见性判定（合并后的策略也走这里）。这是唯一的计算入口：
+   * 任意一份策略的可见性判定（覆盖后的生效策略也走这里）。这是唯一的计算入口：
    * 判定与主体身份无关，只与策略内容、分组成员、目录与全局关闭名单有关。
-   * @param policy - 待判定的策略（模式、工作区，或两者的并集）。
+   * @param policy - 待判定的策略（模式、工作区，或覆盖后的生效策略）。
    * @returns 判定结果。
    */
   async visibilityFor(policy: PolicyEntries): Promise<ScopeVisibility> {
@@ -154,7 +154,7 @@ export class ScopeView {
   /**
    * 一份策略需要被 gate 遮蔽的技能及其元数据（隔离 ∪ 全局运行时关闭）。
    * 没有任何需要遮蔽的技能时返回空表——gate 因此完全不干预该作用域。
-   * @param policy - 待判定的策略（模式、工作区，或两者的并集）。
+   * @param policy - 待判定的策略（模式、工作区，或覆盖后的生效策略）。
    * @returns 技能名 → 元数据；空表表示不需要遮蔽。
    */
   async hiddenFor(policy: PolicyEntries): Promise<Map<string, ScopeSkillMeta>> {

@@ -7,16 +7,16 @@
  * 效果在 PresetWiring（把闸门接进每个 preset 的 standing 作用域）。它们都不改
  * 用户的 preset 文件，也不改技能文件。
  *
- * 会话上的实际语义是**并集**：一个会话按它所用的 preset 取模式策略、按它的工作
- * 目录取工作区策略，合并后才是真正可见的技能（见 domain/scope-policy.ts 的
- * mergePolicyEntries）。因此闸门注入只按 preset 走，而隐藏集合按 (preset, cwd)
+ * 会话上的实际语义是**覆盖**：一个会话按它所用的 preset 取模式策略、按它的工作
+ * 目录取工作区策略，工作区启用隔离时由它独占生效（见 domain/scope-policy.ts 的
+ * overridePolicyEntries）。因此闸门注入只按 preset 走，而隐藏集合按 (preset, cwd)
  * 现算。
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-skill'
 import { collectionKey, sourceKey, tagKey, type PolicyEntries } from './protocol.ts'
 import { ScopeView, type ScopeCatalogSnapshot, type ScopeSkillMeta } from './domain/scope-view.ts'
-import { mergePolicyEntries } from './domain/scope-policy.ts'
+import { overridePolicyEntries } from './domain/scope-policy.ts'
 import { PresetWiring, loadScopeRuntime } from './enforcement/scope-wiring.ts'
 import { readPresetRoster } from './enforcement/roster.ts'
 import { readWorkspaceRoster, resolveWorkspaceId } from './enforcement/workspace-roster.ts'
@@ -130,11 +130,11 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
       if ((await store.listDisabled()).length > 0) return true
       return (await store.listWorkspacePolicies()).some((policy) => policy.enabled)
     },
-    // 隐藏集合按 (preset, cwd) 现算：模式策略 ∪ 该目录命中的工作区策略。两边都
-    // 没启用时合并结果 enabled=false，即不遮蔽任何东西。
+    // 隐藏集合按 (preset, cwd) 现算：该目录命中的工作区策略若启用了隔离就由它
+    // 说了算，否则回落到模式策略。两边都没启用时不遮蔽任何东西。
     hiddenOf: async (presetId, cwd) => {
       const [mode, workspace] = await Promise.all([store.getScope(presetId), workspacePolicyAt(cwd)])
-      return view.hiddenFor(mergePolicyEntries([mode, workspace]))
+      return view.hiddenFor(overridePolicyEntries(mode, workspace))
     },
     log: (level, message) => {
       if (level === 'warn') ctx.logger.warn('[skill-hub] ' + message)

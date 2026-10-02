@@ -28,8 +28,8 @@ export interface StoreFile {
    */
   scopes?: ScopePolicy[]
   /**
-   * 工作区级技能可见性策略（v7）。每个 DSH 工作区一条；与 `scopes` 取并集后
-   * 才是一个会话真正可见的集合。
+   * 工作区级技能可见性策略（v7）。每个 DSH 工作区一条；启用后覆盖该工作区目录
+   * 下会话的模式策略，才是一个会话真正可见的集合。
    */
   workspaces?: WorkspacePolicy[]
 }

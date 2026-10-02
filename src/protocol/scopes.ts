@@ -3,8 +3,8 @@
  * 的构造与解析、以及 /presets、/scope、/workspaces、/workspace 端点的载荷形状。
  *
  * 两种策略的形状与语义完全相同（白名单），只是主体不同：模式策略按 preset 约束
- * 会话，工作区策略按 DSH 工作区约束会话。一个会话实际可见的技能是两者的**并集**
- * ——任一边没启用就不约束，见 domain/scope-policy.ts 的 expandScopePolicy。
+ * 会话，工作区策略按 DSH 工作区约束会话。两者是**覆盖**关系：工作区启用隔离时
+ * 由它独占生效，否则按模式策略，见 domain/scope-policy.ts 的 overridePolicyEntries。
  *
  * 这一层**不依赖任何宿主 SDK**：宿主半边（`domain/`、`enforcement/`、
  * `routes/`）与浏览器半边（面板）都从这里 import 同一个词汇表，避免两侧对
@@ -91,7 +91,7 @@ export interface ScopePolicy extends PolicyEntries {
 
 /**
  * 一个 DSH 工作区的技能可见性策略。语义与 {@link ScopePolicy} 完全一致，
- * 只是主体换成工作区 id；工作区与模式的清单取**并集**后才是会话真正可见的集合。
+ * 只是主体换成工作区 id；工作区启用隔离后会**覆盖**模式策略，成为会话真正可见的集合。
  */
 export interface WorkspacePolicy extends PolicyEntries {
   /** DSH 工作区 id（`ctx.workspaceRegistry` 里的 uuid）。 */

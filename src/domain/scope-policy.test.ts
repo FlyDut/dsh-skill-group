@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { collectionKey, skillKey, sourceKey, tagKey, type ScopePolicy } from '../protocol/scopes.ts'
-import { expandScopePolicy, mergePolicyEntries, resolveScopeVisibility, scopeCacheKey, type ScopeGroupIndex } from './scope-policy.ts'
+import { expandScopePolicy, overridePolicyEntries, resolveScopeVisibility, scopeCacheKey, type ScopeGroupIndex } from './scope-policy.ts'
 
 const KNOWN = ['alpha-skill', 'beta-skill', 'gamma-skill'] as const
 
@@ -151,39 +151,43 @@ describe('scopeCacheKey', () => {
   })
 })
 
-describe('mergePolicyEntries', () => {
-  it('全部缺省时等价于不限制', () => {
-    const merged = mergePolicyEntries([undefined, undefined])
-    expect(merged).toEqual({ enabled: false, groups: [], skills: [] })
-    expect(resolveScopeVisibility(merged, index(), KNOWN)).toMatchObject({ enabled: false, hidden: [] })
+describe('overridePolicyEntries', () => {
+  it('两边都没配置时等价于不限制', () => {
+    const effective = overridePolicyEntries(undefined, undefined)
+    expect(effective).toEqual({ enabled: false, groups: [], skills: [] })
+    expect(resolveScopeVisibility(effective, index(), KNOWN)).toMatchObject({ enabled: false, hidden: [] })
   })
 
-  it('任一主体启用即启用（模式与工作区是并集而非覆盖）', () => {
-    const merged = mergePolicyEntries([
-      policy({ enabled: false, groups: [tagKey('t1')] }),
-      policy({ enabled: true, groups: [tagKey('t2')] }),
-    ])
-    expect(merged.enabled).toBe(true)
-    expect(merged.groups).toEqual([tagKey('t1'), tagKey('t2')])
+  it('工作区启用时完全接管：模式勾的键一个都不补', () => {
+    const effective = overridePolicyEntries(
+      policy({ groups: [tagKey('t1')] }),
+      policy({ presetId: 'w1', groups: [collectionKey('acme/skills')] }),
+    )
+    expect(effective.enabled).toBe(true)
+    expect(effective.groups).toEqual([collectionKey('acme/skills')])
+    const visibility = resolveScopeVisibility(effective, index(), KNOWN)
+    expect(visibility.visible).toEqual(['alpha-skill'])
+    expect(visibility.hidden).toEqual(['beta-skill', 'gamma-skill'])
   })
 
-  it('成员直接拼接，重复项由展开层的 Set 收敛', () => {
-    const merged = mergePolicyEntries([
-      policy({ groups: [tagKey('t1')], skills: ['alpha-skill'] }),
-      policy({ groups: [tagKey('t1'), collectionKey('acme/skills')], skills: ['alpha-skill', 'beta-skill'] }),
-    ])
-    expect(merged.groups).toHaveLength(3)
-    const visibility = resolveScopeVisibility(merged, index(), KNOWN)
-    expect(visibility.visible).toEqual(['alpha-skill', 'beta-skill'])
-    // 所有键都解析成功：合并不会制造悬空项。
-    expect(visibility.dangling).toEqual([])
-    expect(visibility.resolved[tagKey('t1')]).toEqual(['alpha-skill', 'beta-skill'])
+  it('工作区没启用隔离时回落到模式策略', () => {
+    const mode = policy({ groups: [tagKey('t2')] })
+    const off = policy({ presetId: 'w1', enabled: false, groups: [collectionKey('acme/skills')] })
+    expect(overridePolicyEntries(mode, off).groups).toEqual([tagKey('t2')])
+    expect(resolveScopeVisibility(overridePolicyEntries(mode, off), index(), KNOWN).visible).toEqual(['gamma-skill'])
+    // 该工作区压根没有策略记录时同样回落。
+    expect(overridePolicyEntries(mode, undefined).groups).toEqual([tagKey('t2')])
   })
 
-  it('一个主体不限制时不会替另一个主体放行', () => {
-    // 未配置的主体传 undefined；已配置主体的白名单照旧生效。
-    const merged = mergePolicyEntries([policy({ groups: [tagKey('t2')] }), undefined])
-    expect(merged.enabled).toBe(true)
-    expect(resolveScopeVisibility(merged, index(), KNOWN).hidden).toEqual(['alpha-skill', 'beta-skill'])
+  it('工作区启用但白名单为空 = 全部隐藏，不回落', () => {
+    const effective = overridePolicyEntries(policy({ groups: [tagKey('t1')] }), policy({ presetId: 'w1' }))
+    expect(resolveScopeVisibility(effective, index(), KNOWN).hidden).toEqual(['alpha-skill', 'beta-skill', 'gamma-skill'])
+  })
+
+  it('返回的是副本，不是传入的那份策略', () => {
+    const mode = policy({ groups: [tagKey('t1')] })
+    const effective = overridePolicyEntries(mode, undefined)
+    expect(effective.groups).toEqual([tagKey('t1')])
+    expect(effective.groups).not.toBe(mode.groups)
   })
 })
