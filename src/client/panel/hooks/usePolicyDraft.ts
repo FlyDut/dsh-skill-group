@@ -82,7 +82,7 @@ export interface ScopeGroupOption {
  * @param groupsState - 分组数据（场景 tag + 来源集合）。
  * @param catalog - 目录（来源根与已知技能名都从这里推）。
  */
-export function buildPolicyGroupIndex(groupsState: GroupsResponse | null, catalog: CatalogResponse | null): ScopeGroupIndex {
+function buildPolicyGroupIndex(groupsState: GroupsResponse | null, catalog: CatalogResponse | null): ScopeGroupIndex {
   const members = new Map<string, readonly string[]>()
   for (const tag of groupsState?.tags ?? []) members.set(tagKey(tag.id), tag.skillNames)
   for (const collection of groupsState?.collections ?? []) members.set(collectionKey(collection.name), collection.skillNames)

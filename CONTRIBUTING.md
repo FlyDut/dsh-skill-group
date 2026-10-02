@@ -26,7 +26,9 @@ Both curation/enforcement concepts are runtime-only — neither touches a skill 
 - **Closed** (global) is one sidecar name list; the hub's shadowing provider drops those
   names, so the skill is gone in *every* mode. Nothing is renamed, moved or deleted.
 - **Scope** (soft) shadows the skill inside one agent preset's standing scope layer,
-  leaving every other mode unaffected.
+  leaving every other mode unaffected. A **workspace** policy — keyed by a session whose cwd
+  exactly equals `workspace.path` — *overrides* that preset's policy for those sessions: when
+  the workspace policy is enabled, the preset policy is ignored entirely (never a union).
 
 Anything with a side effect belongs in `enforcement/`; `domain/` must stay free of IO so
 its judgments can be exhaustively unit-tested (see `domain/scope-policy.test.ts`).
@@ -36,7 +38,8 @@ its judgments can be exhaustively unit-tested (see `domain/scope-policy.test.ts`
 ```
 src/index.ts            cordis plugin entry — assembly only (config reads, surface sync, service wiring)
 src/config.ts           volatile config schema + settings-namespace contract (Config / ENTRY_ID / …)
-src/scope-assembly.ts   mode-isolation assembly (ScopeView + PresetWiring + scopes-route deps)
+src/scope-assembly.ts   scope-isolation assembly (ScopeView + PresetWiring + the
+                        /presets, /scope, /workspaces, /workspace route deps)
 src/stats-wiring.ts     optional session-query / session-persistence statistics wiring
 src/startup.ts          startup cleanup: leftover import dirs, sidecar migration
 src/env.ts              environment paths (DSH_HOME / DSH_AGENTS_HOME) — the only OS-env reader
@@ -63,13 +66,15 @@ src/enforcement/        curation → runtime: preset-gate.ts (the shadowing prov
                         (preset roster projection), scope-mechanism.test.ts (the dsh contract
                         this whole feature rests on — read it before changing wiring)
 src/protocol.ts         wire contract barrel (protocol/<domain>.ts; scopes.ts carries the
-                        mode-isolation model shared by host and browser)
+                        scope-isolation model — modes and workspaces — shared by host
+                        and browser)
 src/concurrency.ts      bounded-concurrency map
 src/error-text.ts       unknown → one-line error text
 src/client/index.tsx    browser-half entry (slots + locale registration)
 src/client/api.ts       the panel's only data access path
 src/client/panel/       panel shell, views, dialogs, hooks/ (one hook per domain + aggregator)
-src/client/locales/     dictionaries by view (common/skills/market/sources/detail/scopes/settings)
+src/client/locales/     dictionaries by view (common/skills/market/sources/detail/scopes/
+                        policy/workspaces/settings)
 ```
 
 ## Development setup
@@ -77,7 +82,7 @@ src/client/locales/     dictionaries by view (common/skills/market/sources/detai
 ```bash
 pnpm install
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (309 tests across 18 suites)
+pnpm test           # vitest (352 tests across 20 files)
 pnpm build          # tsc declarations + tsdown bundles (lib/index.js + lib/client.js)
 pnpm smoke          # load the built bundle in a real cordis runtime (run after build)
 ```

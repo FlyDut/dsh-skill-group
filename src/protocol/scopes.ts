@@ -60,11 +60,11 @@ export function parseScopeEntry(key: string): { kind: keyof typeof SCOPE_ENTRY_P
  * 一个可见性策略的共同部分：白名单开关 + 分组键清单 + 单技能清单。
  *
  * 判定函数（`expandScopePolicy` / `resolveScopeVisibility` / `scopeCacheKey`）
- * 只读这三个字段，因此模式策略、工作区策略、以及"两者合并后的策略"都能直接喂
+ * 只读这三个字段，因此模式策略、工作区策略、以及覆盖后择一生效的那份都能直接喂
  * 进去，不需要任何分支。
  */
 export interface PolicyEntries {
-  /** 是否真正执行隔离；关掉只保留面板预览。 */
+  /** 是否真正执行隔离；关掉就不限制任何技能，但展开明细仍会被算出来。 */
   enabled: boolean
   /** 勾选的分组键（见 {@link SCOPE_ENTRY_PREFIX}）。 */
   groups: readonly string[]
@@ -171,7 +171,11 @@ export interface WorkspacesResponse {
   unavailableReason?: string
   /** 已注册的工作区（注册表顺序）+ 仅剩策略的孤儿行。 */
   workspaces: WorkspaceScopeRow[]
-  /** 已启用工作区隔离但闸门还没接上的策略数（面板提示用）。 */
+  /**
+   * 面板提示用，刻意粗略：工作区策略没有"已接线的 id"可对齐（闸门按 preset
+   * 注入），所以只在"有已启用隔离的工作区策略、却一个 preset 闸门都没接上"
+   * 时报出已启用策略的条数，其余情况为 0。
+   */
   pendingCount: number
 }
 

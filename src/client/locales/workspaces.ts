@@ -17,7 +17,6 @@ export const zhWorkspaces = {
   'workspace.orphan': '已不在 DSH 里',
   'workspace.orphanHint': '该工作区已从 DSH 的工作区列表移除，但它的策略还留着。进「配置」→「重置为不限制」可以清掉；这里不会自动清理。',
   'workspace.effectHint': '保存后，该工作区目录下的会话在下一次技能查找即按新策略生效；启用隔离时会覆盖模式策略（工作区优先），关掉则回落模式。',
-  'workspace.badgeTitle': '{count} 个工作区以本组为白名单：{names}',
 } as const
 
 export const enWorkspaces: Record<keyof typeof zhWorkspaces, string> = {
@@ -34,5 +33,4 @@ export const enWorkspaces: Record<keyof typeof zhWorkspaces, string> = {
   'workspace.orphan': 'gone from DSH',
   'workspace.orphanHint': 'This workspace was removed from the DSH workspace list but its policy is still stored. Open "Configure" and reset it to unrestricted to clear it; nothing is cleaned up automatically.',
   'workspace.effectHint': 'Takes effect on the next skill lookup of a session in that workspace directory. While isolation is on it overrides the mode policy; turning it off falls back to the mode.',
-  'workspace.badgeTitle': '{count} workspace(s) whitelist this group: {names}',
 }

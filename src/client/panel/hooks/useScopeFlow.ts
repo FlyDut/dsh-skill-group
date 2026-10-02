@@ -2,11 +2,10 @@
  * useScopeFlow — 模式域：preset 名单加载 + 某个模式的可见性策略编辑。
  *
  * 草稿状态机（勾选/预览/保存/重置/确认框）由 `usePolicyDraft` 提供，这里只补
- * 模式域独有的三件事：拉 `PresetsResponse`、把保存/重置打到 `/scope` 接口、
- * 以及"哪些分组被哪些已启用的模式当白名单用"（场景/来源卡片上的徽章）。
+ * 模式域独有的两件事：拉 `PresetsResponse`、把保存/重置打到 `/scope` 接口。
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { CatalogResponse, GroupsResponse, PresetsResponse, PresetScopeRow } from '../../../protocol.ts'
 import type { SkillHubApi } from '../../api.ts'
 import { errorMessage } from '../../helpers.ts'
@@ -24,7 +23,6 @@ export function useScopeFlow(
   scopeState: PresetsResponse | null
   scopeBusy: boolean
   editingPreset: PresetScopeRow | null
-  scopeModesByKey: ReadonlyMap<string, readonly string[]>
   loadScopes: () => Promise<void>
   beginScopeEdit: (row: PresetScopeRow) => void
   cancelScopeEdit: () => void
@@ -56,29 +54,10 @@ export function useScopeFlow(
     reload: loadScopes,
   }, shared, groupsState, catalog)
 
-  /**
-   * 分组键 → 引用了它的模式显示名（只统计**已启用**隔离的模式）。
-   * 场景/来源卡片据此打一枚只读徽章，让"这个分组被哪些模式当白名单用"可见。
-   */
-  const scopeModesByKey = useMemo((): ReadonlyMap<string, readonly string[]> => {
-    const map = new Map<string, string[]>()
-    for (const row of scopeState?.presets ?? []) {
-      if (!row.policy.enabled) continue
-      const label = row.name ?? row.id
-      for (const key of row.policy.groups) {
-        const list = map.get(key)
-        if (list === undefined) map.set(key, [label])
-        else if (!list.includes(label)) list.push(label)
-      }
-    }
-    return map
-  }, [scopeState])
-
   return {
     scopeState,
     scopeBusy: draft.busy,
     editingPreset: draft.editing,
-    scopeModesByKey,
     loadScopes,
     beginScopeEdit: draft.beginEdit,
     cancelScopeEdit: draft.cancelEdit,

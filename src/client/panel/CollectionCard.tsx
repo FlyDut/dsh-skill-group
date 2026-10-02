@@ -31,10 +31,6 @@ interface CollectionCardProps {
   check: SourceCheckResult | undefined
   /** 组内至少一个成员可开关（三态开关可点）。 */
   hasTogglable: boolean
-  /** 把该集合当作可见性白名单的模式显示名（只含已启用隔离的模式）。 */
-  scopeModes?: readonly string[]
-  /** 把该集合当作可见性白名单的工作区显示名（只含已启用隔离的工作区）。 */
-  scopeWorkspaces?: readonly string[]
   /** 正在检查的来源名。 */
   checkingSource: string | null
   /** 正在同步的来源名。 */
@@ -71,7 +67,7 @@ export function CollectionCard(props: CollectionCardProps): JSX.Element {
               ? <span className={css.providerLabel}>{collection.name}</span>
               : <a className={css.sourceLink} href={'https://github.com/' + collection.name} target='_blank' rel='noreferrer' onClick={(event) => { event.stopPropagation() }}>{collection.name}</a>}
             {' · ' + memberCount}
-            <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} scopeModes={props.scopeModes} scopeWorkspaces={props.scopeWorkspaces} />
+            <GroupSummary members={collection.skillNames} uses={uses} hubConfig={hubConfig} />
             {providerGroup ? <span className={css.groupNote}>{tt('groups.provider')}</span> : null}
             {view.missing.length > 0 ? <span className={css.groupNote}>{tt('groups.missing', { count: view.missing.length })}</span> : null}
           </span>

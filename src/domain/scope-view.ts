@@ -1,15 +1,15 @@
 /**
  * 策展层 · 可见性判定的宿主视图：把 sidecar 里的策略、侧栏的分组成员、以及
  * 注册表的目录快照拼成"某个主体此刻可见/隐藏哪些技能"。主体可以是模式，也可以
- * 是工作区，更可以是两者合并后的策略——判定只看策略的内容，不看它挂在谁身上。
+ * 是工作区，还可以是覆盖后择一生效的那份策略——判定只看策略的内容，不看它挂在谁身上。
  *
  * 它是 `enforcement` 与 `routes` 共用的**唯一数据入口**：gate 从这里取遮蔽
- * 名单，面板从这里取预览。所有 IO 都通过注入的函数发生（`catalog` / `groups`
+ * 名单，面板从这里取可见性判定。所有 IO 都通过注入的函数发生（`catalog` / `groups`
  * / `policyOf`），因此本模块可以在测试里用内存替身完整驱动。
  *
  * 缓存分两级：目录与分组按 `invalidate()` 全清（目录变更、分组变更、策略变更
  * 都调它），每份策略的判定按"策略内容 + 目录内容"的键缓存——所以一次目录
- * 变更不会让未受影响的策略重算，模式与工作区合并出来的新策略也能直接命中。
+ * 变更不会让未受影响的策略重算，模式与工作区覆盖合成出的策略也能直接命中。
  */
 
 import type { PolicyEntries, ScopePolicy } from '../protocol/scopes.ts'
@@ -121,7 +121,7 @@ export class ScopeView {
 
   /**
    * 一个模式自己那份策略的可见性判定（面板列表用；不含工作区维度）。
-   * @param presetId - preset id；未配置时按"不隔离"返回，仍带展开预览。
+   * @param presetId - preset id；未配置时按"不隔离"返回，仍带展开明细。
    * @returns 判定结果（可见名单、隐藏名单、逐键明细、悬空键）。
    */
   async visibilityOf(presetId: string): Promise<ScopeVisibility> {
@@ -171,7 +171,7 @@ export class ScopeView {
   }
 
   /**
-   * 一个模式自己那份策略需要被遮蔽的技能（不含工作区维度）。合并语义由
+   * 一个模式自己那份策略需要被遮蔽的技能（不含工作区维度）。覆盖语义由
    * 装配层（scope-assembly）负责，它拿到两侧策略后走 {@link hiddenFor}。
    * @param presetId - preset id。
    * @returns 技能名 → 元数据。

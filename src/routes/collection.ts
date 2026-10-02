@@ -30,7 +30,7 @@ export interface BuiltCollections {
 /**
  * 由 origin 映射（skillName → 仓库）+ 集合顺序构建来源集合组。
  */
-export function marketCollections(origins: Readonly<Record<string, string>>, collectionOrder: readonly string[]): CollectionGroup[] {
+function marketCollections(origins: Readonly<Record<string, string>>, collectionOrder: readonly string[]): CollectionGroup[] {
   const byCollection = new Map<string, string[]>()
   for (const [skillName, origin] of Object.entries(origins)) {
     const list = byCollection.get(origin)
@@ -57,7 +57,7 @@ export function marketCollections(origins: Readonly<Record<string, string>>, col
  * 「个人」卡——面板上看起来就是「插件提供的技能不会分组」。这些组没有上游，
  * 只参与分组与开关（见 CollectionGroup.kind）。
  */
-export function providerCollections(origins: Readonly<Record<string, string>>, skills: readonly GroupableSkill[]): Array<{ name: string; skillNames: string[] }> {
+function providerCollections(origins: Readonly<Record<string, string>>, skills: readonly GroupableSkill[]): Array<{ name: string; skillNames: string[] }> {
   const byProvider = new Map<string, string[]>()
   for (const skill of skills) {
     if (origins[skill.name] !== undefined) continue

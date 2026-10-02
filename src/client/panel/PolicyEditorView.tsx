@@ -179,8 +179,8 @@ export function PolicyEditorView(props: {
   )
 }
 
-/** 目录里某个技能的描述（技能列表与预览复用；缺失时回退为占位）。 */
-export function skillDescription(catalog: CatalogResponse | null, name: string): string {
+/** 目录里某个技能的描述（编辑器单技能行用；缺失时回退为占位）。 */
+function skillDescription(catalog: CatalogResponse | null, name: string): string {
   const skill = catalog?.skills.find((entry) => entry.name === name)
   return skill?.shortDescription ?? skill?.description ?? '—'
 }

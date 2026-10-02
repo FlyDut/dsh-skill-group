@@ -98,7 +98,7 @@ export interface ScopeVisibility {
   visible: string[]
   /** 该主体下被屏蔽的技能名（升序）；未启用时为空。 */
   hidden: string[]
-  /** 逐键展开明细（未启用时仍给出，供面板预览）。 */
+  /** 逐键展开明细（未启用时仍给出，供面板算分组计数与悬空提示）。 */
   resolved: Record<string, string[]>
   /** 悬空的分组键。 */
   dangling: string[]
@@ -108,8 +108,8 @@ export interface ScopeVisibility {
  * 解析一个策略最终生效的可见性。这是 host、gate 与面板**唯一**的判定入口。
  *
  * `enabled === false`（默认）时不做任何限制：`visible` 为全集、`hidden` 为空
- * ——策略仍然被展开并返回，面板可以预览"如果打开会隐藏什么"。
- * @param policy - 待判定的策略（可以是合并后的策略）。
+ * ——策略仍然被展开并返回，面板据此算每个分组贡献了多少成员、哪些键已悬空。
+ * @param policy - 待判定的策略（模式、工作区，或覆盖后择一生效的那份）。
  * @param index - 分组成员与目录快照。
  * @param all - 目录中全部技能名（升序不必保证，本函数会排序）。
  * @returns 判定结果。
@@ -132,7 +132,7 @@ export function resolveScopeVisibility(policy: PolicyEntries, index: ScopeGroupI
 /**
  * 缓存键：策略内容 + 目录内容都变了才算失效。用于 host 侧避免每次 gate
  * 询问都重算展开（gate 由注册表的收集缓存间接节流，但仍可能被连打）。
- * @param policy - 待缓存的策略（可以是合并后的策略）。
+ * @param policy - 待缓存的策略（模式、工作区，或覆盖后择一生效的那份）。
  * @param all - 目录全集的当前快照。
  * @returns 稳定的字符串键。
  */
