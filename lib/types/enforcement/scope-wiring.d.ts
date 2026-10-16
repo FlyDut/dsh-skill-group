@@ -30,8 +30,11 @@ export interface PresetMountLike {
 }
 /** 动态载入的运行时能力。真实实现来自 dsh 包，测试可注入替身。 */
 export interface RuntimeBindings {
-    /** 列出当前仍安装着的 preset standing mount（`within` 限定在某个 fiber 子树内）。 */
-    livePresetMounts: (within?: Fiber) => readonly PresetMountLike[];
+    /**
+     * 列出当前仍安装着的 preset standing mount。
+     * @param within - 限定在某个 fiber 子树内；服务路径按 preset 名单枚举，忽略它。
+     */
+    livePresetMounts: (within?: Fiber) => Promise<readonly PresetMountLike[]>;
     /** 在给定的 scope key 下 mint 一个受调用方 fiber 管辖的作用域。 */
     createScope: (ctx: Context, key: object) => Pick<Scope, 'ctx' | 'dispose'>;
 }
@@ -111,13 +114,33 @@ export declare class PresetWiring {
     private log;
 }
 /**
+ * 用注册表服务合成 `livePresetMounts`：逐个探测 preset 的挂载状态。
+ *
+ * 0.2.x 把 standing mount 收进了注册表内部（模块级 `livePresetMounts` 已移除），
+ * 公开的读法是 `acquireScope(id)`：它对**已挂载**的 preset 借出一个 revision 租约，
+ * 租约里的 `key` 就是该 preset 的 standing scope key；未挂载或激活失败的 preset
+ * 会抛 `agent-preset/invalid`，据此即可判定"挂载中"。
+ *
+ * 只借读数、立即归还租约：长期持有会顶住注册表的引用计数，让已退休的 revision
+ * 无法回收；而只要 preset 仍在挂载中，那个 standing key 就一直有效。
+ * @param service - `ctx.agentPresets`（缺席或形状不符时返回 undefined）。
+ * @returns 枚举函数，或服务不可用时的 undefined。
+ */
+export declare function serviceMounts(service: unknown): RuntimeBindings['livePresetMounts'] | undefined;
+/**
  * 动态载入 dsh 的运行时能力。两个包都是**可选**对等依赖：部署里没有（或形状
  * 变了）就返回 undefined，接线器据此整体降级为"策略仅预览"。
  *
- * 0.1.7 起 preset 侧包名从 `dsh-agent-presets` 换成了
- * `dsh-agent-preset-registry`（服务名仍是 `ctx.agentPresets`），`livePresetMounts`
- * 的签名与 `PresetMount.presetId/key` 字段不变。
+ * 两条路径并存：
+ *  - `0.1.7`：preset 侧包名从 `dsh-agent-presets` 换成 `dsh-agent-preset-registry`
+ *    （服务名仍是 `ctx.agentPresets`），模块导出的 `livePresetMounts` 直接枚举
+ *    standing mount，`PresetMount.presetId/key` 字段不变。
+ *  - `0.2.x`：模块级枚举被移除，改从注册表服务借 `acquireScope` 读同一个
+ *    standing key（见 {@link serviceMounts}）。
+ * @param options.presets - `ctx.agentPresets` 软注入的读取器（每次现读，热重载跟得上）。
  * @returns 可用的运行时绑定，或 undefined。
  */
-export declare function loadScopeRuntime(): Promise<RuntimeBindings | undefined>;
+export declare function loadScopeRuntime(options: {
+    presets: () => unknown;
+}): Promise<RuntimeBindings | undefined>;
 export {};

@@ -35,8 +35,11 @@ export interface PresetMountLike {
 
 /** 动态载入的运行时能力。真实实现来自 dsh 包，测试可注入替身。 */
 export interface RuntimeBindings {
-  /** 列出当前仍安装着的 preset standing mount（`within` 限定在某个 fiber 子树内）。 */
-  livePresetMounts: (within?: Fiber) => readonly PresetMountLike[]
+  /**
+   * 列出当前仍安装着的 preset standing mount。
+   * @param within - 限定在某个 fiber 子树内；服务路径按 preset 名单枚举，忽略它。
+   */
+  livePresetMounts: (within?: Fiber) => Promise<readonly PresetMountLike[]>
   /** 在给定的 scope key 下 mint 一个受调用方 fiber 管辖的作用域。 */
   createScope: (ctx: Context, key: object) => Pick<Scope, 'ctx' | 'dispose'>
 }
@@ -140,7 +143,7 @@ export class PresetWiring {
     if (runtime === undefined) {
       return { available: false, ...(this.unavailable !== undefined ? { reason: this.unavailable } : {}), active: this.activeIds(), mounted: [] }
     }
-    return { available: true, active: this.activeIds(), mounted: this.mountedIds(runtime) }
+    return { available: true, active: this.activeIds(), mounted: await this.mountedIds(runtime) }
   }
 
   /** 拆掉全部注入并停止后续同步（插件卸载路径）。 */
@@ -161,7 +164,7 @@ export class PresetWiring {
     try {
       // 用 root fiber 限定在本运行时内：mount 挂在 agent 的 fiber 下，不在 hub
       // 的子树里，所以不能传 ctx.fiber。
-      mounts = runtime.livePresetMounts(this.deps.ctx.root.fiber)
+      mounts = await runtime.livePresetMounts(this.deps.ctx.root.fiber)
     } catch (error) {
       this.log('warn', `enumerating preset mounts failed: ${errorText(error)}`)
       return
@@ -253,9 +256,9 @@ export class PresetWiring {
     return [...new Set([...this.injected.values()].map((entry) => entry.presetId))].sort()
   }
 
-  private mountedIds(runtime: RuntimeBindings): string[] {
+  private async mountedIds(runtime: RuntimeBindings): Promise<string[]> {
     try {
-      return [...new Set(runtime.livePresetMounts(this.deps.ctx.root.fiber)
+      return [...new Set((await runtime.livePresetMounts(this.deps.ctx.root.fiber))
         .filter((mount) => mount.key !== undefined)
         .map((mount) => mount.presetId))].sort()
     } catch {
@@ -273,22 +276,86 @@ export class PresetWiring {
   }
 }
 
+/** 一条借出的 revision 租约（只取接线需要的 `key`）。 */
+interface RevisionLease {
+  /** 该 revision 的 standing scope key。 */
+  readonly key?: unknown
+}
+
+/** `ctx.agentPresets` 的结构视图：0.2.x 的接线入口只取这两项。 */
+interface AgentPresetsServiceLike {
+  /** 全部已声明的 preset，含激活失败的（`list` 自己不抛错）。 */
+  list: () => Promise<readonly { id?: unknown }[]>
+  /** 借出某个**已挂载** preset 的 standing scope key。 */
+  acquireScope: (id?: string) => Promise<unknown>
+}
+
+/**
+ * 用注册表服务合成 `livePresetMounts`：逐个探测 preset 的挂载状态。
+ *
+ * 0.2.x 把 standing mount 收进了注册表内部（模块级 `livePresetMounts` 已移除），
+ * 公开的读法是 `acquireScope(id)`：它对**已挂载**的 preset 借出一个 revision 租约，
+ * 租约里的 `key` 就是该 preset 的 standing scope key；未挂载或激活失败的 preset
+ * 会抛 `agent-preset/invalid`，据此即可判定"挂载中"。
+ *
+ * 只借读数、立即归还租约：长期持有会顶住注册表的引用计数，让已退休的 revision
+ * 无法回收；而只要 preset 仍在挂载中，那个 standing key 就一直有效。
+ * @param service - `ctx.agentPresets`（缺席或形状不符时返回 undefined）。
+ * @returns 枚举函数，或服务不可用时的 undefined。
+ */
+export function serviceMounts(service: unknown): RuntimeBindings['livePresetMounts'] | undefined {
+  const candidate = service as Partial<AgentPresetsServiceLike> | null | undefined
+  if (candidate === null || candidate === undefined) return undefined
+  if (typeof candidate.list !== 'function' || typeof candidate.acquireScope !== 'function') return undefined
+  return async () => {
+    let declared: readonly { id?: unknown }[]
+    try {
+      declared = await candidate.list!()
+    } catch {
+      return []
+    }
+    if (!Array.isArray(declared)) return []
+    const mounts: PresetMountLike[] = []
+    for (const preset of declared) {
+      const id = preset?.id
+      if (typeof id !== 'string' || id === '') continue
+      try {
+        const lease = await candidate.acquireScope!(id) as (RevisionLease & Partial<AsyncDisposable>) | undefined
+        const key = lease?.key
+        await lease?.[Symbol.asyncDispose]?.()
+        if (typeof key === 'object' && key !== null) mounts.push({ presetId: id, key })
+      } catch {
+        // 未挂载／激活失败的 preset：retain 抛错，本就不是可接线的对象。
+      }
+    }
+    return mounts
+  }
+}
+
 /**
  * 动态载入 dsh 的运行时能力。两个包都是**可选**对等依赖：部署里没有（或形状
  * 变了）就返回 undefined，接线器据此整体降级为"策略仅预览"。
  *
- * 0.1.7 起 preset 侧包名从 `dsh-agent-presets` 换成了
- * `dsh-agent-preset-registry`（服务名仍是 `ctx.agentPresets`），`livePresetMounts`
- * 的签名与 `PresetMount.presetId/key` 字段不变。
+ * 两条路径并存：
+ *  - `0.1.7`：preset 侧包名从 `dsh-agent-presets` 换成 `dsh-agent-preset-registry`
+ *    （服务名仍是 `ctx.agentPresets`），模块导出的 `livePresetMounts` 直接枚举
+ *    standing mount，`PresetMount.presetId/key` 字段不变。
+ *  - `0.2.x`：模块级枚举被移除，改从注册表服务借 `acquireScope` 读同一个
+ *    standing key（见 {@link serviceMounts}）。
+ * @param options.presets - `ctx.agentPresets` 软注入的读取器（每次现读，热重载跟得上）。
  * @returns 可用的运行时绑定，或 undefined。
  */
-export async function loadScopeRuntime(): Promise<RuntimeBindings | undefined> {
-  const [presets, scope] = await Promise.all([
+export async function loadScopeRuntime(options: { presets: () => unknown }): Promise<RuntimeBindings | undefined> {
+  const [presetsModule, scope] = await Promise.all([
     import('@deepseek-ai/dsh-agent-preset-registry'),
     import('@deepseek-ai/dsh-scope'),
   ])
-  if (typeof presets.livePresetMounts !== 'function' || typeof scope.createScope !== 'function') {
-    return undefined
+  if (typeof scope.createScope !== 'function') return undefined
+  const moduleMounts = (presetsModule as { livePresetMounts?: (within?: Fiber) => readonly PresetMountLike[] }).livePresetMounts
+  if (typeof moduleMounts === 'function') {
+    return { livePresetMounts: async (within) => moduleMounts(within), createScope: scope.createScope }
   }
-  return { livePresetMounts: presets.livePresetMounts, createScope: scope.createScope }
+  const mounts = serviceMounts(options.presets())
+  if (mounts === undefined) return undefined
+  return { livePresetMounts: mounts, createScope: scope.createScope }
 }

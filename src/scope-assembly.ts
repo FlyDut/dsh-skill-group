@@ -121,7 +121,7 @@ export function assembleScopes(options: { ctx: Context; store: SkillHubStore; pr
 
   const wiring = new PresetWiring({
     ctx,
-    runtime: loadScopeRuntime,
+    runtime: () => loadScopeRuntime({ presets }),
     // 闸门该不该接进某个 preset：该模式自己启用了隔离、存在任何全局关闭的技能
     // （关闭对所有模式生效），或存在任何已启用的工作区策略（同一个 preset 在不同
     // 工作区里的隐藏集合不同，所以每个挂载中的 preset 都要备着闸门）。

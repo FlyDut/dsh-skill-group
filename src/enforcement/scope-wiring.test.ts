@@ -12,7 +12,7 @@ import { SkillRegistry, isModelInvocable } from '@deepseek-ai/dsh-skill'
 import type { SkillProvider } from '@deepseek-ai/dsh-skill'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { ScopeSkillMeta } from '../domain/scope-view.ts'
-import { PresetWiring, type PresetMountLike, type RuntimeBindings } from './scope-wiring.ts'
+import { PresetWiring, serviceMounts, type PresetMountLike, type RuntimeBindings } from './scope-wiring.ts'
 
 const HIDDEN_META: ScopeSkillMeta = { description: 'Alpha probe skill.', source: 'user-dsh', provider: 'skill-hub' }
 
@@ -87,7 +87,7 @@ async function scenario(overrides: { runtime?: () => Promise<RuntimeBindings | u
     logs: [],
   }
   const runtime = overrides.runtime ?? (async (): Promise<RuntimeBindings | undefined> => ({
-    livePresetMounts: () => state.mounts,
+    livePresetMounts: async () => state.mounts,
     createScope: (ctx, key) => {
       state.scopeCalls += 1
       return createScope(ctx, key)
@@ -227,7 +227,7 @@ describe('PresetWiring', () => {
   it('枚举 mount 抛错时只记日志，不影响其他功能', async () => {
     const state = await scenario({
       runtime: async () => ({
-        livePresetMounts: () => { throw new Error('boom') },
+        livePresetMounts: async () => { throw new Error('boom') },
         createScope: (ctx, key) => createScope(ctx, key),
       }),
     })
@@ -247,7 +247,7 @@ describe('PresetWiring', () => {
     const wiring = new PresetWiring({
       ctx: state.hubCtx,
       runtime: async () => ({
-        livePresetMounts: () => state.mounts,
+        livePresetMounts: async () => state.mounts,
         createScope: (ctx, key) => {
           if (key === state.mounts[0].key) throw new Error('cannot mint scope')
           return realCreate(ctx, key)
@@ -339,7 +339,7 @@ describe('PresetWiring', () => {
     const wiring = new PresetWiring({
       ctx: state.hubCtx,
       runtime: async () => ({
-        livePresetMounts: () => state.mounts,
+        livePresetMounts: async () => state.mounts,
         createScope: (ctx, key) => createScope(ctx, key),
       }),
       isEnforced: async () => true,
@@ -382,5 +382,64 @@ describe('PresetWiring', () => {
     await state.hubCtx.skills.snapshot({ scope: agentKey })
     expect((await state.hubCtx.skills.snapshot({ scope: agentKey })).skills.filter(isModelInvocable).map((s) => s.name))
       .toEqual(['alpha-skill'])
+  })
+})
+
+/**
+ * 0.2.x 的接线入口：模块级 `livePresetMounts` 被移除后，同一个 standing key
+ * 只能通过注册表服务的 `acquireScope` 租约读到。这里的替身刻意照抄宿主的两条
+ * 语义：未挂载的 preset 让 `retain` 抛错；租约读完必须归还。
+ */
+describe('serviceMounts', () => {
+  it('把已挂载的 preset 读成 mount，并归还每个租约', async () => {
+    const released: string[] = []
+    const standingKey = {}
+    const mounts = serviceMounts({
+      list: async () => [{ id: 'standard' }, { id: 'ptc' }],
+      acquireScope: async (id?: string) => {
+        if (id === 'ptc') throw new Error('agent-preset/invalid')
+        return {
+          key: standingKey,
+          [Symbol.asyncDispose]: async () => {
+            released.push(id ?? '')
+          },
+        }
+      },
+    })
+    expect(mounts).toBeTypeOf('function')
+
+    expect(await mounts!()).toEqual([{ presetId: 'standard', key: standingKey }])
+    // 借读数、立即归还：未挂载的 preset 根本不产生租约。
+    expect(released).toEqual(['standard'])
+  })
+
+  it('服务缺席或形状不符时返回 undefined（接线器据此整体降级）', () => {
+    expect(serviceMounts(undefined)).toBeUndefined()
+    expect(serviceMounts(null)).toBeUndefined()
+    expect(serviceMounts({})).toBeUndefined()
+    expect(serviceMounts({ list: async () => [] })).toBeUndefined()
+    expect(serviceMounts({ acquireScope: async () => ({ key: {} }) })).toBeUndefined()
+  })
+
+  it('list 抛错退化为空名单，不把失败抛给接线器', async () => {
+    const mounts = serviceMounts({
+      list: async () => {
+        throw new Error('registry down')
+      },
+      acquireScope: async () => ({ key: {} }),
+    })
+    expect(await mounts!()).toEqual([])
+  })
+
+  it('名单里缺 id、key 不是对象、以及不返回租约的 preset 都被跳过', async () => {
+    const mounts = serviceMounts({
+      list: async () => [{ id: 'standard' }, { id: '' }, { notAnId: true }, { id: 'ghost' }, { id: 'bare' }],
+      acquireScope: async (id?: string) => {
+        if (id === 'ghost') return { key: 'not-an-object' }
+        if (id === 'bare') return undefined
+        return { key: {} }
+      },
+    })
+    expect((await mounts!()).map((row) => row.presetId)).toEqual(['standard'])
   })
 })
