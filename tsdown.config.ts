@@ -97,7 +97,7 @@ function clientConfig(): UserConfig {
     format: 'cjs',
     platform: 'browser',
     dts: false,
-    sourcemap: true,
+    sourcemap: false,
     clean: false,
     external: [...CLIENT_EXTERNALS],
     // Browser bundles inline node-idiom deps; a require() the module table
