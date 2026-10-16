@@ -22,7 +22,6 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -149,10 +148,7 @@
   },
   "files": [
     "lib/**/*.js",
-    "lib/**/*.js.map",
     "lib/**/*.d.ts",
-    "lib/**/*.d.ts.map",
-    "src",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
