@@ -97,6 +97,10 @@ export declare class PresetWiring {
     private syncing;
     /** 已警告过"mount 没有 scoped ctx"的 preset（避免 5 秒 tick 刷屏）。 */
     private readonly warnedNoCtx;
+    /** 已警告过 global layer 里有 gate 残留（日志去重）。 */
+    private warnedGlobalGate;
+    /** 已警告过无法自检注册落点（日志去重）。 */
+    private warnedUnverifiable;
     private disposed;
     constructor(deps: PresetWiringDeps);
     /**
@@ -128,6 +132,10 @@ export declare class PresetWiring {
     /** 记录不可用原因；同一原因只打一次日志。 */
     private markUnavailable;
     private markAvailable;
+    /** global layer 里已有 gate 残留时提示一次（本实例无法注销别人的注册）。 */
+    private warnGlobalGateOnce;
+    /** 宿主注册表结构不可自检时提示一次：仍有 ScopeView 的重入守卫兜底。 */
+    private warnUnverifiableOnce;
     /** 策略是否启用；查询失败按"不启用"处理（宁可不遮蔽也不误伤）。 */
     private enforced;
     /** 在一个 preset 的 standing scope 上注入闸门。 */

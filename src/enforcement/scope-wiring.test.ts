@@ -287,6 +287,41 @@ describe('PresetWiring', () => {
     expect(snapshot.skills.filter(isModelInvocable).map((skill) => skill.name)).toEqual(['alpha-skill', 'beta-skill'])
   })
 
+  it('自检：gate 落进 global layer 时立即回滚并告警，绝不留着互等', async () => {
+    const state = await scenario()
+    const key = {}
+    const globalProviders = new Map<string, unknown>()
+    const scopedProviders = new Map<string, unknown>()
+    const layers = {
+      global: { providers: globalProviders },
+      scoped: new Map([[key, { providers: scopedProviders }]]),
+    }
+    const skills = {
+      layers,
+      registerProvider: (create: (control: { invalidate: () => void }) => { name: string }) => {
+        const provider = create({ invalidate: () => {} })
+        // 模拟跨副本 dsh-scope：宿主读不到 tag，注册被归到 global layer。
+        globalProviders.set(provider.name, provider)
+        return () => { globalProviders.delete(provider.name) }
+      },
+    }
+    const scopedCtx = {
+      plugin: (plugin: { apply: (ctx: unknown) => void }) => {
+        plugin.apply({ skills })
+        return { dispose: async () => {} }
+      },
+    } as unknown as Context
+    state.mounts.push({ presetId: 'coding', key, ctx: scopedCtx })
+    state.enforced.add('coding')
+
+    await state.wiring.sync()
+
+    expect((await state.wiring.status()).active).toEqual([])
+    expect(state.logs.some((line) => line.includes('GLOBAL skill layer'))).toBe(true)
+    // 回滚必须是真回滚：provider 不能留在 global 里继续制造死锁。
+    expect(globalProviders.has('skill-hub-gate')).toBe(false)
+  })
+
   it('单个 preset 接线失败不阻断其余 preset', async () => {
     const state = await scenario()
     seedStandingScope(state, { bad: true }, 'broken')

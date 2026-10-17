@@ -35,7 +35,7 @@
 import type { Context, Fiber } from '@deepseek-ai/cordis'
 import { errorText } from '../error-text.ts'
 import type { ScopeSkillMeta } from '../domain/scope-view.ts'
-import { PresetGateProvider } from './preset-gate.ts'
+import { GATE_PROVIDER_NAME, PresetGateProvider } from './preset-gate.ts'
 
 /** `livePresetMounts` 返回值的结构视图。 */
 export interface PresetMountLike {
@@ -98,6 +98,36 @@ interface InjectedEntry {
   control?: { invalidate: () => void }
 }
 
+/** 一张 provider 表的只读视图（NamedEntries 的 `has`）。 */
+interface ProviderTableLike {
+  has: (name: string) => boolean
+}
+
+/** SkillRegistry.layer 表的结构视图：只用于注册落点自检。 */
+interface SkillLayersLike {
+  global?: { providers?: ProviderTableLike }
+  scoped?: { get: (key: object) => { providers?: ProviderTableLike } | undefined }
+}
+
+/**
+ * 自检 gate 这次注册到底落在哪一层。
+ *
+ * 这是对"跨副本 dsh-scope 的 Symbol 不匹配 → 静默落进 global layer → 与
+ * ScopeView 互等挂死"的**运行时保险**：注册完立刻读注册表的 layer 表，
+ * 落错就回滚。结构读不到（宿主换了存储形状）时返回 undefined，交给
+ * ScopeView 的重入守卫兜底，绝不影响正常接线。
+ * @param skills - 子 ctx 上解析到的 SkillRegistry 服务。
+ * @param key - 本次接线目标的 standing scope key。
+ * @returns 'scoped'（正确）、'global'（危险）或 undefined（无法判断）。
+ */
+function gateLayerOf(skills: unknown, key: object): 'scoped' | 'global' | undefined {
+  const layers = (skills as { layers?: SkillLayersLike } | null | undefined)?.layers
+  if (layers === undefined) return undefined
+  if (layers.scoped?.get(key)?.providers?.has(GATE_PROVIDER_NAME) === true) return 'scoped'
+  if (layers.global?.providers?.has(GATE_PROVIDER_NAME) === true) return 'global'
+  return undefined
+}
+
 /**
  * 把闸门接到 preset 作用域上的接线器。一个 hub 实例持有一个。
  */
@@ -113,6 +143,10 @@ export class PresetWiring {
   private syncing: Promise<void> | undefined
   /** 已警告过"mount 没有 scoped ctx"的 preset（避免 5 秒 tick 刷屏）。 */
   private readonly warnedNoCtx = new Set<string>()
+  /** 已警告过 global layer 里有 gate 残留（日志去重）。 */
+  private warnedGlobalGate = false
+  /** 已警告过无法自检注册落点（日志去重）。 */
+  private warnedUnverifiable = false
   private disposed = false
 
   constructor(private readonly deps: PresetWiringDeps) {}
@@ -246,6 +280,26 @@ export class PresetWiring {
     this.lastReason = undefined
   }
 
+  /** global layer 里已有 gate 残留时提示一次（本实例无法注销别人的注册）。 */
+  private warnGlobalGateOnce(): void {
+    if (this.warnedGlobalGate) return
+    this.warnedGlobalGate = true
+    this.log(
+      'warn',
+      `a "${GATE_PROVIDER_NAME}" provider is already present in the GLOBAL skill layer; this hub cannot remove it — restart dsh to clear it. Preset gates are still attached to their scoped layers.`,
+    )
+  }
+
+  /** 宿主注册表结构不可自检时提示一次：仍有 ScopeView 的重入守卫兜底。 */
+  private warnUnverifiableOnce(): void {
+    if (this.warnedUnverifiable) return
+    this.warnedUnverifiable = true
+    this.log(
+      'warn',
+      'cannot verify the gate registration layer on this dsh build; relying on the catalog re-entrancy guard to prevent a self-deadlock',
+    )
+  }
+
   /** 策略是否启用；查询失败按"不启用"处理（宁可不遮蔽也不误伤）。 */
   private async enforced(presetId: string): Promise<boolean> {
     try {
@@ -307,10 +361,26 @@ export class PresetWiring {
         inject: ['skills'],
         apply: (scoped: Context) => {
           try {
+            // 注册前先看 global 里有没有同名残留（另一个 hub 实例 / 旧代码留下的）。
+            const before = gateLayerOf(scoped.skills, key)
             providerDispose = scoped.skills.registerProvider((given) => {
               entry.control = given
               return provider
             })
+            const after = gateLayerOf(scoped.skills, key)
+            if (after === 'global' && before !== 'global') {
+              // 本次注册落错层：立刻撤销。留在 global 会让 gate 的 list() 与
+              // 目录快照互相等待，整个进程无报错挂死。
+              try {
+                providerDispose?.()
+              } catch {
+                // 回滚失败也只是多一个 provider；至少不再由本实例继续叠加。
+              }
+              providerDispose = undefined
+              throw new Error(`gate "${GATE_PROVIDER_NAME}" was registered into the GLOBAL skill layer instead of the preset scope; rolled back`)
+            }
+            if (before === 'global') this.warnGlobalGateOnce()
+            if (after === undefined && before === undefined) this.warnUnverifiableOnce()
           } catch (error) {
             reportFailure(error)
             this.injected.delete(key)
