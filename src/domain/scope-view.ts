@@ -12,6 +12,7 @@
  * 变更不会让未受影响的策略重算，模式与工作区覆盖合成出的策略也能直接命中。
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { PolicyEntries, ScopePolicy } from '../protocol/scopes.ts'
 import { resolveScopeVisibility, scopeCacheKey, type ScopeVisibility } from './scope-policy.ts'
 
@@ -65,6 +66,25 @@ function unrestricted(presetId: string): ScopePolicy {
 }
 
 /**
+ * 标记"当前 async 流正处在本视图的目录读取里"。
+ *
+ * 正常情况下目录读取（`ctx.skills.snapshot()`）不会回调本视图：gate 只注册在
+ * preset 的 layer，global 快照看不见它。但一旦 gate 被错误地注册进 global
+ * layer（例如跨副本 dsh-scope 的 Symbol 不匹配），链路就会变成
+ * `snapshot → skills.snapshot → gate.list → hiddenFor → snapshot`，而 snapshot
+ * 缓存的正是**同一个未完成 promise** —— 无限等待、无异常、无 CPU 占用。
+ *
+ * 用 AsyncLocalStorage 精确识别"重入自我们自己的目录读取"：只有这种调用降级为
+ * 上一次的目录快照，其他并发调用照常共享同一个 promise 并正常完成。
+ */
+const insideCatalogRead = new AsyncLocalStorage<true>()
+
+/** 目录读取重入时的兜底快照（没有更早的可用快照时）。 */
+function emptySnapshot(): ScopeCatalogSnapshot {
+  return { names: [], meta: new Map() }
+}
+
+/**
  * 叠加上"全局运行时关闭"：关闭的技能对**所有**模式都不可见，与模式自己的
  * 白名单隔离正交。关闭名单里的名字必须真实存在于目录快照里，否则跳过——
  * 一条指向已消失技能的记录不该凭空制造遮蔽候选。
@@ -91,6 +111,8 @@ export class ScopeView {
    * 重读一次目录，不会重算没变化的模式。
    */
   private catalog?: { at: number; value: Promise<ScopeCatalogSnapshot> }
+  /** 最近一次成功完成的目录快照；目录读取被重入时用它兜底。 */
+  private lastSnapshot: ScopeCatalogSnapshot | undefined
   /** 分组成员表的 promise，附它对应的快照摘要。 */
   private groups?: { key: string; value: Promise<Map<string, readonly string[]>> }
   /** 判定缓存，键为策略内容 + 目录内容 + 关闭名单的摘要（与主体身份无关）。 */
@@ -106,15 +128,30 @@ export class ScopeView {
   /** 丢弃全部缓存。目录、分组或策略任一变化后调用。 */
   invalidate(): void {
     this.catalog = undefined
+    this.lastSnapshot = undefined
     this.groups = undefined
     this.visibility.clear()
   }
 
   /** 当前目录快照（invalidate 或 TTL 到期后重读）。 */
   snapshot(): Promise<ScopeCatalogSnapshot> {
+    // 重入：调用方正是我们这次目录读取要等的 gate/provider。再去 await 同一份
+    // 未完成的 promise 只会自锁；退回最近一次完整快照，让外层读取能结束。
+    if (insideCatalogRead.getStore() === true) {
+      return Promise.resolve(this.lastSnapshot ?? emptySnapshot())
+    }
     const now = Date.now()
     if (this.catalog === undefined || now - this.catalog.at >= this.catalogTtlMs) {
-      this.catalog = { at: now, value: this.deps.catalog() }
+      const value = insideCatalogRead.run(true, () => this.deps.catalog())
+        .then((snapshot) => {
+          this.lastSnapshot = snapshot
+          return snapshot
+        })
+      // 读取失败时不保留 rejected promise，下一次调用重新尝试。
+      value.catch(() => {
+        if (this.catalog?.value === value) this.catalog = undefined
+      })
+      this.catalog = { at: now, value }
     }
     return this.catalog.value
   }

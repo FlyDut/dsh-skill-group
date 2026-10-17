@@ -43,7 +43,7 @@ export declare const zh: {
     readonly 'workspace.tab': "工作区";
     readonly 'workspace.loading': "正在读取工作区…";
     readonly 'workspace.unavailable': "本部署不支持工作区隔离：{reason}";
-    readonly 'workspace.unavailableHint': "需要宿主提供 workspaceRegistry（DSH 的工作区列表）与 dsh-scope 运行时包；缺少它们时其余功能不受影响。";
+    readonly 'workspace.unavailableHint': "需要宿主提供 workspaceRegistry（DSH 的工作区列表）与 agentPresets 服务；缺少它们时其余功能不受影响。";
     readonly 'workspace.empty': "DSH 里还没有工作区记录。";
     readonly 'workspace.emptyHint': "工作区就是 DSH 侧边栏里的那些条目；会话按自己的工作目录精确匹配到某一个。";
     readonly 'workspace.listHint': "「配置」进入该工作区的可见性编辑器。工作区启用隔离后会覆盖模式：该目录下的会话只看这里的白名单；没启用则仍按模式策略";
@@ -56,7 +56,7 @@ export declare const zh: {
     readonly 'scope.tab': "模式";
     readonly 'scope.loading': "正在读取模式…";
     readonly 'scope.unavailable': "本部署不支持模式隔离：{reason}";
-    readonly 'scope.unavailableHint': "需要 agent-presets 与 dsh-scope 两个运行时包；缺少它们时其余功能不受影响。";
+    readonly 'scope.unavailableHint': "需要宿主提供 agentPresets 服务（并暴露 acquireScope）；缺少它时其余功能不受影响。";
     readonly 'scope.empty': "本部署没有可用的 agent preset。";
     readonly 'scope.emptyHint': "preset 来自 ~/.dsh/.agent-presets/<id>/ 与部署自带的预设集。";
     readonly 'scope.configure': "配置";

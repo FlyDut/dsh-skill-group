@@ -64,6 +64,8 @@ export declare class ScopeView {
      * 重读一次目录，不会重算没变化的模式。
      */
     private catalog?;
+    /** 最近一次成功完成的目录快照；目录读取被重入时用它兜底。 */
+    private lastSnapshot;
     /** 分组成员表的 promise，附它对应的快照摘要。 */
     private groups?;
     /** 判定缓存，键为策略内容 + 目录内容 + 关闭名单的摘要（与主体身份无关）。 */

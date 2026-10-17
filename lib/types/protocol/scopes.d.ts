@@ -107,7 +107,7 @@ export interface PresetScopeRow {
 /** GET /api/skill-hub/presets */
 export interface PresetsResponse {
     ok: true;
-    /** enforcement 能力是否可用（缺 agent-presets / dsh-scope 时为 false）。 */
+    /** enforcement 能力是否可用（缺 agentPresets 服务时为 false）。 */
     available: boolean;
     /** `available` 为 false 时的原因文案（面板原样显示）。 */
     unavailableReason?: string;

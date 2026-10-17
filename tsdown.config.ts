@@ -80,10 +80,6 @@ function libConfig(): UserConfig {
       '@deepseek-ai/dsh-host-webserver',
       '@deepseek-ai/dsh-settings',
       '@deepseek-ai/dsh-system-prompt',
-      // 模式隔离的运行时依赖：由 enforcement/scope-wiring 动态 import，缺失或
-      // 形状不符时整体降级为"策略仅预览"，因此它们是可选对等依赖，不打包进来。
-      '@deepseek-ai/dsh-agent-preset-registry',
-      '@deepseek-ai/dsh-scope',
     ],
   }
 }

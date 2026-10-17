@@ -12,7 +12,7 @@
  *  2. 工作区可能先被删、策略还在。这类**孤儿行**如实列出（`present: false`），
  *     允许用户清掉，但绝不自动清理。
  *
- * 能力缺席（部署里没有 workspaceRegistry / dsh-scope）时不是错误：/workspaces
+ * 能力缺席（部署里没有 workspaceRegistry / agentPresets）时不是错误：/workspaces
  * 老实报告 `available: false` 与原因，写入口返回 503——面板据此把「工作区」tab
  * 降级为只读，而插件其余功能毫无感知。
  */

@@ -4,44 +4,59 @@
  *
  * 机制（见 `scope-mechanism.test.ts` 的契约测试）：`dsh-agent-preset-registry` 为每个
  * 被使用的 preset 建立一次 standing mount，并 mint 一个不透明的 scope key；
- * `ctx.skills` 的分层**按该 key 的对象 identity 索引 layer**。因此用同一个 key
- * 调一次 `createScope`，在其中注册的 provider 就落进该 preset 的层——而
- * `createScope` 返回的 scope 归 hub 的 fiber 所有，销毁时连带清掉注册。
+ * `ctx.skills` 的分层**按该 key 的对象 identity 索引 layer**。因此用**宿主自己的**
+ * scoped context 注册 provider，注册就落进该 preset 的层。
+ *
+ * 为什么不再自己 `import('@deepseek-ai/dsh-scope')` + `createScope`：
+ * `dsh-scope` 的 `kScope` 是**模块级 `Symbol()`**。插件与宿主各自解析自己的副本
+ * （profile / 全局安装 / 插件 node_modules 三份都见过），用插件的 `createScope`
+ * 打上的 tag，宿主的 `scopeOf()` 读不到 —— 注册会静默落进 **global layer**。
+ * 而 gate 的 `list()` 又会回调 `ScopeView.snapshot()` → `ctx.skills.snapshot()`，
+ * 于是 global 快照在等 gate、gate 又在等同一个 global 快照：**整个 dsh 无报错挂死**
+ * （技能目录、模式面板、模型调用全部无限等待）。这不是假设：2026-10 的现场就是
+ * 这个死锁。
+ *
+ * 所以接线改用 `ctx.agentPresets` 服务自己持有的 scoped context（`generations`
+ * 里那个由宿主的 `createScope` mint 出来的 `scope.ctx`）：tag 必然与宿主的
+ * `scopeOf()` 同源，且不需要任何运行时模块。
  *
  * 这条路径**不修改任何 preset 文件**，所以对部署自带的 system preset
  * （minimal / standard / ptc / cordis，不可写）同样生效。
  *
  * 三点刻意的保守设计：
- *  1. 运行时依赖用**动态 import** 载入并缓存；任何失败都降级为"能力不可用"，
- *     绝不让缺包/不兼容把整个插件拖下水。
+ *  1. 运行时能力只从 `ctx.agentPresets` 软取，不做跨副本模块 import；任何失败
+ *     都降级为"能力不可用"，绝不让缺服务/不兼容把整个插件拖下水。
  *  2. 所有注入与清理都包在 try/catch 里：单个 preset 接线失败只影响它自己。
  *  3. 只有"已挂载"的 preset 能接线。新挂载的 preset 由定时 tick 或面板请求
- *     触发的下一轮 sync 接上（在此之前它按不隔离运行，不会误伤）。
+ *     触发的下一轮 sync 接上（在此之前它按不隔离运行，不会误伤）；拿不到宿主
+ *     scoped context 时宁可不接线，也绝不在 global layer 里注册。
  */
 
 import type { Context, Fiber } from '@deepseek-ai/cordis'
-import type { Scope } from '@deepseek-ai/dsh-scope'
 import { errorText } from '../error-text.ts'
 import type { ScopeSkillMeta } from '../domain/scope-view.ts'
 import { PresetGateProvider } from './preset-gate.ts'
 
-/** `livePresetMounts` 返回值的结构视图（只取接线需要两个字段）。 */
+/** `livePresetMounts` 返回值的结构视图。 */
 export interface PresetMountLike {
   /** 该 standing mount 属于哪个 preset。 */
   readonly presetId: string
   /** standing scope key；正在拆卸的记录可能缺省。 */
   readonly key?: object
+  /**
+   * 宿主 mint 出来的、带该 key tag 的 scoped context。
+   * 只有它能让注册落进 preset 的 layer；缺省表示这个 mount 不可接线。
+   */
+  readonly ctx?: Context
 }
 
-/** 动态载入的运行时能力。真实实现来自 dsh 包，测试可注入替身。 */
+/** 运行时能力。真实实现来自宿主服务，测试可注入替身。 */
 export interface RuntimeBindings {
   /**
    * 列出当前仍安装着的 preset standing mount。
    * @param within - 限定在某个 fiber 子树内；服务路径按 preset 名单枚举，忽略它。
    */
   livePresetMounts: (within?: Fiber) => Promise<readonly PresetMountLike[]>
-  /** 在给定的 scope key 下 mint 一个受调用方 fiber 管辖的作用域。 */
-  createScope: (ctx: Context, key: object) => Pick<Scope, 'ctx' | 'dispose'>
 }
 
 /** 接线器依赖。 */
@@ -77,7 +92,8 @@ interface WiringStatus {
 /** 一条已生效的注入记录。 */
 interface InjectedEntry {
   presetId: string
-  scope: Pick<Scope, 'ctx' | 'dispose'>
+  /** 只拆掉 hub 自己这一条注册（子 fiber / provider 注册），绝不动宿主 preset 的 scope。 */
+  dispose: () => void | Promise<void>
   /** 注册表借出的失效句柄；scope 被销毁后可能已失效，故调用点一律 try/catch。 */
   control?: { invalidate: () => void }
 }
@@ -87,12 +103,16 @@ interface InjectedEntry {
  */
 export class PresetWiring {
   private readonly injected = new Map<object, InjectedEntry>()
-  /** 运行时能力的 in-flight / 已解析结果。 */
-  private bindings: Promise<RuntimeBindings | undefined> | undefined
-  /** 不可用原因（首次载入失败时记录一次，避免重复 import 与刷日志）。 */
+  /** 已解析的运行时能力。**只缓存成功**：服务晚到（软注入）时下一轮 sync 能跟上。 */
+  private bindings: RuntimeBindings | undefined
+  /** 当前不可用原因；与上一次相同时不重复刷日志。 */
   private unavailable: string | undefined
+  /** 上一次记录的不可用原因（日志去重）。 */
+  private lastReason: string | undefined
   /** 正在进行的一轮 sync；并发调用共享它而不重复注入。 */
   private syncing: Promise<void> | undefined
+  /** 已警告过"mount 没有 scoped ctx"的 preset（避免 5 秒 tick 刷屏）。 */
+  private readonly warnedNoCtx = new Set<string>()
   private disposed = false
 
   constructor(private readonly deps: PresetWiringDeps) {}
@@ -170,9 +190,9 @@ export class PresetWiring {
       return
     }
 
-    const live = new Map<object, string>()
+    const live = new Map<object, PresetMountLike>()
     for (const mount of mounts) {
-      if (mount.key !== undefined) live.set(mount.key, mount.presetId)
+      if (mount.key !== undefined) live.set(mount.key, mount)
     }
 
     // 1) 清理：mount 已消失，或该 preset 不再启用隔离。
@@ -185,31 +205,45 @@ export class PresetWiring {
     }
 
     // 2) 补齐：已挂载、策略启用、尚未注入。
-    for (const [key, presetId] of live) {
+    for (const [key, mount] of live) {
       if (this.injected.has(key)) continue
-      if (!await this.enforced(presetId)) continue
-      await this.install(presetId, key, runtime)
+      if (!await this.enforced(mount.presetId)) continue
+      await this.install(mount)
     }
   }
 
-  /** 载入（并缓存）运行时能力；失败原因只记录一次。 */
-  private load(): Promise<RuntimeBindings | undefined> {
+  /**
+   * 解析运行时能力。**不缓存失败**：`agentPresets` 是软注入，服务晚到时
+   * 下一轮 sync 必须能重新探测，否则整个进程生命周期都停在"不可用"。
+   */
+  private async load(): Promise<RuntimeBindings | undefined> {
     if (this.bindings !== undefined) return this.bindings
-    this.bindings = (async () => {
-      try {
-        const bindings = await this.deps.runtime()
-        if (bindings === undefined) {
-          this.unavailable = 'agent-presets / dsh-scope 不可用'
-          this.log('warn', 'preset scope wiring unavailable: ' + this.unavailable)
-        }
-        return bindings
-      } catch (error) {
-        this.unavailable = errorText(error)
-        this.log('warn', 'preset scope wiring unavailable: ' + this.unavailable)
+    try {
+      const runtime = await this.deps.runtime()
+      if (runtime === undefined) {
+        this.markUnavailable('agent-presets service is not mounted (or does not expose acquireScope)')
         return undefined
       }
-    })()
-    return this.bindings
+      this.bindings = runtime
+      this.markAvailable()
+      return runtime
+    } catch (error) {
+      this.markUnavailable(errorText(error))
+      return undefined
+    }
+  }
+
+  /** 记录不可用原因；同一原因只打一次日志。 */
+  private markUnavailable(reason: string): void {
+    this.unavailable = reason
+    if (this.lastReason === reason) return
+    this.lastReason = reason
+    this.log('warn', 'preset scope wiring unavailable: ' + reason)
+  }
+
+  private markAvailable(): void {
+    this.unavailable = undefined
+    this.lastReason = undefined
   }
 
   /** 策略是否启用；查询失败按"不启用"处理（宁可不遮蔽也不误伤）。 */
@@ -222,30 +256,84 @@ export class PresetWiring {
     }
   }
 
-  /** 在一个 preset 的 standing key 下注入闸门。 */
-  private async install(presetId: string, key: object, runtime: RuntimeBindings): Promise<void> {
-    try {
-      const scope = runtime.createScope(this.deps.ctx, key)
-      const provider = new PresetGateProvider(presetId, (cwd) => this.deps.hiddenOf(presetId, cwd))
-      let control: { invalidate: () => void } | undefined
-      // 通过 scoped ctx 注册：SkillRegistry 把 this.ctx 重绑定到调用者，因此这次
-      // 注册落进该 preset 的 layer，而不是 hub 所在的 global layer。
-      scope.ctx.skills.registerProvider((given) => {
-        control = given
-        return provider
-      })
-      this.injected.set(key, { presetId, scope, ...(control !== undefined ? { control } : {}) })
-      this.log('info', `gate attached to preset "${presetId}"`)
-    } catch (error) {
+  /** 在一个 preset 的 standing scope 上注入闸门。 */
+  private async install(mount: PresetMountLike): Promise<void> {
+    const { presetId } = mount
+    const key = mount.key
+    if (key === undefined) return
+    // 没有宿主 scoped ctx 就不接线：用别的 dsh-scope 副本 mint scope 会把注册
+    // 静默落到 global layer，进而让技能目录/模型调用全部挂死（见文件头）。
+    if (mount.ctx === undefined) {
+      if (!this.warnedNoCtx.has(presetId)) {
+        this.warnedNoCtx.add(presetId)
+        this.log('warn', `preset "${presetId}" is mounted but exposes no scoped context; gate skipped`)
+      }
+      return
+    }
+    this.warnedNoCtx.delete(presetId)
+
+    const provider = new PresetGateProvider(presetId, (cwd) => this.deps.hiddenOf(presetId, cwd))
+    let providerDispose: (() => void) | undefined
+    let failure: unknown
+    let failureReported = false
+    let fiber: Fiber | undefined
+    const reportFailure = (error: unknown): void => {
+      failure = error
+      if (failureReported) return
+      failureReported = true
       // 单点失败不影响其他 preset，也不影响插件其余功能。
       this.log('warn', `attaching the gate to preset "${presetId}" failed: ${errorText(error)}`)
     }
+    // 先建 entry 再挂子插件：cordis 的 apply 可能在 `plugin()` 返回之后才执行，
+    // control 必须在 apply 里回填到**同一个对象**上，invalidate 才能看到它。
+    const entry: InjectedEntry = {
+      presetId,
+      // 子 fiber 拥有这次注册：销毁它即注销 provider 并失效注册表缓存。
+      dispose: () => {
+        try {
+          providerDispose?.()
+        } catch {
+          // provider 注册可能已随 preset revision 一起销毁。
+        }
+        return fiber?.dispose()
+      },
+    }
+    try {
+      // 宿主的 scoped ctx 自己不能取 `skills`（它的 fiber 没有声明 inject，
+      // 且 skills 服务不在它的祖先链上）。挂一个只声明 inject:['skills'] 的
+      // 子插件：子 ctx 既继承宿主的 scope tag，又能解析 skills，于是
+      // registerProvider 会落进该 preset 的 layer。
+      fiber = mount.ctx.plugin({
+        inject: ['skills'],
+        apply: (scoped: Context) => {
+          try {
+            providerDispose = scoped.skills.registerProvider((given) => {
+              entry.control = given
+              return provider
+            })
+          } catch (error) {
+            reportFailure(error)
+            this.injected.delete(key)
+            queueMicrotask(() => { void fiber?.dispose() })
+          }
+        },
+      })
+    } catch (error) {
+      reportFailure(error)
+    }
+
+    if (failure !== undefined) {
+      if (fiber !== undefined) void fiber.dispose()
+      return
+    }
+    this.injected.set(key, entry)
+    this.log('info', `gate attached to preset "${presetId}"`)
   }
 
-  /** 拆掉一条注入；scope 销毁会连带清掉其中的 provider 注册。 */
+  /** 拆掉一条注入：只注销 hub 自己的子 fiber，宿主 preset 的 scope 不动。 */
   private async disposeEntry(entry: InjectedEntry): Promise<void> {
     try {
-      await entry.scope.dispose()
+      await entry.dispose()
       this.log('info', `gate detached from preset "${entry.presetId}"`)
     } catch (error) {
       this.log('warn', `detaching the gate from preset "${entry.presetId}" failed: ${errorText(error)}`)
@@ -282,7 +370,7 @@ interface RevisionLease {
   readonly key?: unknown
 }
 
-/** `ctx.agentPresets` 的结构视图：0.2.x 的接线入口只取这两项。 */
+/** `ctx.agentPresets` 的结构视图：接线只需要这两项（外加内部的 revision 表）。 */
 interface AgentPresetsServiceLike {
   /** 全部已声明的 preset，含激活失败的（`list` 自己不抛错）。 */
   list: () => Promise<readonly { id?: unknown }[]>
@@ -290,13 +378,24 @@ interface AgentPresetsServiceLike {
   acquireScope: (id?: string) => Promise<unknown>
 }
 
+/** 注册表内部的一条 revision 记录（0.1.7 / 0.2.x 形状一致，只取接线需要的部分）。 */
+interface GenerationLike {
+  /** 宿主 `createScope` mint 出来的作用域；`ctx` 已带该 revision 的 scope tag。 */
+  scope?: { ctx?: Context }
+}
+
 /**
- * 用注册表服务合成 `livePresetMounts`：逐个探测 preset 的挂载状态。
+ * 用注册表服务合成 `livePresetMounts`：逐个探测 preset 的挂载状态，并带上
+ * 宿主 mint 的 scoped context。
  *
- * 0.2.x 把 standing mount 收进了注册表内部（模块级 `livePresetMounts` 已移除），
- * 公开的读法是 `acquireScope(id)`：它对**已挂载**的 preset 借出一个 revision 租约，
- * 租约里的 `key` 就是该 preset 的 standing scope key；未挂载或激活失败的 preset
- * 会抛 `agent-preset/invalid`，据此即可判定"挂载中"。
+ * `acquireScope(id)` 对**已挂载**的 preset 借出一个 revision 租约，租约里的
+ * `key` 就是该 preset 的 standing scope key；未挂载或激活失败的 preset 会抛
+ * `agent-preset/invalid`，据此判定"挂载中"。
+ *
+ * scoped context 取自注册表内部按同一个 key 索引的 revision 记录：那个 ctx 是
+ * **宿主的** `createScope` 创建的，tag 与宿主 `scopeOf()` 同源。绝不能用插件自己
+ * import 的 dsh-scope 去 mint scope —— 副本不同 → Symbol 不同 → 注册落进 global
+ * layer → 与 ScopeView 的回读形成死锁（见文件头）。
  *
  * 只借读数、立即归还租约：长期持有会顶住注册表的引用计数，让已退休的 revision
  * 无法回收；而只要 preset 仍在挂载中，那个 standing key 就一直有效。
@@ -307,6 +406,14 @@ export function serviceMounts(service: unknown): RuntimeBindings['livePresetMoun
   const candidate = service as Partial<AgentPresetsServiceLike> | null | undefined
   if (candidate === null || candidate === undefined) return undefined
   if (typeof candidate.list !== 'function' || typeof candidate.acquireScope !== 'function') return undefined
+  // 注册表的 revision 表是普通字段（TS private 不产生 #private）。拿不到就
+  // 宁可不接线：没有宿主 scoped ctx 的 gate 只可能落到 global layer。
+  const generations = (candidate as { generations?: unknown }).generations
+  if (!(generations instanceof Map)) return undefined
+  const scopedCtx = (key: object): Context | undefined => {
+    const generation = generations.get(key) as GenerationLike | undefined
+    return generation?.scope?.ctx
+  }
   return async () => {
     let declared: readonly { id?: unknown }[]
     try {
@@ -321,9 +428,18 @@ export function serviceMounts(service: unknown): RuntimeBindings['livePresetMoun
       if (typeof id !== 'string' || id === '') continue
       try {
         const lease = await candidate.acquireScope!(id) as (RevisionLease & Partial<AsyncDisposable>) | undefined
-        const key = lease?.key
-        await lease?.[Symbol.asyncDispose]?.()
-        if (typeof key === 'object' && key !== null) mounts.push({ presetId: id, key })
+        let mount: PresetMountLike | undefined
+        try {
+          const key = lease?.key
+          if (typeof key === 'object' && key !== null) {
+            const ctx = scopedCtx(key)
+            mount = { presetId: id, key, ...(ctx !== undefined ? { ctx } : {}) }
+          }
+        } finally {
+          // 先读 ctx 再归还租约：revision 仍挂载时 ctx 一直有效。
+          await lease?.[Symbol.asyncDispose]?.()
+        }
+        if (mount !== undefined) mounts.push(mount)
       } catch {
         // 未挂载／激活失败的 preset：retain 抛错，本就不是可接线的对象。
       }
@@ -333,29 +449,15 @@ export function serviceMounts(service: unknown): RuntimeBindings['livePresetMoun
 }
 
 /**
- * 动态载入 dsh 的运行时能力。两个包都是**可选**对等依赖：部署里没有（或形状
- * 变了）就返回 undefined，接线器据此整体降级为"策略仅预览"。
+ * 读取宿主提供的接线能力。**不再 import 任何 dsh 包**：所有数据都来自
+ * `ctx.agentPresets`（软注入，每次现读，服务晚到或热重载都能跟上）。
  *
- * 两条路径并存：
- *  - `0.1.7`：preset 侧包名从 `dsh-agent-presets` 换成 `dsh-agent-preset-registry`
- *    （服务名仍是 `ctx.agentPresets`），模块导出的 `livePresetMounts` 直接枚举
- *    standing mount，`PresetMount.presetId/key` 字段不变。
- *  - `0.2.x`：模块级枚举被移除，改从注册表服务借 `acquireScope` 读同一个
- *    standing key（见 {@link serviceMounts}）。
- * @param options.presets - `ctx.agentPresets` 软注入的读取器（每次现读，热重载跟得上）。
+ * 服务缺席、形状不符或拿不到内部 revision 表时返回 undefined，接线器整体降级为
+ * "策略仅预览"——绝不冒把 provider 注册进 global layer 的风险。
+ * @param options.presets - `ctx.agentPresets` 软注入的读取器。
  * @returns 可用的运行时绑定，或 undefined。
  */
 export async function loadScopeRuntime(options: { presets: () => unknown }): Promise<RuntimeBindings | undefined> {
-  const [presetsModule, scope] = await Promise.all([
-    import('@deepseek-ai/dsh-agent-preset-registry'),
-    import('@deepseek-ai/dsh-scope'),
-  ])
-  if (typeof scope.createScope !== 'function') return undefined
-  const moduleMounts = (presetsModule as { livePresetMounts?: (within?: Fiber) => readonly PresetMountLike[] }).livePresetMounts
-  if (typeof moduleMounts === 'function') {
-    return { livePresetMounts: async (within) => moduleMounts(within), createScope: scope.createScope }
-  }
   const mounts = serviceMounts(options.presets())
-  if (mounts === undefined) return undefined
-  return { livePresetMounts: mounts, createScope: scope.createScope }
+  return mounts === undefined ? undefined : { livePresetMounts: mounts }
 }

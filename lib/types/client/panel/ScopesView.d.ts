@@ -17,7 +17,7 @@
  * 注意 `css.rowStatic` 只是修饰类（仅声明 cursor），**必须**与 `css.row`
  * 同时使用——单独用会让行失去 flex / padding / gap，元素会挤成一团。
  *
- * 能力不可用（部署缺 agent-presets / dsh-scope）时降级为只读提示。
+ * 能力不可用（宿主没有 agentPresets 服务，或服务不暴露 acquireScope）时降级为只读提示。
  */
 import type { JSX, ReactNode } from 'react';
 import type { SkillHubState } from './useSkillHub.ts';

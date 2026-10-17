@@ -188,4 +188,35 @@ describe('ScopeView', () => {
     const { view: absent } = harness({ closed: new Set(['never-existed']) })
     expect((await absent.visibilityOf('minimal')).hidden).toEqual([])
   })
+
+  it('目录读取被自己的 gate 重入时不自锁（跨副本 dsh-scope 的回归）', async () => {
+    // 模拟 gate 被错误地注册进 global layer 的链路：
+    // snapshot → skills.snapshot → gate.list → hiddenFor → snapshot。
+    // 旧实现会把同一个未完成 promise 再 await 一次，导致整个 dsh 无报错挂死。
+    let view: ScopeView | undefined
+    let catalogReads = 0
+    view = new ScopeView({
+      catalog: async () => {
+        catalogReads += 1
+        // 目录读取期间 gate 回调本视图：必须拿到兜底快照并立即返回。
+        const nested = await view!.visibilityOf('coding')
+        expect(nested.hidden).toEqual([])
+        return { names: ['alpha-skill'], meta: new Map([['alpha-skill', META['alpha-skill']]]) }
+      },
+      groups: async () => new Map(),
+      policyOf: async () => ({ presetId: 'coding', enabled: true, groups: [], skills: ['alpha-skill'] }),
+      closed: async () => new Set<string>(),
+    })
+
+    const result = await Promise.race([
+      view.visibilityOf('coding'),
+      new Promise<never>((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('snapshot self-deadlock')), 1000)
+        timer.unref?.()
+      }),
+    ])
+    expect(result.visible).toEqual(['alpha-skill'])
+    // 只有外层真正读了一次目录；重入走的是兜底快照。
+    expect(catalogReads).toBe(1)
+  })
 })

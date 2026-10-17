@@ -7,7 +7,7 @@ export declare const zhScopes: {
     readonly 'scope.tab': "模式";
     readonly 'scope.loading': "正在读取模式…";
     readonly 'scope.unavailable': "本部署不支持模式隔离：{reason}";
-    readonly 'scope.unavailableHint': "需要 agent-presets 与 dsh-scope 两个运行时包；缺少它们时其余功能不受影响。";
+    readonly 'scope.unavailableHint': "需要宿主提供 agentPresets 服务（并暴露 acquireScope）；缺少它时其余功能不受影响。";
     readonly 'scope.empty': "本部署没有可用的 agent preset。";
     readonly 'scope.emptyHint': "preset 来自 ~/.dsh/.agent-presets/<id>/ 与部署自带的预设集。";
     readonly 'scope.configure': "配置";

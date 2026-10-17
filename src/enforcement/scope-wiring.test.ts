@@ -1,9 +1,14 @@
 /**
  * 执行层单测：接线器的生命周期与降级。
  *
- * 这里用**真实的** cordis Context / SkillRegistry / dsh-scope `createScope`，
- * 只把"哪些 preset 已挂载"换成替身——那正是 `dsh-agent-preset-registry` 负责的部分。
+ * 这里用**真实的** cordis Context / SkillRegistry / dsh-scope `createScope`
+ * 搭一个单副本运行时（测试进程里只有一个 dsh-scope 实例，不会出现跨副本
+ * Symbol 不匹配），只把"哪些 preset 已挂载、它们的 scoped ctx 是什么"换成替身
+ * ——那正是 `dsh-agent-preset-registry` 负责的部分。
+ *
  * 因此最后一个用例是端到端的：接线之后，那个 preset 的 agent 真的看不到技能。
+ * 另外专门钉住一个回归：mount 没带宿主 scoped ctx 时**必须跳过**，绝不能把
+ * gate 注册进 global layer（那会让整个技能目录自锁）。
  */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -68,8 +73,6 @@ interface Scenario {
   hidden: Map<string, Map<string, ScopeSkillMeta>>
   /** 接线器。 */
   wiring: PresetWiring
-  /** createScope 的调用记录（验证不会重复注入）。 */
-  scopeCalls: number
   /** 平台日志。 */
   logs: string[]
 }
@@ -83,15 +86,10 @@ async function scenario(overrides: { runtime?: () => Promise<RuntimeBindings | u
     enforced: new Set<string>(),
     hidden: new Map<string, Map<string, ScopeSkillMeta>>(),
     wiring: undefined as unknown as PresetWiring,
-    scopeCalls: 0,
     logs: [],
   }
   const runtime = overrides.runtime ?? (async (): Promise<RuntimeBindings | undefined> => ({
     livePresetMounts: async () => state.mounts,
-    createScope: (ctx, key) => {
-      state.scopeCalls += 1
-      return createScope(ctx, key)
-    },
   }))
   state.wiring = new PresetWiring({
     ctx: hubCtx,
@@ -103,25 +101,37 @@ async function scenario(overrides: { runtime?: () => Promise<RuntimeBindings | u
   return state
 }
 
-/** 在某个 standing key 下挂一个真实的发现 provider（模拟 preset 的 skill-filesystem）。 */
+/**
+ * 在某个 standing key 下挂一个真实的发现 provider（模拟 preset 的
+ * skill-filesystem），并把宿主 mint 的 scoped ctx 一起交给接线器。
+ */
 function seedStandingScope(scenario: Scenario, key: object, presetId: string): void {
   const scope = createScope(scenario.hubCtx, key)
   scope.ctx.skills.registerProvider(() => filesystemProvider())
-  scenario.mounts.push({ presetId, key })
+  scenario.mounts.push({ presetId, key, ctx: scope.ctx })
+}
+
+/** 在超时时间内必须完成——用来钉死"无报错挂死"这类回归。 */
+async function within<T>(promise: Promise<T>, ms = 1000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`operation did not settle within ${ms}ms`)), ms)
+      timer.unref?.()
+    }),
+  ])
 }
 
 describe('PresetWiring', () => {
   it('未启用隔离的 preset 不注入任何东西', async () => {
     const state = await scenario()
-    const key = {}
-    seedStandingScope(state, key, 'coding')
+    seedStandingScope(state, {}, 'coding')
 
     await state.wiring.sync()
 
-    // seed 用的是真实 createScope（不计入），所以 0 表示接线器一次都没 mint scope。
-    expect(state.scopeCalls).toBe(0)
     expect((await state.wiring.status()).active).toEqual([])
     expect((await state.wiring.status()).mounted).toEqual(['coding'])
+    expect(state.logs.some((line) => line.includes('gate attached'))).toBe(false)
   })
 
   it('已挂载且启用了隔离的 preset 会被接上闸门', async () => {
@@ -145,22 +155,20 @@ describe('PresetWiring', () => {
     state.hidden.set('coding', new Map([['alpha-skill', HIDDEN_META]]))
 
     await state.wiring.sync()
-    const after = state.scopeCalls
     await state.wiring.sync()
     await state.wiring.sync()
 
-    expect(state.scopeCalls).toBe(after)
+    expect(state.logs.filter((line) => line.includes('gate attached')).length).toBe(1)
   })
 
   it('并发 sync 共享同一轮，不会重复注入', async () => {
     const state = await scenario()
     seedStandingScope(state, {}, 'coding')
     state.enforced.add('coding')
-    const before = state.scopeCalls
 
     await Promise.all([state.wiring.sync(), state.wiring.sync(), state.wiring.sync()])
 
-    expect(state.scopeCalls).toBe(before + 1)
+    expect(state.logs.filter((line) => line.includes('gate attached')).length).toBe(1)
   })
 
   it('preset 被卸载后，下一轮 sync 拆掉它的闸门', async () => {
@@ -215,6 +223,29 @@ describe('PresetWiring', () => {
     expect(status.active).toEqual([])
   })
 
+  it('服务晚到不会被永久缓存为不可用（软注入回归）', async () => {
+    const state = await scenario()
+    seedStandingScope(state, {}, 'coding')
+    state.enforced.add('coding')
+
+    let available = false
+    state.wiring = new PresetWiring({
+      ctx: state.hubCtx,
+      runtime: async () => available ? { livePresetMounts: async () => state.mounts } : undefined,
+      isEnforced: async (presetId) => state.enforced.has(presetId),
+      hiddenOf: async () => new Map(),
+      log: (level, message) => { state.logs.push(`${level}: ${message}`) },
+    })
+
+    await state.wiring.sync()
+    expect((await state.wiring.status()).available).toBe(false)
+
+    available = true
+    await state.wiring.sync()
+    expect((await state.wiring.status()).available).toBe(true)
+    expect((await state.wiring.status()).active).toEqual(['coding'])
+  })
+
   it('runtime 载入抛错时同样降级，且原因来自异常', async () => {
     const state = await scenario({ runtime: async () => { throw new Error('module not found') } })
 
@@ -228,12 +259,32 @@ describe('PresetWiring', () => {
     const state = await scenario({
       runtime: async () => ({
         livePresetMounts: async () => { throw new Error('boom') },
-        createScope: (ctx, key) => createScope(ctx, key),
       }),
     })
 
     await expect(state.wiring.sync()).resolves.toBeUndefined()
     expect(state.logs.some((line) => line.includes('boom'))).toBe(true)
+  })
+
+  it('mount 没有宿主 scoped ctx 时跳过接线，绝不注册进 global layer', async () => {
+    const state = await scenario()
+    const key = {}
+    createScope(state.hubCtx, key).ctx.skills.registerProvider(() => filesystemProvider())
+    // 只给 key、不给 ctx：模拟宿主服务拿不到 revision 内 ctx 的降级路径。
+    state.mounts.push({ presetId: 'coding', key })
+    state.enforced.add('coding')
+
+    await state.wiring.sync()
+
+    expect((await state.wiring.status()).active).toEqual([])
+    expect(state.logs.some((line) => line.includes('no scoped context'))).toBe(true)
+    // 关键回归：global 快照必须照常完成（旧实现会在这里自锁），且 agent 视图
+    // 不会被误注册进 global 的 gate 遮蔽。
+    const agentKey = {}
+    createScope(state.hubCtx, agentKey, { parent: key })
+    expect((await within(state.hubCtx.skills.snapshot())).skills).toEqual([])
+    const snapshot = await within(state.hubCtx.skills.snapshot({ scope: agentKey }))
+    expect(snapshot.skills.filter(isModelInvocable).map((skill) => skill.name)).toEqual(['alpha-skill', 'beta-skill'])
   })
 
   it('单个 preset 接线失败不阻断其余 preset', async () => {
@@ -243,25 +294,15 @@ describe('PresetWiring', () => {
     state.enforced.add('broken')
     state.enforced.add('coding')
 
-    const realCreate = createScope
-    const wiring = new PresetWiring({
-      ctx: state.hubCtx,
-      runtime: async () => ({
-        livePresetMounts: async () => state.mounts,
-        createScope: (ctx, key) => {
-          if (key === state.mounts[0].key) throw new Error('cannot mint scope')
-          return realCreate(ctx, key)
-        },
-      }),
-      isEnforced: async (presetId) => state.enforced.has(presetId),
-      hiddenOf: async (presetId) => state.hidden.get(presetId) ?? new Map(),
-      log: (level, message) => { state.logs.push(`${level}: ${message}`) },
-    })
+    const brokenCtx = {
+      plugin: () => { throw new Error('cannot mount gate') },
+    } as unknown as Context
+    state.mounts[0] = { presetId: 'broken', key: state.mounts[0].key, ctx: brokenCtx }
 
-    await wiring.sync()
+    await state.wiring.sync()
 
-    expect((await wiring.status()).active).toEqual(['coding'])
-    expect(state.logs.some((line) => line.includes('cannot mint scope'))).toBe(true)
+    expect((await state.wiring.status()).active).toEqual(['coding'])
+    expect(state.logs.some((line) => line.includes('cannot mount gate'))).toBe(true)
   })
 
   it('invalidate 通知已接线的闸门，未接线的 preset 不受影响', async () => {
@@ -338,10 +379,7 @@ describe('PresetWiring', () => {
     // 自定义 hiddenOf：只有目录等于 /w/alpha 的会话隐藏 alpha-skill。
     const wiring = new PresetWiring({
       ctx: state.hubCtx,
-      runtime: async () => ({
-        livePresetMounts: async () => state.mounts,
-        createScope: (ctx, key) => createScope(ctx, key),
-      }),
+      runtime: async () => ({ livePresetMounts: async () => state.mounts }),
       isEnforced: async () => true,
       hiddenOf: async (_presetId, cwd) => (cwd === ALPHA ? new Map([['alpha-skill', HIDDEN_META]]) : new Map()),
     })
@@ -386,14 +424,15 @@ describe('PresetWiring', () => {
 })
 
 /**
- * 0.2.x 的接线入口：模块级 `livePresetMounts` 被移除后，同一个 standing key
- * 只能通过注册表服务的 `acquireScope` 租约读到。这里的替身刻意照抄宿主的两条
- * 语义：未挂载的 preset 让 `retain` 抛错；租约读完必须归还。
+ * 宿主接线入口：模块级 `livePresetMounts` 不可用时，从注册表服务读 standing
+ * key，并从同一个 revision 记录里取**宿主 mint 的 scoped ctx**。
  */
 describe('serviceMounts', () => {
-  it('把已挂载的 preset 读成 mount，并归还每个租约', async () => {
+  it('把已挂载的 preset 读成 mount（含宿主 ctx），并归还每个租约', async () => {
     const released: string[] = []
     const standingKey = {}
+    const scopedCtx = { tag: 'host-scoped' } as unknown as Context
+    const generations = new Map<object, unknown>([[standingKey, { scope: { ctx: scopedCtx } }]])
     const mounts = serviceMounts({
       list: async () => [{ id: 'standard' }, { id: 'ptc' }],
       acquireScope: async (id?: string) => {
@@ -405,10 +444,11 @@ describe('serviceMounts', () => {
           },
         }
       },
+      generations,
     })
     expect(mounts).toBeTypeOf('function')
 
-    expect(await mounts!()).toEqual([{ presetId: 'standard', key: standingKey }])
+    expect(await mounts!()).toEqual([{ presetId: 'standard', key: standingKey, ctx: scopedCtx }])
     // 借读数、立即归还：未挂载的 preset 根本不产生租约。
     expect(released).toEqual(['standard'])
   })
@@ -419,6 +459,21 @@ describe('serviceMounts', () => {
     expect(serviceMounts({})).toBeUndefined()
     expect(serviceMounts({ list: async () => [] })).toBeUndefined()
     expect(serviceMounts({ acquireScope: async () => ({ key: {} }) })).toBeUndefined()
+    // 拿不到 revision 表就没有宿主 scoped ctx：宁可降级，也不注册到 global。
+    expect(serviceMounts({
+      list: async () => [],
+      acquireScope: async () => ({ key: {} }),
+    })).toBeUndefined()
+  })
+
+  it('revision 表缺失对应记录时仍返回 key（由接线器跳过接线）', async () => {
+    const standingKey = {}
+    const mounts = serviceMounts({
+      list: async () => [{ id: 'standard' }],
+      acquireScope: async () => ({ key: standingKey }),
+      generations: new Map(),
+    })
+    expect(await mounts!()).toEqual([{ presetId: 'standard', key: standingKey }])
   })
 
   it('list 抛错退化为空名单，不把失败抛给接线器', async () => {
@@ -427,6 +482,7 @@ describe('serviceMounts', () => {
         throw new Error('registry down')
       },
       acquireScope: async () => ({ key: {} }),
+      generations: new Map(),
     })
     expect(await mounts!()).toEqual([])
   })
@@ -439,6 +495,7 @@ describe('serviceMounts', () => {
         if (id === 'bare') return undefined
         return { key: {} }
       },
+      generations: new Map(),
     })
     expect((await mounts!()).map((row) => row.presetId)).toEqual(['standard'])
   })

@@ -96,7 +96,7 @@ export interface ScopeRouteDeps {
 
 /** 一次 /presets 读取所需的全部宿主数据。 */
 export interface ScopePresetSnapshot {
-  /** 模式隔离能力是否可用（agentPresets / dsh-scope 齐备）。 */
+  /** 模式隔离能力是否可用（agentPresets 服务齐备）。 */
   available: boolean
   /** 不可用原因。 */
   reason?: string
@@ -132,7 +132,7 @@ export interface WorkspaceRouteDeps {
 
 /** 一次 /workspaces 读取所需的全部宿主数据。 */
 export interface WorkspaceRosterSnapshot {
-  /** 工作区名单能力是否可用（workspaceRegistry / dsh-scope 齐备）。 */
+  /** 工作区名单能力是否可用（workspaceRegistry / agentPresets 齐备）。 */
   available: boolean
   /** 不可用原因。 */
   reason?: string
