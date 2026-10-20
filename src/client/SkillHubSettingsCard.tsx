@@ -1,7 +1,7 @@
 /**
  * The skill-hub plugin settings card: bridges the hub's settings
  * namespace (bound through the official settings transport) onto the
- * family-style staged card form (enabled master switch + agent announcement).
+ * family-style staged card form (enabled master switch + display/token knobs).
  * Registered into `plugins.bundle.config` under the bundle's package name, so
  * the Plugins manager renders it on skill-hub's own page. That slot is
  * dispatched with `view: 'page'` only, so the card always renders its full
@@ -21,7 +21,6 @@ import { DEFAULT_DOT_MODEL_COLOR, DEFAULT_DOT_USER_COLOR } from './panel/format.
 /** The card's projected state. */
 export interface SkillHubSettingsState extends CardShell {
   enabled: FieldState
-  announceToAgent: FieldState
   dotModelColor: FieldState
   dotUserColor: FieldState
   showUseCount: FieldState
@@ -65,7 +64,7 @@ export class SkillHubSettingsCardController {
 
   /** @param scope - the hub settings scope the card edits (FormScope-compatible). */
   constructor(scope: FormScope) {
-    this.form = new CardForm(scope, [booleanField('enabled'), booleanField('announceToAgent'), colorField('dotModelColor'), colorField('dotUserColor'), booleanField('showUseCount'), booleanField('showUseTime'), booleanField('showGroupSummary'), numberField('statsWindowDays', { min: 0, max: 3650 }), numberField('statsScanMinutes', { min: 1, max: 1440 }), secretField('githubToken')])
+    this.form = new CardForm(scope, [booleanField('enabled'), colorField('dotModelColor'), colorField('dotUserColor'), booleanField('showUseCount'), booleanField('showUseTime'), booleanField('showGroupSummary'), numberField('statsWindowDays', { min: 0, max: 3650 }), numberField('statsScanMinutes', { min: 1, max: 1440 }), secretField('githubToken')])
     this.store = this.form.bind(() => this.projection())
   }
 
@@ -73,7 +72,6 @@ export class SkillHubSettingsCardController {
     return {
       ...this.form.shell(),
       enabled: this.form.field('enabled'),
-      announceToAgent: this.form.field('announceToAgent'),
       dotModelColor: this.form.field('dotModelColor'),
       dotUserColor: this.form.field('dotUserColor'),
       showUseCount: this.form.field('showUseCount'),
@@ -100,7 +98,6 @@ export class SkillHubSettingsCardController {
 /** The card's field rows in render order; the rendered DOM order follows it. */
 const FIELD_ROWS: readonly FieldRow[] = [
   { kind: 'switch', field: 'enabled', label: 'settings.enabled', hint: 'settings.enabledHint' },
-  { kind: 'switch', field: 'announceToAgent', label: 'settings.announceToAgent', hint: 'settings.announceToAgentHint' },
   { kind: 'color', field: 'dotModelColor', id: 'skill-hub-dot-model-color', label: 'settings.dotModelColor', hint: 'settings.dotModelColorHint', defaultColor: DEFAULT_DOT_MODEL_COLOR },
   { kind: 'color', field: 'dotUserColor', id: 'skill-hub-dot-user-color', label: 'settings.dotUserColor', hint: 'settings.dotUserColorHint', defaultColor: DEFAULT_DOT_USER_COLOR },
   { kind: 'switch', field: 'showUseCount', label: 'settings.showUseCount', hint: 'settings.showUseCountHint' },

@@ -15,8 +15,8 @@
  *   ④ 呈现 Surface       让用户表达与看见                   routes/ · client/
  *
  * 本文件只做组装：把 store（②）装配进 ScopeView（②的判定），把 ScopeView 与
- * 运行时能力装配成 PresetWiring（③），再把二者作为路由依赖交给 makeRoutes（④）、
- * 把中英公告交给 systemPrompt。它自己不实现任何业务规则，具体装配分别放在
+ * 运行时能力装配成 PresetWiring（③），再把二者作为路由依赖交给 makeRoutes（④）。
+ * 它自己不实现任何业务规则，具体装配分别放在
  * 同目录的 config.ts（配置面）、scope-assembly.ts（模式隔离）、stats-wiring.ts
  * （调用统计）与 startup.ts（启动期对账）。
  *
@@ -25,18 +25,19 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import { type Config } from './config.ts';
-export { Config, ENTRY_ID, SKILL_HUB_GUIDANCE } from './config.ts';
+export { Config, ENTRY_ID } from './config.ts';
 /** Stable cordis plugin name (matches cordis.patch.yml insert id). */
 export declare const name = "skill-hub";
 /**
  * Services required before the skill-hub surfaces can mount. `settings` 刻意
  * **不在这里**：0.1.7 的配置读数走插件自己的 volatile 引用，只有真要读写设置
  * 服务时才软取（`ctx.get('settings')`）——部署没有该服务时插件照常运行。
+ * `systemPrompt` 同样不在：本插件不向系统提示注入任何内容。
  */
 export declare const inject: string[];
 /**
- * Mount the skill hub routes and announcement.
- * @param ctx - host plugin context carrying webServer/skills/systemPrompt.
+ * Mount the skill hub routes and its skill provider.
+ * @param ctx - host plugin context carrying webServer/skills.
  * @param config - the Loader entry's volatile config refs (dsh 0.1.7 settings model).
  */
 export declare function apply(ctx: Context, config?: Config): void;

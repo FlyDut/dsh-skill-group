@@ -441,7 +441,7 @@ describe('skill-hub routes', () => {
   it('serves the hub config with saved overrides', async () => {
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
     })
     const res = new FakeResponse()
@@ -450,7 +450,7 @@ describe('skill-hub routes', () => {
     const body = res.json() as ConfigResponse
     expect(body.ok).toBe(true)
     expect(body.pluginVersion).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(body.config).toEqual({ enabled: false, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 })
+    expect(body.config).toEqual({ enabled: false, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 })
     expect(body.saved).toEqual({ enabled: false })
   })
 
@@ -459,7 +459,7 @@ describe('skill-hub routes', () => {
     // GET with a token in effect: the flag says yes, no payload field carries it.
     const getRoutes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: true, announceToAgent: true, githubToken: token }),
+      config: () => ({ enabled: true, githubToken: token }),
       saved: () => ({ githubToken: token }),
     })
     const get = new FakeResponse()
@@ -479,7 +479,7 @@ describe('skill-hub routes', () => {
     expect(merged.body).not.toContain(token)
 
     // POST, owner updateConfig path.
-    const updateConfig = async (): Promise<HubConfig> => ({ enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, githubToken: token })
+    const updateConfig = async (): Promise<HubConfig> => ({ enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true, githubToken: token })
     const postRoutes = makeRoutes({ ...deps, updateConfig })
     const posted = new FakeResponse()
     await postRoutes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { enabled: true }), posted as never)
@@ -501,31 +501,31 @@ describe('skill-hub routes', () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: false, announceToAgent: false, showUseCount: true, showUseTime: true, showGroupSummary: true }
+      return { enabled: false, showUseCount: false, showUseTime: true, showGroupSummary: true }
     }
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: true, announceToAgent: true }),
-      saved: () => ({ enabled: false, announceToAgent: false }),
+      config: () => ({ enabled: true }),
+      saved: () => ({ enabled: false }),
       updateConfig,
     })
     const res = new FakeResponse()
-    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { announceToAgent: false }), res as never)
+    await routes.find((r) => r.path === SKILL_HUB_API.config)?.handler(fakeReq('POST', SKILL_HUB_API.config, { showUseCount: false }), res as never)
     expect(res.status).toBe(200)
-    expect(patches).toEqual([{ announceToAgent: false }])
+    expect(patches).toEqual([{ showUseCount: false }])
     const body = res.json() as ConfigResponse
-    expect(body.config).toEqual({ enabled: false, announceToAgent: false, showUseCount: true, showUseTime: true, showGroupSummary: true })
+    expect(body.config).toEqual({ enabled: false, showUseCount: false, showUseTime: true, showGroupSummary: true })
   })
 
   it('clears a saved override with null on the config route', async () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true }
+      return { enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true }
     }
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
       updateConfig,
     })
@@ -547,7 +547,7 @@ describe('skill-hub routes', () => {
     const patches: Array<Partial<HubConfig>> = []
     const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
       patches.push(patch)
-      return { enabled: true, announceToAgent: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 }
+      return { enabled: true, showUseCount: true, showUseTime: true, showGroupSummary: true, statsWindowDays: 14, statsScanMinutes: 5 }
     }
     const routes = makeRoutes({ ...deps, updateConfig })
     const set = new FakeResponse()
@@ -566,7 +566,7 @@ describe('skill-hub routes', () => {
   it('keeps the config route up while the hub is disabled (business routes 503)', async () => {
     const routes = makeRoutes({
       ...deps,
-      config: () => ({ enabled: false, announceToAgent: true }),
+      config: () => ({ enabled: false }),
       saved: () => ({ enabled: false }),
     })
     const business = new FakeResponse()

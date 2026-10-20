@@ -65,11 +65,6 @@ export function configRoutes(deps: SkillHubRouteDeps): RouteSpec[] {
           else if (typeof raw.enabled !== 'boolean') { writeError(res, 400, 'enabled must be a boolean or null'); return }
           else patch.enabled = raw.enabled
         }
-        if (raw.announceToAgent !== undefined) {
-          if (raw.announceToAgent === null) patch.announceToAgent = undefined
-          else if (typeof raw.announceToAgent !== 'boolean') { writeError(res, 400, 'announceToAgent must be a boolean or null'); return }
-          else patch.announceToAgent = raw.announceToAgent
-        }
         for (const key of ['showUseCount', 'showUseTime', 'showGroupSummary'] as const) {
           const value = raw[key]
           if (value === undefined) continue

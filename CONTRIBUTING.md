@@ -88,7 +88,7 @@ pnpm smoke          # load the built bundle in a real cordis runtime (run after 
 ```
 
 `pnpm smoke` boots `lib/index.js` inside a minimal cordis host with stand-ins for
-`webServer` / `skills` / `systemPrompt` / `settings` / `agentPresets`, then drives the real
+`webServer` / `skills` / `settings` / `agentPresets`, then drives the real
 route handlers. It catches what unit tests cannot: a bundle that fails to load, a route
 registered twice, a teardown that leaves residue. Prefer it before publishing.
 

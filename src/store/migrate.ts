@@ -131,10 +131,9 @@ export function hydrateMigratedState(migrated: MigratedStore): HydratedState {
   }
 
   const config: Partial<HubConfig> = {}
-  const saved = migrated.config as { enabled?: unknown; announceToAgent?: unknown; dotModelColor?: unknown; dotUserColor?: unknown; showUseCount?: unknown; showUseTime?: unknown; showGroupSummary?: unknown } | undefined
+  const saved = migrated.config as { enabled?: unknown; dotModelColor?: unknown; dotUserColor?: unknown; showUseCount?: unknown; showUseTime?: unknown; showGroupSummary?: unknown } | undefined
   if (typeof saved === 'object' && saved !== null) {
     if (typeof saved.enabled === 'boolean') config.enabled = saved.enabled
-    if (typeof saved.announceToAgent === 'boolean') config.announceToAgent = saved.announceToAgent
     if (typeof saved.dotModelColor === 'string' && saved.dotModelColor !== '') config.dotModelColor = saved.dotModelColor
     if (typeof saved.dotUserColor === 'string' && saved.dotUserColor !== '') config.dotUserColor = saved.dotUserColor
     if (typeof saved.showUseCount === 'boolean') config.showUseCount = saved.showUseCount

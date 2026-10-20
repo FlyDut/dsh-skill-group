@@ -33,7 +33,6 @@ await ctx.plugin(SkillRegistry)
 
 // ── 宿主服务替身 ────────────────────────────────────────────────────────
 const routes = []
-const sections = []
 const nsState = new Map()
 
 // ── 0.1.7 的 volatile 插件配置替身 ──────────────────────────────────────
@@ -43,7 +42,6 @@ const nsState = new Map()
 // current() 会读到旧值（真实环境里这由 Loader 完成）。
 const configValues = {
   enabled: true,
-  announceToAgent: true,
   showUseCount: true,
   showUseTime: true,
   showGroupSummary: true,
@@ -63,12 +61,6 @@ ctx.provide('webServer', {
   register: (route) => {
     routes.push(route)
     return () => { const at = routes.indexOf(route); if (at >= 0) routes.splice(at, 1) }
-  },
-})
-ctx.provide('systemPrompt', {
-  section: (spec) => {
-    sections.push(spec)
-    return () => { const at = sections.indexOf(spec); if (at >= 0) sections.splice(at, 1) }
   },
 })
 // 0.1.7 的 settings 服务面：describe() 报命名空间与用户层，mutate()/update() 是
@@ -112,7 +104,7 @@ ctx.provide('workspaceRegistry', {
 // ── 装载构建产物 ────────────────────────────────────────────────────────
 const mod = await import('../lib/index.js')
 check('plugin name', mod.name, 'skill-hub')
-check('inject', mod.inject, ['webServer', 'skills', 'systemPrompt'])
+check('inject', mod.inject, ['webServer', 'skills'])
 check('Config schema exported', mod.Config !== undefined, true)
 
 // 裸 cordis 的 Fiber 会拿插件的 `Config` schema 去校验第二个参数，而 0.1.7 的真实
@@ -129,7 +121,6 @@ check('exact route family mounted exactly once', exactRoutes.length, 33)
 check('every exact route path is unique', new Set(exactRoutes.map((r) => r.path)).size, exactRoutes.length)
 check('one 404 catch-all covers the family', prefixRoutes.length, 1)
 check('catch-all sits on the family root', prefixRoutes[0]?.path, '/api/skill-hub')
-check('section announced exactly once (re-sync is idempotent)', sections.length, 1)
 const presetsRoute = routes.find((r) => r.path === '/api/skill-hub/presets')
 check('/presets route present', presetsRoute !== undefined, true)
 check('/scope route present', routes.some((r) => r.path === '/api/skill-hub/scope'), true)
@@ -217,18 +208,24 @@ check('unknown family path answers 404', notFoundRes.status, 404)
 check('404 names the requested path', String(notFoundRes.json()?.error).includes('/api/skill-hub/market/sync'), true)
 
 // 配置写入必须当场重建 surfaces：0.1.7 的 settings.mutate 只就地换值、不重跑
-// apply()，所以 updateConfig 写完自己补一轮 sync()。关掉 announceToAgent 后
-// systemPrompt section 要立刻消失，再打开要恢复且不重复注册（sync 幂等）。
-const configRoute = routes.find((r) => r.path === '/api/skill-hub/config')
-check('/config route present', configRoute !== undefined, true)
+// apply()，所以 updateConfig 写完自己补一轮 sync()。关掉总开关后业务路由立刻
+// 503，再打开要恢复且不重复注册（sync 幂等）。
+const configRoute = () => routes.find((r) => r.path === '/api/skill-hub/config')
+const catalogStatus = async () => {
+  const res = fakeRes()
+  await routes.find((r) => r.path === '/api/skill-hub/catalog').handler(fakeReq('GET', '/api/skill-hub/catalog'), res)
+  return res.status
+}
+check('/config route present', configRoute() !== undefined, true)
+check('business route answers 200 while the hub is enabled', await catalogStatus(), 200)
 const offRes = fakeRes()
-await configRoute.handler(fakeReq('POST', '/api/skill-hub/config', { announceToAgent: false }), offRes)
+await configRoute().handler(fakeReq('POST', '/api/skill-hub/config', { enabled: false }), offRes)
 check('/config accepts the patch', offRes.status, 200)
-check('announceToAgent off removes the section without a restart', sections.length, 0)
+check('disabling the hub takes business routes offline without a restart', await catalogStatus(), 503)
 const onRes = fakeRes()
-await configRoute.handler(fakeReq('POST', '/api/skill-hub/config', { announceToAgent: true }), onRes)
+await configRoute().handler(fakeReq('POST', '/api/skill-hub/config', { enabled: true }), onRes)
 check('/config accepts re-enabling', onRes.status, 200)
-check('announceToAgent back on re-announces exactly once', sections.length, 1)
+check('re-enabling restores business routes exactly once', await catalogStatus(), 200)
 check('/config never echoes a github token field', Object.hasOwn(onRes.json()?.config ?? {}, 'githubToken'), false)
 
 // /skill/delete 是唯一会真删磁盘的路由：这里只做构建产物里的最小往返（空名单拒绝、

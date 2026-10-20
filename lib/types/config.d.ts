@@ -1,5 +1,5 @@
 /**
- * 插件对外的配置面：volatile 字段、settings 表单 schema、入口常量与公告文案。
+ * 插件对外的配置面：volatile 字段、settings 表单 schema 与入口常量。
  *
  * 拆出来是为了让入口文件（index.ts）只负责组装：这张表要同时与
  * cordis.patch.yml 的 insert id、浏览器半边的 settings 契约对照阅读。
@@ -16,9 +16,7 @@ import z from '@deepseek-ai/schemastery';
  * 也只有 volatile 字段能经 settings 传输写入。
  */
 export interface Config {
-    /** When true (default), a system-prompt section announces the hub to every agent. */
-    announceToAgent: Volatile<boolean>;
-    /** Master switch for the plugin (routes, prompt section). */
+    /** Master switch for the plugin (routes and skill provider). */
     enabled: Volatile<boolean>;
     /** Show per-skill invocation count chip. Default true. */
     showUseCount: Volatile<boolean>;
@@ -40,7 +38,6 @@ export interface Config {
 /** 设置页编辑的 live 配置；字段顺序即设置页渲染的行顺序。 */
 export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     enabled: z<boolean, boolean, "volatile-defined">;
-    announceToAgent: z<boolean, boolean, "volatile-defined">;
     dotModelColor: z<string, string, "volatile">;
     dotUserColor: z<string, string, "volatile">;
     showUseCount: z<boolean, boolean, "volatile-defined">;
@@ -51,7 +48,6 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     githubToken: z<string, string, "volatile">;
 }>>, Schemastery.ObjectT<NoInfer<{
     enabled: z<boolean, boolean, "volatile-defined">;
-    announceToAgent: z<boolean, boolean, "volatile-defined">;
     dotModelColor: z<string, string, "volatile">;
     dotUserColor: z<string, string, "volatile">;
     showUseCount: z<boolean, boolean, "volatile-defined">;
@@ -68,8 +64,4 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
  */
 export declare const ENTRY_ID: SettingsNamespace;
 /** 全部配置字段，顺序与设置页渲染顺序一致（用于遍历 volatile 引用）。 */
-export declare const CONFIG_FIELDS: readonly ["enabled", "announceToAgent", "dotModelColor", "dotUserColor", "showUseCount", "showUseTime", "showGroupSummary", "statsWindowDays", "statsScanMinutes", "githubToken"];
-/** Order of the announcement section within the tool-guidance band. */
-export declare const SECTION_ORDER = 152;
-/** Model-facing announcement: plugin presence, capabilities, and limits. */
-export declare const SKILL_HUB_GUIDANCE: string;
+export declare const CONFIG_FIELDS: readonly ["enabled", "dotModelColor", "dotUserColor", "showUseCount", "showUseTime", "showGroupSummary", "statsWindowDays", "statsScanMinutes", "githubToken"];

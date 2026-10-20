@@ -5,10 +5,8 @@ export interface ErrorResponse {
 
 /** The skill hub's own runtime configuration, edited from the settings card. */
 export interface HubConfig {
-  /** Master switch: routes, provider, and announcement all go live with this. */
+  /** Master switch: routes and the skill provider go live with this. */
   enabled: boolean
-  /** When true, a system-prompt section announces the hub to every agent. */
-  announceToAgent: boolean
   /** Model-invocable dot color (#rrggbb); absent means the panel default. */
   dotModelColor?: string
   /** User-invocable dot color (#rrggbb); absent means the panel default. */
@@ -48,7 +46,6 @@ export type RedactedHubConfig = Omit<HubConfig, 'githubToken'>
  */
 export type HubSettingsValue = {
   enabled: boolean
-  announceToAgent: boolean
   showUseCount: boolean
   showUseTime: boolean
   showGroupSummary: boolean
@@ -79,7 +76,6 @@ export const HUB_ENTRY_ID = 'skill-hub'
  */
 export const HUB_CONFIG_DEFAULTS = {
   enabled: true,
-  announceToAgent: true,
   showUseCount: true,
   showUseTime: true,
   showGroupSummary: true,
@@ -102,7 +98,6 @@ export function resolveHubConfig(saved: Partial<HubConfig>, base: Partial<HubCon
   const scanMinutes = clampNumber(saved.statsScanMinutes ?? base.statsScanMinutes, 1) ?? HUB_CONFIG_DEFAULTS.statsScanMinutes
   return {
     enabled: saved.enabled ?? base.enabled ?? HUB_CONFIG_DEFAULTS.enabled,
-    announceToAgent: saved.announceToAgent ?? base.announceToAgent ?? HUB_CONFIG_DEFAULTS.announceToAgent,
     showUseCount: saved.showUseCount ?? base.showUseCount ?? HUB_CONFIG_DEFAULTS.showUseCount,
     showUseTime: saved.showUseTime ?? base.showUseTime ?? HUB_CONFIG_DEFAULTS.showUseTime,
     showGroupSummary: saved.showGroupSummary ?? base.showGroupSummary ?? HUB_CONFIG_DEFAULTS.showGroupSummary,

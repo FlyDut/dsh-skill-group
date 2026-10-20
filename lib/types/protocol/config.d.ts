@@ -4,10 +4,8 @@ export interface ErrorResponse {
 }
 /** The skill hub's own runtime configuration, edited from the settings card. */
 export interface HubConfig {
-    /** Master switch: routes, provider, and announcement all go live with this. */
+    /** Master switch: routes and the skill provider go live with this. */
     enabled: boolean;
-    /** When true, a system-prompt section announces the hub to every agent. */
-    announceToAgent: boolean;
     /** Model-invocable dot color (#rrggbb); absent means the panel default. */
     dotModelColor?: string;
     /** User-invocable dot color (#rrggbb); absent means the panel default. */
@@ -45,7 +43,6 @@ export type RedactedHubConfig = Omit<HubConfig, 'githubToken'>;
  */
 export type HubSettingsValue = {
     enabled: boolean;
-    announceToAgent: boolean;
     showUseCount: boolean;
     showUseTime: boolean;
     showGroupSummary: boolean;
@@ -74,7 +71,6 @@ export declare const HUB_ENTRY_ID = "skill-hub";
  */
 export declare const HUB_CONFIG_DEFAULTS: {
     readonly enabled: true;
-    readonly announceToAgent: true;
     readonly showUseCount: true;
     readonly showUseTime: true;
     readonly showGroupSummary: true;

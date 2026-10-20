@@ -3,9 +3,7 @@ export declare const zhSettings: {
     readonly 'settings.title': "技能分组";
     readonly 'settings.description': "管理 dsh 本地技能目录：浏览、分组、来源同步与新建。";
     readonly 'settings.enabled': "启用插件";
-    readonly 'settings.enabledHint': "关闭后技能分组的路由、入口与公告全部下线。";
-    readonly 'settings.announceToAgent': "向 Agent 公告";
-    readonly 'settings.announceToAgentHint': "在系统提示中加入本插件说明，用户提到技能分组时 Agent 知道如何协作。";
+    readonly 'settings.enabledHint': "关闭后技能分组的路由、入口与技能 provider 全部下线。";
     readonly 'settings.dotModelColor': "模型可调圆点颜色";
     readonly 'settings.dotModelColorHint': "技能行/聊天 / 菜单中「模型可调」蓝色圆点的颜色（#rrggbb）。";
     readonly 'settings.dotUserColor': "用户可调圆点颜色";

@@ -15,8 +15,8 @@
  *   ④ 呈现 Surface       让用户表达与看见                   routes/ · client/
  *
  * 本文件只做组装：把 store（②）装配进 ScopeView（②的判定），把 ScopeView 与
- * 运行时能力装配成 PresetWiring（③），再把二者作为路由依赖交给 makeRoutes（④）、
- * 把中英公告交给 systemPrompt。它自己不实现任何业务规则，具体装配分别放在
+ * 运行时能力装配成 PresetWiring（③），再把二者作为路由依赖交给 makeRoutes（④）。
+ * 它自己不实现任何业务规则，具体装配分别放在
  * 同目录的 config.ts（配置面）、scope-assembly.ts（模式隔离）、stats-wiring.ts
  * （调用统计）与 startup.ts（启动期对账）。
  *
@@ -29,10 +29,9 @@ import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
 import type { SettingsForms, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-skill'
-import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-settings'
 import { resolveHubConfig, type HubConfig } from './protocol.ts'
-import { CONFIG_FIELDS, ENTRY_ID, SECTION_ORDER, SKILL_HUB_GUIDANCE, type Config } from './config.ts'
+import { CONFIG_FIELDS, ENTRY_ID, type Config } from './config.ts'
 import { assembleScopes, SCOPE_WIRING_TICK_MS } from './scope-assembly.ts'
 import { wireInvocationStats } from './stats-wiring.ts'
 import { runStartupTasks } from './startup.ts'
@@ -43,7 +42,7 @@ import { SkillHubStore } from './store.ts'
 import { setGithubToken } from './repo.ts'
 
 // 宿主契约：cordis Loader 直接从入口模块读这些导出名。
-export { Config, ENTRY_ID, SKILL_HUB_GUIDANCE } from './config.ts'
+export { Config, ENTRY_ID } from './config.ts'
 
 /** Stable cordis plugin name (matches cordis.patch.yml insert id). */
 export const name = 'skill-hub'
@@ -52,12 +51,13 @@ export const name = 'skill-hub'
  * Services required before the skill-hub surfaces can mount. `settings` 刻意
  * **不在这里**：0.1.7 的配置读数走插件自己的 volatile 引用，只有真要读写设置
  * 服务时才软取（`ctx.get('settings')`）——部署没有该服务时插件照常运行。
+ * `systemPrompt` 同样不在：本插件不向系统提示注入任何内容。
  */
-export const inject = ['webServer', 'skills', 'systemPrompt']
+export const inject = ['webServer', 'skills']
 
 /**
- * Mount the skill hub routes and announcement.
- * @param ctx - host plugin context carrying webServer/skills/systemPrompt.
+ * Mount the skill hub routes and its skill provider.
+ * @param ctx - host plugin context carrying webServer/skills.
  * @param config - the Loader entry's volatile config refs (dsh 0.1.7 settings model).
  */
 export function apply(ctx: Context, config?: Config): void {
@@ -88,7 +88,6 @@ export function apply(ctx: Context, config?: Config): void {
 
   const store = new SkillHubStore()
   let disposeRoutes: (() => void) | undefined
-  let disposeSection: (() => void) | undefined
   // The hub's own provider contributes user/project skills to the registry's
   // GLOBAL layer — the web app deliberately keeps that layer empty (presets
   // own per-scope discovery), and the GUI needs a session-independent view.
@@ -121,7 +120,7 @@ export function apply(ctx: Context, config?: Config): void {
   // 把一次配置补丁写进 settings 传输。补丁值为 undefined 表示清除该处的用户层
   // 覆盖 —— 表达成路径 `unset`，字段回落到继承值而不是写进一个字面 undefined
   // （旧 sidecar 的 reset 语义）。写入会把本 Loader 入口的值就地换掉，但**不会**
-  // 重跑 apply()，所以这里写完显式 sync()，让路由/公告/provider 立刻跟上；
+  // 重跑 apply()，所以这里写完显式 sync()，让路由/provider 立刻跟上；
   // sync() 幂等（先拆后注册），重复调用无害。
   const updateConfig = async (patch: Partial<HubConfig>): Promise<HubConfig> => {
     const ops: SettingsPathOp[] = []
@@ -145,10 +144,6 @@ export function apply(ctx: Context, config?: Config): void {
   // off so the settings card can always read and re-enable the hub; the
   // business routes answer 503 while disabled.
   const sync = (): void => {
-    if (disposeSection !== undefined) {
-      disposeSection()
-      disposeSection = undefined
-    }
     if (disposeProvider !== undefined) {
       disposeProvider()
       disposeProvider = undefined
@@ -158,13 +153,6 @@ export function apply(ctx: Context, config?: Config): void {
     // fallback (read at module load); an explicit settings value wins live and
     // applies without a restart via the settings watcher below.
     setGithubToken(value.githubToken)
-    if (value.announceToAgent) {
-      disposeSection = ctx.systemPrompt.section({
-        name: 'plugin:skill-hub',
-        order: SECTION_ORDER,
-        text: SKILL_HUB_GUIDANCE,
-      })
-    }
     if (value.enabled) {
       // registerProvider returns the exact cordis effect disposer: the fiber
       // unregisters the provider and invalidates catalog caches on teardown.

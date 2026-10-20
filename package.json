@@ -95,7 +95,6 @@
     "@deepseek-ai/dsh-session-query": ">=0.1.7-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-settings": ">=0.1.7-rc.1 <0.3.0-0",
     "@deepseek-ai/dsh-skill": ">=0.1.7-rc.1 <0.3.0-0",
-    "@deepseek-ai/dsh-system-prompt": ">=0.1.7-rc.1 <0.3.0-0",
     "@deepseek-ai/schemastery": "^3.18.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -123,7 +122,6 @@
     "@deepseek-ai/dsh-session-query": "0.1.7-rc.1",
     "@deepseek-ai/dsh-settings": "0.1.7-rc.1",
     "@deepseek-ai/dsh-skill": "0.1.7-rc.1",
-    "@deepseek-ai/dsh-system-prompt": "0.1.7-rc.1",
     "@deepseek-ai/schemastery": "^3.18.3",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.20.0",

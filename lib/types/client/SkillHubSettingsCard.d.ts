@@ -1,7 +1,7 @@
 /**
  * The skill-hub plugin settings card: bridges the hub's settings
  * namespace (bound through the official settings transport) onto the
- * family-style staged card form (enabled master switch + agent announcement).
+ * family-style staged card form (enabled master switch + display/token knobs).
  * Registered into `plugins.bundle.config` under the bundle's package name, so
  * the Plugins manager renders it on skill-hub's own page. That slot is
  * dispatched with `view: 'page'` only, so the card always renders its full
@@ -14,7 +14,6 @@ import { type CardShell, type FieldState, type FormScope } from './settings-form
 /** The card's projected state. */
 export interface SkillHubSettingsState extends CardShell {
     enabled: FieldState;
-    announceToAgent: FieldState;
     dotModelColor: FieldState;
     dotUserColor: FieldState;
     showUseCount: FieldState;
